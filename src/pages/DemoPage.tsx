@@ -42,20 +42,21 @@ const DemoPage = () => {
         .from("demo_pages")
         .update({ views: (data.views ?? 0) + 1 })
         .eq("id", data.id);
+
+      // Auto-start Vapi assistant
+      try {
+        const { default: Vapi } = await import("@vapi-ai/web");
+        const vapi = new Vapi(page.vapi_key || data.vapi_key);
+        vapi.start({ assistantId: data.assistant_id });
+        setVapiStarted(true);
+        console.log("Vapi started with assistantId:", data.assistant_id);
+      } catch (err) {
+        console.error("Vapi initialization failed:", err);
+      }
     };
 
     fetchPage();
   }, [slug]);
-
-  const handleStartVapi = async () => {
-    if (!page) return;
-    setVapiStarted(true);
-
-    // Dynamically load Vapi SDK
-    const { default: Vapi } = await import("@vapi-ai/web");
-    const vapi = new Vapi(page.vapi_key);
-    vapi.start(page.assistant_id);
-  };
 
   if (loading) {
     return (
