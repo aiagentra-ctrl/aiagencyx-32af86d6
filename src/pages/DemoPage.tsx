@@ -93,13 +93,11 @@ const DemoPage = () => {
             )}
           </div>
 
-          <button
-            onClick={handleStartVapi}
-            disabled={vapiStarted}
-            className="w-full rounded-xl bg-primary px-6 py-4 text-lg font-semibold text-primary-foreground shadow-md transition-all hover:bg-primary/90 hover:shadow-lg active:scale-[0.98] disabled:opacity-60"
+          <div
+            className="w-full rounded-xl bg-primary px-6 py-4 text-center text-lg font-semibold text-primary-foreground shadow-md transition-all disabled:opacity-60"
           >
-            {vapiStarted ? "Assistant is listening..." : "Tap to speak with our AI assistant"}
-          </button>
+            {vapiStarted ? "Assistant is listening..." : "Starting assistant..."}
+          </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
