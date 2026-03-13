@@ -25,8 +25,8 @@ interface DemoPage {
   created_at: string;
 }
 
-const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-const API_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/create-demo-page`;
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const API_URL = `${SUPABASE_URL}/functions/v1/create-demo-page`;
 
 const AdminDashboard = () => {
   const [pages, setPages] = useState<DemoPage[]>([]);
