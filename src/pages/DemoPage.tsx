@@ -46,7 +46,7 @@ const DemoPage = () => {
       // Auto-start Vapi assistant
       try {
         const { default: Vapi } = await import("@vapi-ai/web");
-        const vapi = new Vapi(page.vapi_key || data.vapi_key);
+        const vapi = new Vapi(data.vapi_key);
         vapi.start(data.assistant_id);
         setVapiStarted(true);
         console.log("Vapi started with assistantId:", data.assistant_id);
