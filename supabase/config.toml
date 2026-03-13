@@ -1,1 +1,7 @@
 project_id = "rkdzhpdfueqqjweysmvn"
+
+[functions.create-demo-page]
+verify_jwt = false
+
+[functions.deploy-to-netlify]
+verify_jwt = false
