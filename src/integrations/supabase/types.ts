@@ -14,7 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      demo_pages: {
+        Row: {
+          assistant_id: string
+          business_name: string
+          created_at: string
+          description: string | null
+          id: string
+          slug: string
+          vapi_key: string
+          views: number
+        }
+        Insert: {
+          assistant_id: string
+          business_name: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          slug: string
+          vapi_key: string
+          views?: number
+        }
+        Update: {
+          assistant_id?: string
+          business_name?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          slug?: string
+          vapi_key?: string
+          views?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
