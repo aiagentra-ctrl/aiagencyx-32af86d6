@@ -42,20 +42,21 @@ const DemoPage = () => {
         .from("demo_pages")
         .update({ views: (data.views ?? 0) + 1 })
         .eq("id", data.id);
+
+      // Auto-start Vapi assistant
+      try {
+        const { default: Vapi } = await import("@vapi-ai/web");
+        const vapi = new Vapi(page.vapi_key || data.vapi_key);
+        vapi.start(data.assistant_id);
+        setVapiStarted(true);
+        console.log("Vapi started with assistantId:", data.assistant_id);
+      } catch (err) {
+        console.error("Vapi initialization failed:", err);
+      }
     };
 
     fetchPage();
   }, [slug]);
-
-  const handleStartVapi = async () => {
-    if (!page) return;
-    setVapiStarted(true);
-
-    // Dynamically load Vapi SDK
-    const { default: Vapi } = await import("@vapi-ai/web");
-    const vapi = new Vapi(page.vapi_key);
-    vapi.start(page.assistant_id);
-  };
 
   if (loading) {
     return (
@@ -92,13 +93,11 @@ const DemoPage = () => {
             )}
           </div>
 
-          <button
-            onClick={handleStartVapi}
-            disabled={vapiStarted}
-            className="w-full rounded-xl bg-primary px-6 py-4 text-lg font-semibold text-primary-foreground shadow-md transition-all hover:bg-primary/90 hover:shadow-lg active:scale-[0.98] disabled:opacity-60"
+          <div
+            className="w-full rounded-xl bg-primary px-6 py-4 text-center text-lg font-semibold text-primary-foreground shadow-md transition-all disabled:opacity-60"
           >
-            {vapiStarted ? "Assistant is listening..." : "Tap to speak with our AI assistant"}
-          </button>
+            {vapiStarted ? "Assistant is listening..." : "Starting assistant..."}
+          </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
