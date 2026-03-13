@@ -54,7 +54,7 @@ const DemoPage = () => {
     // Dynamically load Vapi SDK
     const { default: Vapi } = await import("@vapi-ai/web");
     const vapi = new Vapi(page.vapi_key);
-    vapi.start({ assistantId: page.assistant_id });
+    vapi.start(page.assistant_id);
   };
 
   if (loading) {
