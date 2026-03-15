@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.deploy-to-netlify]
 verify_jwt = false
+
+[functions.scrape-and-analyze]
+verify_jwt = false
+
+[functions.chatbot-conversation]
+verify_jwt = false

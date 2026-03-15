@@ -14,6 +14,109 @@ export type Database = {
   }
   public: {
     Tables: {
+      chatbot_conversations: {
+        Row: {
+          chatbot_id: string
+          created_at: string
+          id: string
+          messages: Json
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          chatbot_id: string
+          created_at?: string
+          id?: string
+          messages?: Json
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          chatbot_id?: string
+          created_at?: string
+          id?: string
+          messages?: Json
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbot_conversations_chatbot_id_fkey"
+            columns: ["chatbot_id"]
+            isOneToOne: false
+            referencedRelation: "chatbots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chatbots: {
+        Row: {
+          ai_model: string
+          ai_provider: string
+          api_key_encrypted: string | null
+          brand_tone: string | null
+          business_name: string
+          created_at: string
+          demo_page_id: string | null
+          faq_topics: Json | null
+          id: string
+          industry: string | null
+          research_data: Json | null
+          services: Json | null
+          slug: string
+          status: string
+          system_prompt: string
+          website_url: string | null
+          widget_config: Json | null
+        }
+        Insert: {
+          ai_model?: string
+          ai_provider?: string
+          api_key_encrypted?: string | null
+          brand_tone?: string | null
+          business_name: string
+          created_at?: string
+          demo_page_id?: string | null
+          faq_topics?: Json | null
+          id?: string
+          industry?: string | null
+          research_data?: Json | null
+          services?: Json | null
+          slug: string
+          status?: string
+          system_prompt?: string
+          website_url?: string | null
+          widget_config?: Json | null
+        }
+        Update: {
+          ai_model?: string
+          ai_provider?: string
+          api_key_encrypted?: string | null
+          brand_tone?: string | null
+          business_name?: string
+          created_at?: string
+          demo_page_id?: string | null
+          faq_topics?: Json | null
+          id?: string
+          industry?: string | null
+          research_data?: Json | null
+          services?: Json | null
+          slug?: string
+          status?: string
+          system_prompt?: string
+          website_url?: string | null
+          widget_config?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbots_demo_page_id_fkey"
+            columns: ["demo_page_id"]
+            isOneToOne: false
+            referencedRelation: "demo_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demo_pages: {
         Row: {
           assistant_id: string

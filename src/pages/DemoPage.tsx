@@ -8,6 +8,7 @@ import VoiceAgentSection from "@/components/demo/VoiceAgentSection";
 import SocialProofSection from "@/components/demo/SocialProofSection";
 import CTASection from "@/components/demo/CTASection";
 import FooterSection from "@/components/demo/FooterSection";
+import ChatWidget from "@/components/chatbot/ChatWidget";
 
 interface DemoPageData {
   id: string;
@@ -30,9 +31,15 @@ interface DemoPageData {
   social_proof: Array<{ name: string; role: string; quote: string }> | null;
 }
 
+interface LinkedChatbot {
+  id: string;
+  widget_config: any;
+}
+
 const DemoPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const [page, setPage] = useState<DemoPageData | null>(null);
+  const [linkedChatbot, setLinkedChatbot] = useState<LinkedChatbot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vapiStarted, setVapiStarted] = useState(false);
@@ -83,6 +90,15 @@ const DemoPage = () => {
 
       setPage(data as unknown as DemoPageData);
       setLoading(false);
+
+      // Check for linked chatbot
+      const { data: chatbotData } = await supabase
+        .from("chatbots")
+        .select("id, widget_config")
+        .eq("demo_page_id", data.id)
+        .eq("status", "active")
+        .maybeSingle();
+      if (chatbotData) setLinkedChatbot(chatbotData as unknown as LinkedChatbot);
 
       // Increment views
       await supabase
@@ -167,6 +183,12 @@ const DemoPage = () => {
         contactEmail={page.contact_email || undefined}
         contactPhone={page.contact_phone || undefined}
       />
+      {linkedChatbot && (
+        <ChatWidget
+          chatbotId={linkedChatbot.id}
+          greeting={linkedChatbot.widget_config?.greeting}
+        />
+      )}
     </div>
   );
 };
