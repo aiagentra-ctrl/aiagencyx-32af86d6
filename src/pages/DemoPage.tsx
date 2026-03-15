@@ -66,7 +66,7 @@ const DemoPage = () => {
         return;
       }
 
-      // Try slug match, then custom_subdomain match
+      // Fetch page and global settings in parallel
       let { data, error: fetchError } = await supabase
         .from("demo_pages")
         .select("*")
@@ -91,6 +91,16 @@ const DemoPage = () => {
 
       setPage(data as unknown as DemoPageData);
       setLoading(false);
+
+      // Fetch global calendar URL
+      const { data: settingsData } = await supabase
+        .from("site_settings")
+        .select("*")
+        .eq("key", "calendar_url")
+        .maybeSingle();
+      if (settingsData && (settingsData as any).value) {
+        setGlobalCalendarUrl((settingsData as any).value);
+      }
 
       // Check for linked chatbot
       const { data: chatbotData } = await supabase
