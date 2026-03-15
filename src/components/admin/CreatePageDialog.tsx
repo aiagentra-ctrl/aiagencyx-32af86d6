@@ -57,6 +57,7 @@ const CreatePageDialog = ({ onCreated }: CreatePageDialogProps) => {
           contactEmail: form.contactEmail,
           contactPhone: form.contactPhone,
           customSubdomain: form.customSubdomain,
+          origin: window.location.origin,
         }),
       });
       const result = await res.json();
