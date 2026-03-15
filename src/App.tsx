@@ -20,7 +20,9 @@ const App = () => (
           <Route path="/" element={<Navigate to="/admin" replace />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/demo/:slug" element={<DemoPage />} />
-          <Route path="/:slug/chatbot" element={<ChatbotPage />} />
+          <Route path="/chatbot/:slug" element={<ChatbotPage />} />
+          {/* Legacy route redirect */}
+          <Route path="/:slug/chatbot" element={<ChatbotLegacyRedirect />} />
           <Route path="/:slug" element={<DemoPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -28,5 +30,11 @@ const App = () => (
     </TooltipProvider>
   </QueryClientProvider>
 );
+
+// Redirect old /:slug/chatbot to /chatbot/:slug
+function ChatbotLegacyRedirect() {
+  const { slug } = require("react-router-dom").useParams();
+  return <Navigate to={`/chatbot/${slug}`} replace />;
+}
 
 export default App;
