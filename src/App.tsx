@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AdminDashboard from "./pages/AdminDashboard";
 import DemoPage from "./pages/DemoPage";
+import ChatbotPage from "./pages/ChatbotPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -19,6 +20,7 @@ const App = () => (
           <Route path="/" element={<Navigate to="/admin" replace />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/demo/:slug" element={<DemoPage />} />
+          <Route path="/:slug/chatbot" element={<ChatbotPage />} />
           <Route path="/:slug" element={<DemoPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
