@@ -24,7 +24,6 @@ async function log(supabase: any, eventType: string, status: string, message: st
   } catch { /* non-blocking */ }
 }
 
-// Fetch with timeout
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 30000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -35,9 +34,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 3
   }
 }
 
-// Try scraping with Firecrawl — supports rotation through multiple keys
-async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ content: string; source: string }> {
-  // Get all firecrawl keys from api_providers table (category='firecrawl')
+async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ content: string; source: string; logoUrl?: string }> {
   const { data: firecrawlProviders } = await supabase
     .from("api_providers")
     .select("*")
@@ -45,7 +42,6 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ conte
     .eq("is_enabled", true)
     .order("priority", { ascending: true });
 
-  // Build list of keys: env key first, then DB keys
   const keys: { key: string; source: string }[] = [];
   const envKey = Deno.env.get("FIRECRAWL_API_KEY");
   if (envKey) keys.push({ key: envKey, source: "default" });
@@ -66,11 +62,11 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ conte
       const res = await fetchWithTimeout("https://api.firecrawl.dev/v1/scrape", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ url: websiteUrl, formats: ["markdown"], onlyMainContent: true }),
+        body: JSON.stringify({ url: websiteUrl, formats: ["markdown", "branding"], onlyMainContent: true }),
       }, 25000);
 
       if (res.status === 402) {
-        await log(supabase, "firecrawl", "warn", `Firecrawl key "${source}" credits exhausted, trying next`, { source });
+        await log(supabase, "firecrawl", "warn", `Firecrawl key "${source}" credits exhausted`, { source });
         lastError = `Firecrawl key "${source}" credits exhausted`;
         continue;
       }
@@ -84,26 +80,20 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ conte
 
       const data = await res.json();
       const content = data.data?.markdown || data.markdown || "";
-      await log(supabase, "firecrawl", "success", `Scraped with key "${source}" — ${content.length} chars`, { source });
-      return { content, source };
+      const logoUrl = data.data?.branding?.logo || data.branding?.logo || data.data?.branding?.images?.logo || undefined;
+      await log(supabase, "firecrawl", "success", `Scraped with key "${source}" — ${content.length} chars`, { source, hasLogo: !!logoUrl });
+      return { content, source, logoUrl };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("abort")) {
-        await log(supabase, "firecrawl", "warn", `Firecrawl key "${source}" timed out`, { source });
-        lastError = `Firecrawl ${source}: timeout`;
-      } else {
-        await log(supabase, "firecrawl", "warn", `Firecrawl key "${source}" error: ${msg}`, { source });
-        lastError = msg;
-      }
+      await log(supabase, "firecrawl", "warn", `Firecrawl key "${source}" error: ${msg}`, { source });
+      lastError = msg.includes("abort") ? `Firecrawl ${source}: timeout` : msg;
     }
   }
 
   throw new Error(`All Firecrawl keys failed. Last error: ${lastError}`);
 }
 
-// Try AI analysis with failover across multiple providers
 async function analyzeWithAI(supabase: any, businessName: string, websiteUrl: string, websiteContent: string): Promise<any> {
-  // Build provider list: Lovable AI first, then DB-configured LLM providers by priority
   const { data: llmProviders } = await supabase
     .from("api_providers")
     .select("*")
@@ -111,16 +101,9 @@ async function analyzeWithAI(supabase: any, businessName: string, websiteUrl: st
     .eq("is_enabled", true)
     .order("priority", { ascending: true });
 
-  interface AIProvider {
-    name: string;
-    url: string;
-    key: string;
-    model: string;
-  }
-
+  interface AIProvider { name: string; url: string; key: string; model: string; }
   const providers: AIProvider[] = [];
 
-  // Lovable AI as default/first
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   if (lovableKey) {
     providers.push({
@@ -131,7 +114,6 @@ async function analyzeWithAI(supabase: any, businessName: string, websiteUrl: st
     });
   }
 
-  // DB-configured providers
   if (llmProviders) {
     for (const p of llmProviders) {
       let url = p.endpoint_url;
@@ -146,11 +128,9 @@ async function analyzeWithAI(supabase: any, businessName: string, websiteUrl: st
     }
   }
 
-  if (providers.length === 0) {
-    throw new Error("No AI providers configured");
-  }
+  if (providers.length === 0) throw new Error("No AI providers configured");
 
-  const analysisPrompt = `Analyze this business website content and extract structured information.
+  const analysisPrompt = `Analyze this business website and extract structured information.
 
 Business Name: ${businessName}
 Website URL: ${websiteUrl}
@@ -176,7 +156,7 @@ ${websiteContent.substring(0, 8000)}`;
             brand_tone: { type: "string" },
             services: { type: "array", items: { type: "string" } },
             faq_topics: { type: "array", items: { type: "string" } },
-            system_prompt: { type: "string", description: "A complete chatbot system prompt for this business." },
+            system_prompt: { type: "string", description: "A complete chatbot system prompt for this business that includes specific product/service details." },
           },
           required: ["industry", "brand_tone", "services", "faq_topics", "system_prompt"],
           additionalProperties: false,
@@ -190,7 +170,7 @@ ${websiteContent.substring(0, 8000)}`;
   for (const provider of providers) {
     try {
       console.log(`Trying AI: ${provider.name} (${provider.model})`);
-      await log(supabase, "ai_analysis", "info", `Trying AI provider: ${provider.name}`, { provider: provider.name, model: provider.model });
+      await log(supabase, "ai_analysis", "info", `Trying AI provider: ${provider.name}`, { provider: provider.name });
 
       const res = await fetchWithTimeout(provider.url, {
         method: "POST",
@@ -198,14 +178,10 @@ ${websiteContent.substring(0, 8000)}`;
         body: JSON.stringify(requestBody(provider.model)),
       }, 45000);
 
-      if (res.status === 429) {
-        await log(supabase, "ai_analysis", "warn", `${provider.name} rate limited, trying next`, { provider: provider.name });
-        lastError = `${provider.name}: rate limited`;
-        continue;
-      }
-      if (res.status === 402) {
-        await log(supabase, "ai_analysis", "warn", `${provider.name} credits exhausted, trying next`, { provider: provider.name });
-        lastError = `${provider.name}: credits exhausted`;
+      if (res.status === 429 || res.status === 402) {
+        const reason = res.status === 402 ? "credits exhausted" : "rate limited";
+        await log(supabase, "ai_analysis", "warn", `${provider.name} ${reason}`, { provider: provider.name });
+        lastError = `${provider.name}: ${reason}`;
         continue;
       }
       if (!res.ok) {
@@ -222,12 +198,6 @@ ${websiteContent.substring(0, 8000)}`;
         await log(supabase, "ai_analysis", "success", `Analysis completed with ${provider.name}`, { provider: provider.name });
         return { ...analysis, _provider: provider.name };
       }
-
-      // Fallback: try parsing content directly
-      const content = data.choices?.[0]?.message?.content;
-      if (content) {
-        await log(supabase, "ai_analysis", "warn", `${provider.name} returned content instead of tool call, using fallback`, { provider: provider.name });
-      }
       lastError = `${provider.name}: no tool call in response`;
       continue;
     } catch (err) {
@@ -237,9 +207,8 @@ ${websiteContent.substring(0, 8000)}`;
     }
   }
 
-  // Final fallback: generate a basic prompt without AI
   console.log("All AI providers failed, using fallback prompt");
-  await log(supabase, "ai_analysis", "warn", `All AI providers failed, using generated fallback. Last: ${lastError}`, {});
+  await log(supabase, "ai_analysis", "warn", `All AI providers failed. Last: ${lastError}`, {});
   return {
     industry: "General",
     brand_tone: "Professional and friendly",
@@ -275,13 +244,15 @@ Deno.serve(async (req) => {
 
     await log(supabase, "chatbot_creation", "info", `Starting chatbot creation for "${businessName}"`, { businessName, websiteUrl: formattedUrl });
 
-    // Step 1: Scrape
+    // Step 1: Scrape with branding/logo extraction
     let websiteContent: string;
     let scrapeSource: string;
+    let logoUrl: string | undefined;
     try {
       const result = await scrapeWebsite(supabase, formattedUrl);
       websiteContent = result.content;
       scrapeSource = result.source;
+      logoUrl = result.logoUrl;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Scraping failed";
       await log(supabase, "chatbot_creation", "error", `Scraping failed: ${msg}`, { businessName });
@@ -291,7 +262,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Step 2: AI Analysis (with failover)
+    // Step 2: AI Analysis
     const analysis = await analyzeWithAI(supabase, businessName, formattedUrl, websiteContent);
 
     // Step 3: Save chatbot
@@ -309,6 +280,12 @@ Deno.serve(async (req) => {
       brand_tone: analysis.brand_tone,
       services: analysis.services,
       faq_topics: analysis.faq_topics,
+      logo_url: logoUrl || null,
+      widget_config: {
+        greeting: `Hi! Welcome to ${businessName}. How can I help you today?`,
+        position: "bottom-right",
+        logo: logoUrl || null,
+      },
       research_data: {
         website_content_preview: websiteContent.substring(0, 2000),
         analyzed_at: new Date().toISOString(),
@@ -341,9 +318,7 @@ Deno.serve(async (req) => {
     }
 
     await log(supabase, "chatbot_creation", "success", `Chatbot "${businessName}" created at ${chatbotUrl}`, {
-      slug,
-      aiProvider: analysis._provider,
-      wasFallback: !!analysis._fallback,
+      slug, aiProvider: analysis._provider, wasFallback: !!analysis._fallback, hasLogo: !!logoUrl,
     });
 
     return new Response(
@@ -362,6 +337,7 @@ Deno.serve(async (req) => {
           scrape_source: scrapeSource,
           ai_provider: analysis._provider,
           was_fallback: !!analysis._fallback,
+          logo_url: logoUrl || null,
         },
         chatbot,
       }),
