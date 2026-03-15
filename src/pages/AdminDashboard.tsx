@@ -54,7 +54,7 @@ const AdminDashboard = () => {
 
   useEffect(() => { fetchPages(); }, []);
 
-  const getDemoUrl = (slug: string) => `${window.location.origin}/demo/${slug}`;
+  const getDemoUrl = (slug: string) => `${window.location.origin}/${slug}`;
 
   const copyLink = (slug: string, id: string) => {
     navigator.clipboard.writeText(getDemoUrl(slug));
