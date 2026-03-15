@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import ChatWindow from "@/components/chatbot/ChatWindow";
-import { MessageCircle, Menu, X, Building2, Phone, Mail, Globe, HelpCircle, Briefcase } from "lucide-react";
+import ChatWidget from "@/components/chatbot/ChatWidget";
+import { MessageCircle, Globe, Briefcase, Calendar, ArrowRight, Bot, Sparkles, Clock, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ChatbotData {
   id: string;
@@ -24,99 +21,33 @@ interface ChatbotData {
   logo_url: string | null;
 }
 
-const SidePanel = ({ chatbot, onSuggestion }: { chatbot: ChatbotData; onSuggestion?: (q: string) => void }) => {
-  const services: string[] = Array.isArray(chatbot.services) ? chatbot.services : [];
-  const faqTopics: string[] = Array.isArray(chatbot.faq_topics) ? chatbot.faq_topics : [];
-
-  return (
-    <ScrollArea className="h-full">
-      <div className="space-y-6 p-5">
-        {/* Business Info */}
-        <div className="space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Building2 className="h-4 w-4 text-primary" />
-            About
-          </h3>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            {chatbot.industry && (
-              <p className="flex items-center gap-2">
-                <Briefcase className="h-3.5 w-3.5" />
-                {chatbot.industry}
-              </p>
-            )}
-            {chatbot.website_url && (
-              <a href={chatbot.website_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary hover:underline">
-                <Globe className="h-3.5 w-3.5" />
-                Visit Website
-              </a>
-            )}
-          </div>
-        </div>
-
-        {/* Services */}
-        {services.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Briefcase className="h-4 w-4 text-primary" />
-              Services
-            </h3>
-            <div className="flex flex-wrap gap-1.5">
-              {services.map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => onSuggestion?.(`Tell me about ${s}`)}
-                  className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary hover:bg-primary/20 transition-colors cursor-pointer"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* FAQ */}
-        {faqTopics.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <HelpCircle className="h-4 w-4 text-primary" />
-              Common Questions
-            </h3>
-            <div className="space-y-1.5">
-              {faqTopics.map((q, i) => (
-                <button
-                  key={i}
-                  onClick={() => onSuggestion?.(q)}
-                  className="block w-full text-left rounded-lg bg-muted px-3 py-2 text-xs text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </ScrollArea>
-  );
-};
-
 const ChatbotPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const [chatbot, setChatbot] = useState<ChatbotData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
-  const isMobile = useIsMobile();
+  const [calendarUrl, setCalendarUrl] = useState("");
+  const [ctaText, setCtaText] = useState("Book a Call");
 
   useEffect(() => {
     const load = async () => {
       if (!slug) { setLoading(false); return; }
-      const { data } = await supabase
-        .from("chatbots")
-        .select("*")
-        .eq("slug", slug)
-        .eq("status", "active")
-        .single();
-      if (data) setChatbot(data as unknown as ChatbotData);
+
+      // Fetch chatbot and settings in parallel
+      const [chatbotRes, settingsRes] = await Promise.all([
+        supabase.from("chatbots").select("*").eq("slug", slug).eq("status", "active").single(),
+        supabase.from("site_settings").select("*"),
+      ]);
+
+      if (chatbotRes.data) setChatbot(chatbotRes.data as unknown as ChatbotData);
+
+      if (settingsRes.data) {
+        for (const row of settingsRes.data) {
+          const r = row as any;
+          if (r.key === "calendar_url" && r.value) setCalendarUrl(r.value);
+          if (r.key === "default_cta_text" && r.value) setCtaText(r.value);
+        }
+      }
+
       setLoading(false);
     };
     load();
@@ -143,90 +74,194 @@ const ChatbotPage = () => {
 
   const greeting = chatbot.widget_config?.greeting || `Hi! Welcome to ${chatbot.business_name}. How can I help you today?`;
   const logoUrl = chatbot.logo_url || chatbot.widget_config?.logo;
-  const hasSideContent = (Array.isArray(chatbot.services) && chatbot.services.length > 0) ||
-    (Array.isArray(chatbot.faq_topics) && chatbot.faq_topics.length > 0);
+  const services: string[] = Array.isArray(chatbot.services) ? chatbot.services : [];
+  const faqTopics: string[] = Array.isArray(chatbot.faq_topics) ? chatbot.faq_topics : [];
+  const suggestions = faqTopics.length > 0
+    ? faqTopics.slice(0, 3)
+    : services.length > 0
+      ? services.slice(0, 3).map(s => `Tell me about ${s}`)
+      : undefined;
 
-  const handleSuggestion = (q: string) => {
-    setPendingMessage(q);
-    setSidebarOpen(false);
+  const handleBookCall = () => {
+    if (calendarUrl) window.open(calendarUrl, "_blank");
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      {/* Header */}
-      <header className="border-b bg-primary text-primary-foreground">
-        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
-          {logoUrl ? (
-            <img src={logoUrl} alt={chatbot.business_name} className="h-10 w-10 rounded-full object-cover bg-primary-foreground/20" />
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-foreground/20">
-              <MessageCircle className="h-5 w-5" />
+    <div className="min-h-screen bg-background">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-background to-accent/5">
+        <div className="mx-auto max-w-6xl px-6 py-16 md:py-24">
+          <div className="flex flex-col items-center text-center">
+            {/* Logo */}
+            {logoUrl ? (
+              <img src={logoUrl} alt={chatbot.business_name} className="mb-6 h-20 w-20 rounded-2xl object-cover shadow-lg" />
+            ) : (
+              <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 shadow-lg">
+                <Bot className="h-10 w-10 text-primary" />
+              </div>
+            )}
+
+            <h1 className="mb-4 text-3xl font-extrabold tracking-tight text-foreground md:text-5xl">
+              Hey {chatbot.business_name},
+            </h1>
+            <p className="mb-2 max-w-2xl text-lg text-muted-foreground md:text-xl">
+              We built an AI assistant that can automatically answer customer questions about your products and services.
+            </p>
+            {chatbot.industry && (
+              <span className="mb-6 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
+                <Briefcase className="h-3.5 w-3.5" />
+                {chatbot.industry}
+              </span>
+            )}
+
+            <div className="flex flex-wrap justify-center gap-3">
+              <Button size="lg" className="gap-2 text-base" onClick={() => {
+                document.getElementById("chatbot-demo")?.scrollIntoView({ behavior: "smooth" });
+              }}>
+                <MessageCircle className="h-5 w-5" />
+                Try the AI Assistant
+              </Button>
+              {calendarUrl && (
+                <Button size="lg" variant="outline" className="gap-2 text-base" onClick={handleBookCall}>
+                  <Calendar className="h-5 w-5" />
+                  {ctaText}
+                </Button>
+              )}
             </div>
-          )}
-          <div className="flex-1">
-            <h1 className="text-lg font-bold">{chatbot.business_name}</h1>
-            <p className="text-xs opacity-80">
-              {chatbot.industry ? `${chatbot.industry} • ` : ""}AI Assistant
+          </div>
+        </div>
+      </section>
+
+      {/* Features Grid */}
+      <section className="border-t bg-card/50">
+        <div className="mx-auto max-w-6xl px-6 py-16">
+          <h2 className="mb-10 text-center text-2xl font-bold text-foreground md:text-3xl">
+            What Your AI Assistant Can Do
+          </h2>
+          <div className="grid gap-6 md:grid-cols-3">
+            <FeatureCard
+              icon={<Bot className="h-8 w-8 text-primary" />}
+              title="Answer Customer Questions"
+              description={`Trained on ${chatbot.business_name}'s actual website content, services, and FAQs.`}
+            />
+            <FeatureCard
+              icon={<Clock className="h-8 w-8 text-primary" />}
+              title="24/7 Availability"
+              description="Your AI assistant never sleeps — it handles customer inquiries around the clock."
+            />
+            <FeatureCard
+              icon={<Shield className="h-8 w-8 text-primary" />}
+              title="Brand-Aligned Responses"
+              description={`Responds in a ${chatbot.brand_tone || "professional and friendly"} tone that matches your brand.`}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Services Section */}
+      {services.length > 0 && (
+        <section className="border-t">
+          <div className="mx-auto max-w-6xl px-6 py-16">
+            <h2 className="mb-8 text-center text-2xl font-bold text-foreground">
+              Services We Cover
+            </h2>
+            <div className="flex flex-wrap justify-center gap-3">
+              {services.map((service, i) => (
+                <span key={i} className="rounded-full border border-primary/20 bg-primary/5 px-5 py-2.5 text-sm font-medium text-primary">
+                  {service}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Chatbot Demo Section */}
+      <section id="chatbot-demo" className="border-t bg-muted/30">
+        <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="mb-8 text-center">
+            <h2 className="mb-3 text-2xl font-bold text-foreground md:text-3xl">
+              <Sparkles className="mb-1 mr-2 inline h-6 w-6 text-primary" />
+              Try the AI Assistant Now
+            </h2>
+            <p className="text-muted-foreground">
+              Ask anything about {chatbot.business_name} — products, services, pricing, or FAQs.
             </p>
           </div>
-          {hasSideContent && (
-            isMobile ? (
-              <Drawer open={sidebarOpen} onOpenChange={setSidebarOpen}>
-                <DrawerTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary-foreground/20">
-                    <Menu className="h-5 w-5" />
-                  </Button>
-                </DrawerTrigger>
-                <DrawerContent className="max-h-[70vh]">
-                  <DrawerHeader>
-                    <DrawerTitle>{chatbot.business_name}</DrawerTitle>
-                  </DrawerHeader>
-                  <SidePanel chatbot={chatbot} onSuggestion={handleSuggestion} />
-                </DrawerContent>
-              </Drawer>
-            ) : (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-primary-foreground hover:bg-primary-foreground/20"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-              >
-                {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </Button>
-            )
+
+          {/* Quick Questions */}
+          {faqTopics.length > 0 && (
+            <div className="mb-6 flex flex-wrap justify-center gap-2">
+              {faqTopics.slice(0, 5).map((q, i) => (
+                <span key={i} className="rounded-full bg-muted px-4 py-2 text-sm text-muted-foreground">
+                  {q}
+                </span>
+              ))}
+            </div>
           )}
-        </div>
-      </header>
 
-      {/* Main */}
-      <div className="mx-auto flex w-full max-w-5xl flex-1">
-        {/* Chat */}
-        <div className="flex flex-1 flex-col">
-          <ChatWindow
-            chatbotId={chatbot.id}
-            greeting={greeting}
-            className="flex-1"
-            suggestions={
-              Array.isArray(chatbot.faq_topics) && chatbot.faq_topics.length > 0
-                ? chatbot.faq_topics.slice(0, 3)
-                : Array.isArray(chatbot.services) && chatbot.services.length > 0
-                  ? chatbot.services.slice(0, 3).map((s: string) => `Tell me about ${s}`)
-                  : undefined
-            }
-            pendingMessage={pendingMessage}
-            onPendingConsumed={() => setPendingMessage(null)}
-          />
+          <p className="text-center text-sm text-muted-foreground">
+            👇 Click the chat button in the bottom-right corner to start a conversation
+          </p>
         </div>
+      </section>
 
-        {/* Desktop Side Panel */}
-        {!isMobile && sidebarOpen && hasSideContent && (
-          <div className="w-72 border-l bg-card animate-in slide-in-from-right-4 duration-200">
-            <SidePanel chatbot={chatbot} onSuggestion={handleSuggestion} />
+      {/* CTA / Booking Section */}
+      {calendarUrl && (
+        <section className="border-t bg-primary/5">
+          <div className="mx-auto max-w-3xl px-6 py-16 text-center">
+            <Calendar className="mx-auto mb-4 h-10 w-10 text-primary" />
+            <h2 className="mb-3 text-2xl font-bold text-foreground">Book a Demo</h2>
+            <p className="mb-6 text-muted-foreground">
+              Schedule a quick call to see how the AI assistant can help {chatbot.business_name} automate customer support.
+            </p>
+            <Button size="lg" className="gap-2 text-base" onClick={handleBookCall}>
+              <Calendar className="h-5 w-5" />
+              {ctaText}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </div>
-        )}
-      </div>
+        </section>
+      )}
+
+      {/* Footer */}
+      <footer className="border-t bg-card py-8">
+        <div className="mx-auto max-w-6xl px-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Powered by AI • Built for {chatbot.business_name}
+            {chatbot.website_url && (
+              <>
+                {" • "}
+                <a href={chatbot.website_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                  <Globe className="h-3 w-3" />
+                  Visit Website
+                </a>
+              </>
+            )}
+          </p>
+        </div>
+      </footer>
+
+      {/* Floating Chat Widget */}
+      <ChatWidget
+        chatbotId={chatbot.id}
+        greeting={greeting}
+        logoUrl={logoUrl}
+        businessName={chatbot.business_name}
+        suggestions={suggestions}
+      />
     </div>
   );
 };
+
+const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
+  <div className="rounded-xl border bg-card p-6 text-center shadow-sm transition-shadow hover:shadow-md">
+    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10">
+      {icon}
+    </div>
+    <h3 className="mb-2 text-lg font-semibold text-card-foreground">{title}</h3>
+    <p className="text-sm text-muted-foreground">{description}</p>
+  </div>
+);
 
 export default ChatbotPage;
