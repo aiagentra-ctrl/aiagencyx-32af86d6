@@ -31,6 +31,11 @@ interface DemoPageData {
   social_proof: Array<{ name: string; role: string; quote: string }> | null;
 }
 
+interface LinkedChatbot {
+  id: string;
+  widget_config: any;
+}
+
 const DemoPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const [page, setPage] = useState<DemoPageData | null>(null);
