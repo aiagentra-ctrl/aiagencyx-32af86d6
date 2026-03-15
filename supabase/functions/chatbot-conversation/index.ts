@@ -30,7 +30,6 @@ interface AIProvider {
 async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> {
   const providers: AIProvider[] = [];
 
-  // If chatbot has a custom provider set, try that first
   if (chatbot.ai_provider !== "lovable" && chatbot.api_key_encrypted) {
     let url: string;
     switch (chatbot.ai_provider) {
@@ -46,7 +45,6 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
     });
   }
 
-  // Lovable AI
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   if (lovableKey) {
     providers.push({
@@ -57,7 +55,6 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
     });
   }
 
-  // DB-configured fallback providers
   const { data: dbProviders } = await supabase
     .from("api_providers")
     .select("*")
@@ -75,7 +72,6 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
           default: continue;
         }
       }
-      // Skip if already added
       if (!providers.find((x) => x.key === p.api_key)) {
         providers.push({ name: p.name, url, key: p.api_key, model: p.model || "gpt-4" });
       }
@@ -102,7 +98,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Load chatbot
     const { data: chatbot, error: chatbotError } = await supabase
       .from("chatbots")
       .select("*")
@@ -116,7 +111,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Load conversation
     let { data: conversation } = await supabase
       .from("chatbot_conversations")
       .select("*")
@@ -130,23 +124,22 @@ Deno.serve(async (req) => {
       { role: "user", content: message, timestamp: new Date().toISOString() },
     ];
 
-    // Build AI messages
     const aiMessages = [
       { role: "system", content: chatbot.system_prompt },
       ...updatedMessages.map((m: any) => ({ role: m.role, content: m.content })),
     ];
 
-    // Get provider chain
     const providers = await getProviders(supabase, chatbot);
     if (providers.length === 0) {
       return new Response(
-        JSON.stringify({ error: "No AI providers configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "No AI providers configured. Add an API provider in the admin panel or check your AI credits." }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     let aiRes: Response | null = null;
     let usedProvider = "";
+    const failureReasons: string[] = [];
 
     for (const provider of providers) {
       try {
@@ -160,13 +153,20 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ model: provider.model, messages: aiMessages, stream: true }),
         }, 30000);
 
-        if (res.status === 429 || res.status === 402) {
-          console.log(`${provider.name}: ${res.status}, trying next`);
+        if (res.status === 429) {
+          failureReasons.push(`${provider.name}: rate limited`);
+          console.log(`${provider.name}: 429 rate limited, trying next`);
+          continue;
+        }
+        if (res.status === 402) {
+          failureReasons.push(`${provider.name}: credits exhausted`);
+          console.log(`${provider.name}: 402 credits exhausted, trying next`);
           continue;
         }
 
         if (!res.ok) {
           const errText = await res.text();
+          failureReasons.push(`${provider.name}: HTTP ${res.status}`);
           console.log(`${provider.name}: ${res.status} - ${errText.substring(0, 200)}`);
           continue;
         }
@@ -175,13 +175,20 @@ Deno.serve(async (req) => {
         usedProvider = provider.name;
         break;
       } catch (err) {
-        console.log(`${provider.name}: ${err instanceof Error ? err.message : "error"}`);
+        const msg = err instanceof Error ? err.message : "error";
+        failureReasons.push(`${provider.name}: ${msg.includes("abort") ? "timeout" : msg}`);
+        console.log(`${provider.name}: ${msg}`);
       }
     }
 
     if (!aiRes) {
+      const allCreditsExhausted = failureReasons.every(r => r.includes("credits exhausted"));
+      const errorMsg = allCreditsExhausted
+        ? "AI credits exhausted across all providers. Please add a backup API provider (OpenAI/OpenRouter) in the admin panel's API Providers tab."
+        : `All AI providers failed: ${failureReasons.join("; ")}. Check the Debug Logs in the admin panel.`;
+
       return new Response(
-        JSON.stringify({ error: "All AI providers failed. Please try again later." }),
+        JSON.stringify({ error: errorMsg, details: failureReasons }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -197,7 +204,7 @@ Deno.serve(async (req) => {
               const parsed = JSON.parse(line.slice(6));
               const content = parsed.choices?.[0]?.delta?.content;
               if (content) fullResponse += content;
-            } catch { /* ignore */ }
+            } catch { /* ignore partial JSON */ }
           }
         }
         controller.enqueue(chunk);

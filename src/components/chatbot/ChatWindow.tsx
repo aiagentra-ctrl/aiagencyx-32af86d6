@@ -12,14 +12,18 @@ interface ChatWindowProps {
   chatbotId: string;
   greeting?: string;
   className?: string;
+  suggestions?: string[];
+  pendingMessage?: string | null;
+  onPendingConsumed?: () => void;
 }
 
-const ChatWindow = ({ chatbotId, greeting, className }: ChatWindowProps) => {
+const ChatWindow = ({ chatbotId, greeting, className, suggestions, pendingMessage, onPendingConsumed }: ChatWindowProps) => {
   const [messages, setMessages] = useState<Msg[]>(
     greeting ? [{ role: "assistant", content: greeting }] : []
   );
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sessionId = useRef(crypto.randomUUID());
 
@@ -27,10 +31,19 @@ const ChatWindow = ({ chatbotId, greeting, className }: ChatWindowProps) => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  const send = async () => {
-    const text = input.trim();
+  // Handle pending message from side panel
+  useEffect(() => {
+    if (pendingMessage) {
+      sendMessage(pendingMessage);
+      onPendingConsumed?.();
+    }
+  }, [pendingMessage]);
+
+  const sendMessage = async (text: string) => {
+    text = text.trim();
     if (!text || isLoading) return;
 
+    setShowSuggestions(false);
     const userMsg: Msg = { role: "user", content: text };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
@@ -101,7 +114,7 @@ const ChatWindow = ({ chatbotId, greeting, className }: ChatWindowProps) => {
         }
       }
 
-      // Flush remaining buffer
+      // Flush remaining
       if (textBuffer.trim()) {
         for (let raw of textBuffer.split("\n")) {
           if (!raw) continue;
@@ -127,11 +140,11 @@ const ChatWindow = ({ chatbotId, greeting, className }: ChatWindowProps) => {
           } catch { /* ignore */ }
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Chat error:", e);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Sorry, something went wrong. Please try again." },
+        { role: "assistant", content: e.message || "Sorry, something went wrong. Please try again." },
       ]);
     } finally {
       setIsLoading(false);
@@ -144,19 +157,41 @@ const ChatWindow = ({ chatbotId, greeting, className }: ChatWindowProps) => {
         {messages.map((msg, i) => (
           <ChatMessage key={i} role={msg.role} content={msg.content} />
         ))}
+
+        {/* Typing indicator */}
         {isLoading && messages[messages.length - 1]?.role === "user" && (
           <div className="flex justify-start">
-            <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-2.5">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
+              <div className="flex items-center gap-1">
+                <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
+                <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
+                <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
+              </div>
             </div>
           </div>
         )}
+
+        {/* Suggestions */}
+        {showSuggestions && suggestions && suggestions.length > 0 && messages.length <= 1 && (
+          <div className="flex flex-wrap gap-2 pt-2">
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                onClick={() => sendMessage(s)}
+                className="rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
       <div className="border-t p-3">
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            send();
+            sendMessage(input);
           }}
           className="flex gap-2"
         >
