@@ -14,6 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          message: string
+          metadata: Json | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          status?: string
+        }
+        Relationships: []
+      }
+      api_providers: {
+        Row: {
+          api_key: string
+          category: string
+          created_at: string
+          endpoint_url: string | null
+          id: string
+          is_enabled: boolean
+          model: string | null
+          name: string
+          priority: number
+          provider_type: string
+        }
+        Insert: {
+          api_key: string
+          category?: string
+          created_at?: string
+          endpoint_url?: string | null
+          id?: string
+          is_enabled?: boolean
+          model?: string | null
+          name: string
+          priority?: number
+          provider_type?: string
+        }
+        Update: {
+          api_key?: string
+          category?: string
+          created_at?: string
+          endpoint_url?: string | null
+          id?: string
+          is_enabled?: boolean
+          model?: string | null
+          name?: string
+          priority?: number
+          provider_type?: string
+        }
+        Relationships: []
+      }
       chatbot_conversations: {
         Row: {
           chatbot_id: string
