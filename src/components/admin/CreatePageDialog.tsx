@@ -61,7 +61,7 @@ const CreatePageDialog = ({ onCreated }: CreatePageDialogProps) => {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to create demo page");
-      toast({ title: "Demo page created!", description: result.url });
+      toast({ title: "Demo page created!", description: result.demo_url || result.url });
       setOpen(false);
       setForm({ businessName: "", description: "", assistantId: "", vapiKey: "", clientName: "", companyName: "", industry: "", calendlyUrl: "", contactEmail: "", contactPhone: "", customSubdomain: "" });
       onCreated();
