@@ -91,6 +91,15 @@ const DemoPage = () => {
       setPage(data as unknown as DemoPageData);
       setLoading(false);
 
+      // Check for linked chatbot
+      const { data: chatbotData } = await supabase
+        .from("chatbots")
+        .select("id, widget_config")
+        .eq("demo_page_id", data.id)
+        .eq("status", "active")
+        .maybeSingle();
+      if (chatbotData) setLinkedChatbot(chatbotData as unknown as LinkedChatbot);
+
       // Increment views
       await supabase
         .from("demo_pages")
