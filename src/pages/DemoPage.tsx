@@ -135,10 +135,11 @@ const DemoPage = () => {
   }, [page, vapiStarted]);
 
   const handleBookCall = useCallback(() => {
-    if (page?.calendly_url) {
-      window.open(page.calendly_url, "_blank");
+    const url = page?.calendly_url || globalCalendarUrl;
+    if (url) {
+      window.open(url, "_blank");
     }
-  }, [page]);
+  }, [page, globalCalendarUrl]);
 
   if (loading) {
     return (
