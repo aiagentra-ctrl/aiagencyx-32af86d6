@@ -328,7 +328,13 @@ Deno.serve(async (req) => {
     }
 
     const siteDomain = Deno.env.get("SITE_DOMAIN");
-    const chatbotUrl = siteDomain ? `https://${siteDomain}/${slug}/chatbot` : `/${slug}/chatbot`;
+    let chatbotUrl: string;
+    if (siteDomain) {
+      const cleanDomain = siteDomain.replace(/^https?:\/\//, "");
+      chatbotUrl = `https://${cleanDomain}/${slug}/chatbot`;
+    } else {
+      chatbotUrl = `/${slug}/chatbot`;
+    }
 
     await log(supabase, "chatbot_creation", "success", `Chatbot "${businessName}" created at ${chatbotUrl}`, {
       slug,
