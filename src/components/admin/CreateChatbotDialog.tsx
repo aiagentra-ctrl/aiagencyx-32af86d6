@@ -37,16 +37,27 @@ const CreateChatbotDialog = ({ onCreated }: CreateChatbotDialogProps) => {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      if (!res.ok) {
+        const step = data.step || "unknown";
+        const errorMsg = data.error || "Analysis failed";
+        throw new Error(`[${step}] ${errorMsg}`);
+      }
 
       setResult(data);
       setStep("result");
-      toast({ title: "Chatbot created!", description: `URL: ${data.chatbot_url}` });
+
+      const providerNote = data.meta?.was_fallback
+        ? " (used fallback prompt — AI was unavailable)"
+        : data.meta?.ai_provider
+        ? ` (via ${data.meta.ai_provider})`
+        : "";
+      toast({ title: "Chatbot created!" + providerNote, description: `URL: ${data.chatbot_url}` });
       onCreated();
     } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
       toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Unknown error",
+        title: "Creation failed",
+        description: msg,
         variant: "destructive",
       });
       setStep("input");
