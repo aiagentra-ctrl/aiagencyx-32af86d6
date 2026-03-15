@@ -84,6 +84,15 @@ const AdminDashboard = () => {
 
   const getDemoUrl = (slug: string) => `${window.location.origin}/${slug}`;
   const getChatbotUrl = (slug: string) => `${window.location.origin}/chatbot/${slug}`;
+  const getShareableUrl = (slug: string) => {
+    const host = window.location.host;
+    // If on lovable preview/published domain, use it directly
+    if (host.includes("lovable.app") || host.includes("lovableproject.com")) {
+      return `${window.location.origin}/chatbot/${slug}`;
+    }
+    // Otherwise use the current origin
+    return `${window.location.origin}/chatbot/${slug}`;
+  };
 
   const copyLink = (url: string, id: string) => {
     navigator.clipboard.writeText(url);
