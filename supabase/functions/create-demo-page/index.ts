@@ -51,7 +51,9 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    let slug = customSubdomain ? slugify(customSubdomain) : slugify(businessName);
+    // Generate a clean, short slug from customSubdomain or clientName or businessName
+    const rawSlug = customSubdomain || clientName || businessName;
+    let slug = slugify(rawSlug);
     if (!slug) slug = "demo";
 
     const { data: existing } = await supabase
@@ -79,7 +81,7 @@ Deno.serve(async (req) => {
       cta_text: ctaText || null,
       contact_email: contactEmail || null,
       contact_phone: contactPhone || null,
-      custom_subdomain: customSubdomain || null,
+      custom_subdomain: slug,
     }).select().single();
 
     if (error) {
@@ -90,11 +92,37 @@ Deno.serve(async (req) => {
       );
     }
 
-    const siteUrl = Deno.env.get("SITE_URL") || `${supabaseUrl.replace('.supabase.co', '')}.netlify.app`;
-    const url = `${siteUrl}/demo/${slug}`;
+    // Build clean URLs
+    const siteDomain = Deno.env.get("SITE_DOMAIN");
+    const siteUrl = Deno.env.get("SITE_URL");
+
+    let demoUrl: string;
+    let subdomainUrl: string | null = null;
+    let pathUrl: string;
+
+    if (siteDomain) {
+      // Clean subdomain URL: abhiraj.myagency.com
+      subdomainUrl = `https://${slug}.${siteDomain}`;
+      // Clean path URL: myagency.com/abhiraj
+      pathUrl = `https://${siteDomain}/${slug}`;
+      // Default to subdomain URL
+      demoUrl = subdomainUrl;
+    } else if (siteUrl) {
+      pathUrl = `${siteUrl}/${slug}`;
+      demoUrl = pathUrl;
+    } else {
+      pathUrl = `${supabaseUrl.replace('.supabase.co', '')}.netlify.app/${slug}`;
+      demoUrl = pathUrl;
+    }
 
     return new Response(
-      JSON.stringify({ url, slug, assistantId }),
+      JSON.stringify({
+        demo_url: demoUrl,
+        subdomain_url: subdomainUrl,
+        path_url: pathUrl,
+        slug,
+        assistantId,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
