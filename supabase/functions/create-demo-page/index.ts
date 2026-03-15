@@ -33,12 +33,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const body = await req.json();
     const {
       assistantId, businessName, description, vapiKey,
       clientName, companyName, industry,
       heroTitle, heroSubtitle, calendlyUrl, ctaText,
-      contactEmail, contactPhone, customSubdomain,
-    } = await req.json();
+      contactEmail, contactPhone, customSubdomain, origin,
+    } = body;
 
     if (!assistantId || !businessName || !vapiKey) {
       return new Response(
