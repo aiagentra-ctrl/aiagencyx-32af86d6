@@ -54,7 +54,7 @@ interface Chatbot {
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const API_URL = `${SUPABASE_URL}/functions/v1/create-demo-page`;
+const UNIFIED_API_URL = `${SUPABASE_URL}/functions/v1/create-ai-agent`;
 
 const AdminDashboard = () => {
   const [pages, setPages] = useState<DemoPage[]>([]);
@@ -100,12 +100,12 @@ const AdminDashboard = () => {
   };
 
   const examplePayload = `{
-  "assistantId": "your-assistant-id",
+  "type": "voice",
   "businessName": "Business Name",
+  "assistantId": "your-assistant-id",
+  "vapiKey": "your-vapi-key",
   "clientName": "John",
-  "companyName": "ABC Dental",
-  "industry": "Healthcare",
-  "vapiKey": "your-vapi-key"
+  "origin": "${window.location.origin}"
 }`;
 
   return (
@@ -151,8 +151,8 @@ const AdminDashboard = () => {
                   <div>
                     <Label className="text-xs text-muted-foreground">Endpoint</Label>
                     <div className="mt-1 flex items-center gap-2">
-                      <code className="flex-1 rounded-md bg-muted px-3 py-2 text-sm font-mono text-foreground">POST {API_URL}</code>
-                      <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(API_URL); toast({ title: "Copied!" }); }}>
+                      <code className="flex-1 rounded-md bg-muted px-3 py-2 text-sm font-mono text-foreground">POST {UNIFIED_API_URL}</code>
+                      <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(UNIFIED_API_URL); toast({ title: "Copied!" }); }}>
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>

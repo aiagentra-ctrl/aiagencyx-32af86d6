@@ -304,18 +304,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    const siteDomain = Deno.env.get("SITE_DOMAIN");
-    const siteUrl = Deno.env.get("SITE_URL");
-    let chatbotUrl: string;
-    if (siteDomain) {
-      const cleanDomain = siteDomain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-      chatbotUrl = `https://${cleanDomain}/chatbot/${slug}`;
-    } else if (siteUrl) {
-      const cleanUrl = siteUrl.replace(/\/+$/, "");
-      chatbotUrl = `${cleanUrl}/chatbot/${slug}`;
-    } else {
-      chatbotUrl = `/chatbot/${slug}`;
-    }
+    // Build URL using SITE_URL or relative path
+    const siteUrl = Deno.env.get("SITE_URL") || "";
+    const baseUrl = siteUrl.replace(/\/+$/, "");
+    const chatbotUrl = baseUrl ? `${baseUrl}/chatbot/${slug}` : `/chatbot/${slug}`;
 
     await log(supabase, "chatbot_creation", "success", `Chatbot "${businessName}" created at ${chatbotUrl}`, {
       slug, aiProvider: analysis._provider, wasFallback: !!analysis._fallback, hasLogo: !!logoUrl,

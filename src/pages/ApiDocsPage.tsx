@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Check, ArrowLeft, Bot, Phone, Layers } from "lucide-react";
+import { Copy, Check, ArrowLeft, Layers, Bot, Phone } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-const CodeBlock = ({ code, language = "bash" }: { code: string; language?: string }) => {
+const CodeBlock = ({ code }: { code: string }) => {
   const [copied, setCopied] = useState(false);
   const copy = () => {
     navigator.clipboard.writeText(code);
@@ -43,121 +44,151 @@ const ApiDocsPage = () => {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-8 px-6 py-8">
-        {/* Chatbot API */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Bot className="h-5 w-5 text-primary" />
-              <CardTitle>AI Chatbot API</CardTitle>
-            </div>
-            <CardDescription>Create an AI chatbot by scraping a business website.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="mb-2 text-sm font-medium text-foreground">Endpoint</p>
-              <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
-                POST {SUPABASE_URL}/functions/v1/scrape-and-analyze
-              </code>
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium text-foreground">cURL Example</p>
-              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/scrape-and-analyze' \\
-  -H 'Content-Type: application/json' \\
-  -H 'Authorization: Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}' \\
-  -d '{
-    "businessName": "ABC Dental Clinic",
-    "websiteUrl": "https://abcdental.com"
-  }'`} />
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium text-foreground">Response</p>
-              <CodeBlock language="json" code={`{
-  "success": true,
-  "chatbot_url": "https://yourdomain.com/chatbot/abc-dental-clinic",
-  "slug": "abc-dental-clinic",
-  "analysis": {
-    "industry": "Healthcare",
-    "brand_tone": "Professional and caring",
-    "services": ["Dental Cleaning", "Root Canal", "Teeth Whitening"],
-    "faq_topics": ["What insurance do you accept?", "How to book?"],
-    "system_prompt": "You are an AI assistant for ABC Dental..."
-  },
-  "meta": {
-    "scrape_source": "default",
-    "ai_provider": "Lovable AI",
-    "logo_url": "https://abcdental.com/logo.png"
-  }
-}`} />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Voice Agent API */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Phone className="h-5 w-5 text-primary" />
-              <CardTitle>AI Voice Agent API</CardTitle>
-            </div>
-            <CardDescription>Create a personalized landing page with an embedded AI voice agent.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="mb-2 text-sm font-medium text-foreground">Endpoint</p>
-              <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
-                POST {SUPABASE_URL}/functions/v1/create-demo-page
-              </code>
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium text-foreground">cURL Example</p>
-              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-demo-page' \\
-  -H 'Content-Type: application/json' \\
-  -H 'Authorization: Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}' \\
-  -d '{
-    "assistantId": "your-vapi-assistant-id",
-    "businessName": "ABC Dental Clinic",
-    "clientName": "John",
-    "companyName": "ABC Dental",
-    "industry": "Healthcare",
-    "vapiKey": "your-vapi-public-key"
-  }'`} />
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium text-foreground">Response</p>
-              <CodeBlock language="json" code={`{
-  "success": true,
-  "slug": "abc-dental-clinic",
-  "url": "https://yourdomain.com/abc-dental-clinic"
-}`} />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Combined API */}
+        {/* Unified API */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-primary" />
-              <CardTitle>Combined AI System</CardTitle>
+              <CardTitle>Unified AI Agent API</CardTitle>
             </div>
-            <CardDescription>Use both APIs together to create a full AI system for any business.</CardDescription>
+            <CardDescription>
+              Single endpoint to create AI Voice Agents, AI Chatbots, or both at once.
+              URLs are automatically generated using your domain.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-lg border bg-muted/50 p-4 text-sm text-foreground space-y-2">
-              <p className="font-medium">Workflow:</p>
-              <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
-                <li>Call the <strong>Chatbot API</strong> with the business website to generate the AI chatbot</li>
-                <li>Call the <strong>Voice Agent API</strong> with Vapi credentials to create the landing page</li>
-                <li>Link the chatbot to the landing page via the admin panel — the widget appears automatically</li>
-              </ol>
-            </div>
+          <CardContent className="space-y-6">
             <div>
-              <p className="mb-2 text-sm font-medium text-foreground">Result</p>
-              <CodeBlock language="json" code={`{
-  "chatbot_url": "https://yourdomain.com/chatbot/abc-dental",
-  "landing_page_url": "https://yourdomain.com/abc-dental",
-  "voice_agent": "Embedded on landing page"
+              <p className="mb-2 text-sm font-medium text-foreground">Endpoint</p>
+              <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
+                POST {SUPABASE_URL}/functions/v1/create-ai-agent
+              </code>
+            </div>
+
+            <div className="rounded-lg border bg-muted/50 p-4 text-sm space-y-2">
+              <p className="font-medium text-foreground">How it works</p>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li>Set <code className="bg-background px-1 rounded text-xs">"type"</code> to <code className="bg-background px-1 rounded text-xs">"voice"</code>, <code className="bg-background px-1 rounded text-xs">"chatbot"</code>, or <code className="bg-background px-1 rounded text-xs">"both"</code></li>
+                <li>Pass <code className="bg-background px-1 rounded text-xs">"origin"</code> with your domain (e.g. <code className="bg-background px-1 rounded text-xs">https://yourdomain.com</code>) for clean URLs</li>
+                <li>If omitted, URLs use the configured SITE_URL or relative paths</li>
+                <li>Auto-detects type if not specified: voice (if assistantId+vapiKey present) or chatbot (if websiteUrl present)</li>
+              </ul>
+            </div>
+
+            {/* Voice Agent Example */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Phone className="h-4 w-4 text-primary" />
+                <p className="text-sm font-medium text-foreground">Create AI Voice Agent</p>
+              </div>
+              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-ai-agent' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer ${ANON_KEY}' \\
+  -d '{
+    "type": "voice",
+    "businessName": "ABC Dental Clinic",
+    "assistantId": "your-vapi-assistant-id",
+    "vapiKey": "your-vapi-public-key",
+    "clientName": "John",
+    "companyName": "ABC Dental",
+    "industry": "Healthcare",
+    "origin": "https://yourdomain.com"
+  }'`} />
+              <p className="mt-2 text-xs text-muted-foreground">Response:</p>
+              <CodeBlock code={`{
+  "success": true,
+  "type": "voice",
+  "businessName": "ABC Dental Clinic",
+  "voiceAgent": {
+    "slug": "john",
+    "url": "https://yourdomain.com/john",
+    "id": "uuid"
+  }
 }`} />
+            </div>
+
+            {/* Chatbot Example */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Bot className="h-4 w-4 text-primary" />
+                <p className="text-sm font-medium text-foreground">Create AI Chatbot</p>
+              </div>
+              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-ai-agent' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer ${ANON_KEY}' \\
+  -d '{
+    "type": "chatbot",
+    "businessName": "ABC Dental Clinic",
+    "websiteUrl": "https://abcdental.com",
+    "origin": "https://yourdomain.com"
+  }'`} />
+              <p className="mt-2 text-xs text-muted-foreground">Response:</p>
+              <CodeBlock code={`{
+  "success": true,
+  "type": "chatbot",
+  "businessName": "ABC Dental Clinic",
+  "chatbot": {
+    "slug": "abc-dental-clinic",
+    "url": "https://yourdomain.com/chatbot/abc-dental-clinic",
+    "id": "uuid",
+    "analysis": {
+      "industry": "Healthcare",
+      "brand_tone": "Professional and caring",
+      "services": ["Dental Cleaning", "Root Canal"],
+      "faq_topics": ["What insurance do you accept?"]
+    }
+  }
+}`} />
+            </div>
+
+            {/* Both Example */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <Layers className="h-4 w-4 text-primary" />
+                <p className="text-sm font-medium text-foreground">Create Both (Voice + Chatbot)</p>
+              </div>
+              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-ai-agent' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer ${ANON_KEY}' \\
+  -d '{
+    "type": "both",
+    "businessName": "ABC Dental Clinic",
+    "assistantId": "your-vapi-assistant-id",
+    "vapiKey": "your-vapi-public-key",
+    "websiteUrl": "https://abcdental.com",
+    "clientName": "John",
+    "companyName": "ABC Dental",
+    "industry": "Healthcare",
+    "origin": "https://yourdomain.com"
+  }'`} />
+              <p className="mt-2 text-xs text-muted-foreground">Response:</p>
+              <CodeBlock code={`{
+  "success": true,
+  "type": "both",
+  "businessName": "ABC Dental Clinic",
+  "voiceAgent": {
+    "slug": "john",
+    "url": "https://yourdomain.com/john"
+  },
+  "chatbot": {
+    "slug": "abc-dental-clinic",
+    "url": "https://yourdomain.com/chatbot/abc-dental-clinic"
+  }
+}`} />
+            </div>
+
+            {/* Domain note */}
+            <div className="rounded-lg border bg-primary/5 p-4 text-sm space-y-2">
+              <p className="font-medium text-foreground">🌐 Domain System</p>
+              <p className="text-muted-foreground">
+                URLs automatically adapt to whichever domain you access the app from:
+              </p>
+              <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                <li><code className="bg-background px-1 rounded text-xs">aiagentfor.lovable.app/chatbot/gaming</code> — on Lovable</li>
+                <li><code className="bg-background px-1 rounded text-xs">yourdomain.com/chatbot/gaming</code> — on custom domain</li>
+              </ul>
+              <p className="text-muted-foreground">
+                Pass <code className="bg-background px-1 rounded text-xs">"origin"</code> in API calls for clean generated URLs, or omit it to use the server-configured SITE_URL.
+              </p>
             </div>
           </CardContent>
         </Card>
