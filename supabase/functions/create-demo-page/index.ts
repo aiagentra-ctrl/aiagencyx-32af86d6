@@ -33,7 +33,12 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { assistantId, businessName, description, vapiKey } = await req.json();
+    const {
+      assistantId, businessName, description, vapiKey,
+      clientName, companyName, industry,
+      heroTitle, heroSubtitle, calendlyUrl, ctaText,
+      contactEmail, contactPhone, customSubdomain,
+    } = await req.json();
 
     if (!assistantId || !businessName || !vapiKey) {
       return new Response(
@@ -46,11 +51,9 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Generate slug
-    let slug = slugify(businessName);
+    let slug = customSubdomain ? slugify(customSubdomain) : slugify(businessName);
     if (!slug) slug = "demo";
 
-    // Check if slug exists
     const { data: existing } = await supabase
       .from("demo_pages")
       .select("id")
@@ -61,13 +64,22 @@ Deno.serve(async (req) => {
       slug = `${slug}-${randomSuffix()}`;
     }
 
-    // Insert record
     const { data, error } = await supabase.from("demo_pages").insert({
       slug,
       assistant_id: assistantId,
       business_name: businessName,
       description: description || null,
       vapi_key: vapiKey,
+      client_name: clientName || null,
+      company_name: companyName || null,
+      industry: industry || null,
+      hero_title: heroTitle || null,
+      hero_subtitle: heroSubtitle || null,
+      calendly_url: calendlyUrl || null,
+      cta_text: ctaText || null,
+      contact_email: contactEmail || null,
+      contact_phone: contactPhone || null,
+      custom_subdomain: customSubdomain || null,
     }).select().single();
 
     if (error) {
@@ -78,30 +90,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Determine the site URL - use SITE_URL env var or fallback
     const siteUrl = Deno.env.get("SITE_URL") || `${supabaseUrl.replace('.supabase.co', '')}.netlify.app`;
     const url = `${siteUrl}/demo/${slug}`;
-
-    // Trigger Netlify deploy (fire and forget)
-    try {
-      const netlifyToken = Deno.env.get("NETLIFY_API_TOKEN");
-      const netlifySiteId = Deno.env.get("NETLIFY_SITE_ID");
-      if (netlifyToken && netlifySiteId) {
-        await fetch(
-          `${supabaseUrl}/functions/v1/deploy-to-netlify`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({ trigger: "new-demo-page", slug }),
-          }
-        );
-      }
-    } catch (deployErr) {
-      console.error("Deploy trigger failed (non-blocking):", deployErr);
-    }
 
     return new Response(
       JSON.stringify({ url, slug, assistantId }),
