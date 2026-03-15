@@ -8,6 +8,7 @@ import VoiceAgentSection from "@/components/demo/VoiceAgentSection";
 import SocialProofSection from "@/components/demo/SocialProofSection";
 import CTASection from "@/components/demo/CTASection";
 import FooterSection from "@/components/demo/FooterSection";
+import ChatWidget from "@/components/chatbot/ChatWidget";
 
 interface DemoPageData {
   id: string;
