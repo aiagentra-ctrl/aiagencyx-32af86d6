@@ -44,6 +44,7 @@ const DemoPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [vapiStarted, setVapiStarted] = useState(false);
   const [vapiInstance, setVapiInstance] = useState<any>(null);
+  const [globalCalendarUrl, setGlobalCalendarUrl] = useState<string | null>(null);
 
   // Detect subdomain-based routing
   const resolvedSlug = (() => {
