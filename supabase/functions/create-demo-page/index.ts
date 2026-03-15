@@ -93,10 +93,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build clean URLs using origin or SITE_URL
-    const { origin: reqOrigin } = await req.json().catch(() => ({}));
+    // Build clean URLs — prefer origin from request, then SITE_URL
     const siteUrl = Deno.env.get("SITE_URL") || "";
-    const baseUrl = (reqOrigin || siteUrl).replace(/\/+$/, "");
+    const baseUrl = (origin || siteUrl).replace(/\/+$/, "");
     const pageUrl = baseUrl ? `${baseUrl}/${slug}` : `/${slug}`;
 
     return new Response(
