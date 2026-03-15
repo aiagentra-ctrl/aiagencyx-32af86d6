@@ -92,34 +92,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build clean URLs
-    const siteDomain = Deno.env.get("SITE_DOMAIN");
-    const siteUrl = Deno.env.get("SITE_URL");
-
-    let demoUrl: string;
-    let subdomainUrl: string | null = null;
-    let pathUrl: string;
-
-    if (siteDomain) {
-      // Clean subdomain URL: abhiraj.myagency.com
-      subdomainUrl = `https://${slug}.${siteDomain}`;
-      // Clean path URL: myagency.com/abhiraj
-      pathUrl = `https://${siteDomain}/${slug}`;
-      // Default to subdomain URL
-      demoUrl = subdomainUrl;
-    } else if (siteUrl) {
-      pathUrl = `${siteUrl}/${slug}`;
-      demoUrl = pathUrl;
-    } else {
-      pathUrl = `${supabaseUrl.replace('.supabase.co', '')}.netlify.app/${slug}`;
-      demoUrl = pathUrl;
-    }
+    // Build clean URLs using origin or SITE_URL
+    const { origin: reqOrigin } = await req.json().catch(() => ({}));
+    const siteUrl = Deno.env.get("SITE_URL") || "";
+    const baseUrl = (reqOrigin || siteUrl).replace(/\/+$/, "");
+    const pageUrl = baseUrl ? `${baseUrl}/${slug}` : `/${slug}`;
 
     return new Response(
       JSON.stringify({
-        demo_url: demoUrl,
-        subdomain_url: subdomainUrl,
-        path_url: pathUrl,
+        success: true,
+        url: pageUrl,
         slug,
         assistantId,
       }),

@@ -151,8 +151,8 @@ const AdminDashboard = () => {
                   <div>
                     <Label className="text-xs text-muted-foreground">Endpoint</Label>
                     <div className="mt-1 flex items-center gap-2">
-                      <code className="flex-1 rounded-md bg-muted px-3 py-2 text-sm font-mono text-foreground">POST {API_URL}</code>
-                      <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(API_URL); toast({ title: "Copied!" }); }}>
+                      <code className="flex-1 rounded-md bg-muted px-3 py-2 text-sm font-mono text-foreground">POST {UNIFIED_API_URL}</code>
+                      <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(UNIFIED_API_URL); toast({ title: "Copied!" }); }}>
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
