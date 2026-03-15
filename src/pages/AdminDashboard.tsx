@@ -54,7 +54,7 @@ interface Chatbot {
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const API_URL = `${SUPABASE_URL}/functions/v1/create-demo-page`;
+const UNIFIED_API_URL = `${SUPABASE_URL}/functions/v1/create-ai-agent`;
 
 const AdminDashboard = () => {
   const [pages, setPages] = useState<DemoPage[]>([]);
