@@ -39,6 +39,7 @@ interface LinkedChatbot {
 const DemoPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const [page, setPage] = useState<DemoPageData | null>(null);
+  const [linkedChatbot, setLinkedChatbot] = useState<LinkedChatbot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vapiStarted, setVapiStarted] = useState(false);
