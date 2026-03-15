@@ -1,7 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Phone } from "lucide-react";
+import HeroSection from "@/components/demo/HeroSection";
+import BenefitsSection from "@/components/demo/BenefitsSection";
+import FeaturesSection from "@/components/demo/FeaturesSection";
+import VoiceAgentSection from "@/components/demo/VoiceAgentSection";
+import SocialProofSection from "@/components/demo/SocialProofSection";
+import CTASection from "@/components/demo/CTASection";
+import FooterSection from "@/components/demo/FooterSection";
 
 interface DemoPageData {
   id: string;
@@ -10,6 +16,18 @@ interface DemoPageData {
   business_name: string;
   description: string | null;
   vapi_key: string;
+  client_name: string | null;
+  company_name: string | null;
+  industry: string | null;
+  hero_title: string | null;
+  hero_subtitle: string | null;
+  calendly_url: string | null;
+  cta_text: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  features: string[] | null;
+  benefits: string[] | null;
+  social_proof: Array<{ name: string; role: string; quote: string }> | null;
 }
 
 const DemoPage = () => {
@@ -18,15 +36,44 @@ const DemoPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vapiStarted, setVapiStarted] = useState(false);
+  const [vapiInstance, setVapiInstance] = useState<any>(null);
+
+  // Detect subdomain-based routing
+  const resolvedSlug = (() => {
+    if (slug) return slug;
+    const hostname = window.location.hostname;
+    const parts = hostname.split(".");
+    // If subdomain exists (e.g. clientname.myagency.com)
+    if (parts.length >= 3 && parts[0] !== "www") {
+      return parts[0];
+    }
+    return null;
+  })();
 
   useEffect(() => {
     const fetchPage = async () => {
-      if (!slug) return;
-      const { data, error: fetchError } = await supabase
+      if (!resolvedSlug) {
+        setError("Demo page not found");
+        setLoading(false);
+        return;
+      }
+
+      // Try slug match, then custom_subdomain match
+      let { data, error: fetchError } = await supabase
         .from("demo_pages")
         .select("*")
-        .eq("slug", slug)
+        .eq("slug", resolvedSlug)
         .single();
+
+      if (fetchError || !data) {
+        const subResult = await supabase
+          .from("demo_pages")
+          .select("*")
+          .eq("custom_subdomain", resolvedSlug)
+          .single();
+        data = subResult.data;
+        fetchError = subResult.error;
+      }
 
       if (fetchError || !data) {
         setError("Demo page not found");
@@ -34,7 +81,7 @@ const DemoPage = () => {
         return;
       }
 
-      setPage(data);
+      setPage(data as unknown as DemoPageData);
       setLoading(false);
 
       // Increment views
@@ -42,21 +89,29 @@ const DemoPage = () => {
         .from("demo_pages")
         .update({ views: (data.views ?? 0) + 1 })
         .eq("id", data.id);
-
-      // Auto-start Vapi assistant
-      try {
-        const { default: Vapi } = await import("@vapi-ai/web");
-        const vapi = new Vapi(data.vapi_key);
-        vapi.start(data.assistant_id);
-        setVapiStarted(true);
-        console.log("Vapi started with assistantId:", data.assistant_id);
-      } catch (err) {
-        console.error("Vapi initialization failed:", err);
-      }
     };
 
     fetchPage();
-  }, [slug]);
+  }, [resolvedSlug]);
+
+  const startVapi = useCallback(async () => {
+    if (!page || vapiStarted) return;
+    try {
+      const { default: Vapi } = await import("@vapi-ai/web");
+      const vapi = new Vapi(page.vapi_key);
+      vapi.start(page.assistant_id);
+      setVapiInstance(vapi);
+      setVapiStarted(true);
+    } catch (err) {
+      console.error("Vapi initialization failed:", err);
+    }
+  }, [page, vapiStarted]);
+
+  const handleBookCall = useCallback(() => {
+    if (page?.calendly_url) {
+      window.open(page.calendly_url, "_blank");
+    }
+  }, [page]);
 
   if (loading) {
     return (
@@ -78,32 +133,40 @@ const DemoPage = () => {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="rounded-2xl border bg-card p-8 shadow-lg">
-          <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-              <Phone className="h-8 w-8 text-primary" />
-            </div>
-            <h1 className="mb-2 text-2xl font-bold text-card-foreground">
-              {page.business_name}
-            </h1>
-            {page.description && (
-              <p className="text-muted-foreground">{page.description}</p>
-            )}
-          </div>
-
-          <div
-            className="w-full rounded-xl bg-primary px-6 py-4 text-center text-lg font-semibold text-primary-foreground shadow-md transition-all disabled:opacity-60"
-          >
-            {vapiStarted ? "Assistant is listening..." : "Starting assistant..."}
-          </div>
-        </div>
-
-        <p className="mt-6 text-center text-xs text-muted-foreground">
-          Powered by AI Voice Technology
-        </p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <HeroSection
+        clientName={page.client_name || undefined}
+        companyName={page.company_name || page.business_name}
+        heroTitle={page.hero_title || undefined}
+        heroSubtitle={page.hero_subtitle || undefined}
+        onTryDemo={startVapi}
+        onBookCall={handleBookCall}
+      />
+      <BenefitsSection
+        companyName={page.company_name || page.business_name}
+        benefits={page.benefits as string[] | undefined}
+      />
+      <VoiceAgentSection
+        companyName={page.company_name || page.business_name}
+        vapiStarted={vapiStarted}
+        onTryDemo={startVapi}
+      />
+      <FeaturesSection
+        companyName={page.company_name || page.business_name}
+        features={page.features as string[] | undefined}
+      />
+      <SocialProofSection socialProof={page.social_proof as any} />
+      <CTASection
+        companyName={page.company_name || page.business_name}
+        ctaText={page.cta_text || undefined}
+        onBookCall={handleBookCall}
+        onTryDemo={startVapi}
+      />
+      <FooterSection
+        businessName={page.business_name}
+        contactEmail={page.contact_email || undefined}
+        contactPhone={page.contact_phone || undefined}
+      />
     </div>
   );
 };

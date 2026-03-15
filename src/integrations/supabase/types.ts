@@ -17,31 +17,70 @@ export type Database = {
       demo_pages: {
         Row: {
           assistant_id: string
+          benefits: Json | null
           business_name: string
+          calendly_url: string | null
+          client_name: string | null
+          company_name: string | null
+          contact_email: string | null
+          contact_phone: string | null
           created_at: string
+          cta_text: string | null
+          custom_subdomain: string | null
           description: string | null
+          features: Json | null
+          hero_subtitle: string | null
+          hero_title: string | null
           id: string
+          industry: string | null
           slug: string
+          social_proof: Json | null
           vapi_key: string
           views: number
         }
         Insert: {
           assistant_id: string
+          benefits?: Json | null
           business_name: string
+          calendly_url?: string | null
+          client_name?: string | null
+          company_name?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
           created_at?: string
+          cta_text?: string | null
+          custom_subdomain?: string | null
           description?: string | null
+          features?: Json | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
           id?: string
+          industry?: string | null
           slug: string
+          social_proof?: Json | null
           vapi_key: string
           views?: number
         }
         Update: {
           assistant_id?: string
+          benefits?: Json | null
           business_name?: string
+          calendly_url?: string | null
+          client_name?: string | null
+          company_name?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
           created_at?: string
+          cta_text?: string | null
+          custom_subdomain?: string | null
           description?: string | null
+          features?: Json | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
           id?: string
+          industry?: string | null
           slug?: string
+          social_proof?: Json | null
           vapi_key?: string
           views?: number
         }
