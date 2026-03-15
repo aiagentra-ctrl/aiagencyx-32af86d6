@@ -183,6 +183,12 @@ const DemoPage = () => {
         contactEmail={page.contact_email || undefined}
         contactPhone={page.contact_phone || undefined}
       />
+      {linkedChatbot && (
+        <ChatWidget
+          chatbotId={linkedChatbot.id}
+          greeting={linkedChatbot.widget_config?.greeting}
+        />
+      )}
     </div>
   );
 };
