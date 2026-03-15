@@ -100,12 +100,12 @@ const AdminDashboard = () => {
   };
 
   const examplePayload = `{
-  "assistantId": "your-assistant-id",
+  "type": "voice",
   "businessName": "Business Name",
+  "assistantId": "your-assistant-id",
+  "vapiKey": "your-vapi-key",
   "clientName": "John",
-  "companyName": "ABC Dental",
-  "industry": "Healthcare",
-  "vapiKey": "your-vapi-key"
+  "origin": "${window.location.origin}"
 }`;
 
   return (
