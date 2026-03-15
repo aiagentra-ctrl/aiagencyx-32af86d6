@@ -8,13 +8,14 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Check, Code, Pencil, Bot, Trash2, Activity, Settings } from "lucide-react";
+import { Copy, ExternalLink, Check, Code, Pencil, Bot, Trash2, Activity, Settings, Cog } from "lucide-react";
 import CreatePageDialog from "@/components/admin/CreatePageDialog";
 import EditPageDialog from "@/components/admin/EditPageDialog";
 import CreateChatbotDialog from "@/components/admin/CreateChatbotDialog";
 import EditChatbotDialog from "@/components/admin/EditChatbotDialog";
 import ApiProvidersPanel from "@/components/admin/ApiProvidersPanel";
 import ActivityLogViewer from "@/components/admin/ActivityLogViewer";
+import SiteSettingsPanel from "@/components/admin/SiteSettingsPanel";
 
 interface DemoPage {
   id: string;
@@ -84,15 +85,6 @@ const AdminDashboard = () => {
 
   const getDemoUrl = (slug: string) => `${window.location.origin}/${slug}`;
   const getChatbotUrl = (slug: string) => `${window.location.origin}/chatbot/${slug}`;
-  const getShareableUrl = (slug: string) => {
-    const host = window.location.host;
-    // If on lovable preview/published domain, use it directly
-    if (host.includes("lovable.app") || host.includes("lovableproject.com")) {
-      return `${window.location.origin}/chatbot/${slug}`;
-    }
-    // Otherwise use the current origin
-    return `${window.location.origin}/chatbot/${slug}`;
-  };
 
   const copyLink = (url: string, id: string) => {
     navigator.clipboard.writeText(url);
@@ -126,12 +118,16 @@ const AdminDashboard = () => {
 
       <main className="mx-auto max-w-7xl px-6 py-8">
         <Tabs defaultValue="voice" className="space-y-6">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="voice">Voice Agents</TabsTrigger>
             <TabsTrigger value="chatbots">AI Chatbots</TabsTrigger>
             <TabsTrigger value="providers">
               <Settings className="mr-1.5 h-3.5 w-3.5" />
               API Providers
+            </TabsTrigger>
+            <TabsTrigger value="settings">
+              <Cog className="mr-1.5 h-3.5 w-3.5" />
+              Settings
             </TabsTrigger>
             <TabsTrigger value="logs">
               <Activity className="mr-1.5 h-3.5 w-3.5" />
@@ -293,6 +289,11 @@ const AdminDashboard = () => {
           {/* API Providers Tab */}
           <TabsContent value="providers">
             <ApiProvidersPanel />
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings">
+            <SiteSettingsPanel />
           </TabsContent>
 
           {/* Debug Logs Tab */}

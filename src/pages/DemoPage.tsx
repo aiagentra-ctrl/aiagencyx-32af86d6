@@ -44,6 +44,7 @@ const DemoPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [vapiStarted, setVapiStarted] = useState(false);
   const [vapiInstance, setVapiInstance] = useState<any>(null);
+  const [globalCalendarUrl, setGlobalCalendarUrl] = useState<string | null>(null);
 
   // Detect subdomain-based routing
   const resolvedSlug = (() => {
@@ -65,7 +66,7 @@ const DemoPage = () => {
         return;
       }
 
-      // Try slug match, then custom_subdomain match
+      // Fetch page and global settings in parallel
       let { data, error: fetchError } = await supabase
         .from("demo_pages")
         .select("*")
@@ -90,6 +91,16 @@ const DemoPage = () => {
 
       setPage(data as unknown as DemoPageData);
       setLoading(false);
+
+      // Fetch global calendar URL
+      const { data: settingsData } = await supabase
+        .from("site_settings")
+        .select("*")
+        .eq("key", "calendar_url")
+        .maybeSingle();
+      if (settingsData && (settingsData as any).value) {
+        setGlobalCalendarUrl((settingsData as any).value);
+      }
 
       // Check for linked chatbot
       const { data: chatbotData } = await supabase
@@ -124,10 +135,11 @@ const DemoPage = () => {
   }, [page, vapiStarted]);
 
   const handleBookCall = useCallback(() => {
-    if (page?.calendly_url) {
-      window.open(page.calendly_url, "_blank");
+    const url = page?.calendly_url || globalCalendarUrl;
+    if (url) {
+      window.open(url, "_blank");
     }
-  }, [page]);
+  }, [page, globalCalendarUrl]);
 
   if (loading) {
     return (
