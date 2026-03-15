@@ -127,6 +127,7 @@ export type Database = {
           faq_topics: Json | null
           id: string
           industry: string | null
+          logo_url: string | null
           research_data: Json | null
           services: Json | null
           slug: string
@@ -146,6 +147,7 @@ export type Database = {
           faq_topics?: Json | null
           id?: string
           industry?: string | null
+          logo_url?: string | null
           research_data?: Json | null
           services?: Json | null
           slug: string
@@ -165,6 +167,7 @@ export type Database = {
           faq_topics?: Json | null
           id?: string
           industry?: string | null
+          logo_url?: string | null
           research_data?: Json | null
           services?: Json | null
           slug?: string
