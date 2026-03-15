@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +9,12 @@ import ChatbotPage from "./pages/ChatbotPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+// Redirect old /:slug/chatbot to /chatbot/:slug
+const ChatbotLegacyRedirect = () => {
+  const { slug } = useParams();
+  return <Navigate to={`/chatbot/${slug}`} replace />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -20,7 +26,8 @@ const App = () => (
           <Route path="/" element={<Navigate to="/admin" replace />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/demo/:slug" element={<DemoPage />} />
-          <Route path="/:slug/chatbot" element={<ChatbotPage />} />
+          <Route path="/chatbot/:slug" element={<ChatbotPage />} />
+          <Route path="/:slug/chatbot" element={<ChatbotLegacyRedirect />} />
           <Route path="/:slug" element={<DemoPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

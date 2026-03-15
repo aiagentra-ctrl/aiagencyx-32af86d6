@@ -83,7 +83,7 @@ const AdminDashboard = () => {
   useEffect(() => { fetchPages(); fetchChatbots(); }, []);
 
   const getDemoUrl = (slug: string) => `${window.location.origin}/${slug}`;
-  const getChatbotUrl = (slug: string) => `${window.location.origin}/${slug}/chatbot`;
+  const getChatbotUrl = (slug: string) => `${window.location.origin}/chatbot/${slug}`;
 
   const copyLink = (url: string, id: string) => {
     navigator.clipboard.writeText(url);
