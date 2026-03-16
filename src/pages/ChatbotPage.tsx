@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import ChatWidget from "@/components/chatbot/ChatWidget";
-import { MessageCircle, Globe, Briefcase, Calendar, ArrowRight, Bot, Sparkles, Clock, Shield } from "lucide-react";
+import { MessageCircle, Globe, Briefcase, Calendar, ArrowRight, Bot, Sparkles, Clock, Shield, HelpCircle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface ChatbotData {
   id: string;
@@ -31,15 +32,11 @@ const ChatbotPage = () => {
   useEffect(() => {
     const load = async () => {
       if (!slug) { setLoading(false); return; }
-
-      // Fetch chatbot and settings in parallel
       const [chatbotRes, settingsRes] = await Promise.all([
         supabase.from("chatbots").select("*").eq("slug", slug).eq("status", "active").single(),
         supabase.from("site_settings").select("*"),
       ]);
-
       if (chatbotRes.data) setChatbot(chatbotRes.data as unknown as ChatbotData);
-
       if (settingsRes.data) {
         for (const row of settingsRes.data) {
           const r = row as any;
@@ -47,7 +44,6 @@ const ChatbotPage = () => {
           if (r.key === "default_cta_text" && r.value) setCtaText(r.value);
         }
       }
-
       setLoading(false);
     };
     load();
@@ -76,11 +72,8 @@ const ChatbotPage = () => {
   const logoUrl = chatbot.logo_url || chatbot.widget_config?.logo;
   const services: string[] = Array.isArray(chatbot.services) ? chatbot.services : [];
   const faqTopics: string[] = Array.isArray(chatbot.faq_topics) ? chatbot.faq_topics : [];
-  const suggestions = faqTopics.length > 0
-    ? faqTopics.slice(0, 3)
-    : services.length > 0
-      ? services.slice(0, 3).map(s => `Tell me about ${s}`)
-      : undefined;
+  const research = chatbot.research_data as any || {};
+  const detectedPages: any[] = research.detected_pages || research.pages || [];
 
   const handleBookCall = () => {
     if (calendarUrl) window.open(calendarUrl, "_blank");
@@ -89,23 +82,30 @@ const ChatbotPage = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-background to-accent/5">
-        <div className="mx-auto max-w-6xl px-6 py-16 md:py-24">
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-background to-accent/5" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="relative mx-auto max-w-6xl px-6 py-16 md:py-24">
           <div className="flex flex-col items-center text-center">
-            {/* Logo */}
             {logoUrl ? (
-              <img src={logoUrl} alt={chatbot.business_name} className="mb-6 h-20 w-20 rounded-2xl object-cover shadow-lg" />
+              <div className="relative mb-6">
+                <div className="absolute inset-0 rounded-2xl bg-primary/20 animate-pulse" style={{ animationDuration: "2s" }} />
+                <img src={logoUrl} alt={chatbot.business_name} className="relative h-20 w-20 rounded-2xl object-cover shadow-lg" />
+              </div>
             ) : (
-              <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 shadow-lg">
-                <Bot className="h-10 w-10 text-primary" />
+              <div className="relative mb-6">
+                <div className="absolute inset-0 rounded-2xl bg-primary/20 animate-pulse" style={{ animationDuration: "2s" }} />
+                <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 shadow-lg">
+                  <Bot className="h-10 w-10 text-primary" />
+                </div>
               </div>
             )}
 
             <h1 className="mb-4 text-3xl font-extrabold tracking-tight text-foreground md:text-5xl">
-              Hey {chatbot.business_name},
+              AI Assistant for {chatbot.business_name}
             </h1>
             <p className="mb-2 max-w-2xl text-lg text-muted-foreground md:text-xl">
-              We built an AI assistant that can automatically answer customer questions about your products and services.
+              Get instant answers about our menu, make reservations, and explore everything we offer — powered by AI.
             </p>
             {chatbot.industry && (
               <span className="mb-6 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
@@ -115,7 +115,7 @@ const ChatbotPage = () => {
             )}
 
             <div className="flex flex-wrap justify-center gap-3">
-              <Button size="lg" className="gap-2 text-base" onClick={() => {
+              <Button size="lg" className="gap-2 text-base shadow-lg shadow-primary/25" onClick={() => {
                 document.getElementById("chatbot-demo")?.scrollIntoView({ behavior: "smooth" });
               }}>
                 <MessageCircle className="h-5 w-5" />
@@ -141,35 +141,59 @@ const ChatbotPage = () => {
           <div className="grid gap-6 md:grid-cols-3">
             <FeatureCard
               icon={<Bot className="h-8 w-8 text-primary" />}
-              title="Answer Customer Questions"
-              description={`Trained on ${chatbot.business_name}'s actual website content, services, and FAQs.`}
+              title="Browse Menu & Order"
+              description="Explore our full menu, see prices, and get recommendations instantly."
             />
             <FeatureCard
               icon={<Clock className="h-8 w-8 text-primary" />}
               title="24/7 Availability"
-              description="Your AI assistant never sleeps — it handles customer inquiries around the clock."
+              description="Get answers anytime — our AI assistant never takes a break."
             />
             <FeatureCard
               icon={<Shield className="h-8 w-8 text-primary" />}
-              title="Brand-Aligned Responses"
-              description={`Responds in a ${chatbot.brand_tone || "professional and friendly"} tone that matches your brand.`}
+              title="Reserve & Contact"
+              description="Book a table, check hours, or get directions — all in one chat."
             />
           </div>
         </div>
       </section>
 
-      {/* Services Section */}
+      {/* Services / Quick Links */}
       {services.length > 0 && (
         <section className="border-t">
           <div className="mx-auto max-w-6xl px-6 py-16">
-            <h2 className="mb-8 text-center text-2xl font-bold text-foreground">
-              Services We Cover
-            </h2>
+            <h2 className="mb-8 text-center text-2xl font-bold text-foreground">What We Offer</h2>
             <div className="flex flex-wrap justify-center gap-3">
               {services.map((service, i) => (
                 <span key={i} className="rounded-full border border-primary/20 bg-primary/5 px-5 py-2.5 text-sm font-medium text-primary">
                   {service}
                 </span>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* FAQ Section */}
+      {faqTopics.length > 0 && (
+        <section className="border-t bg-muted/20">
+          <div className="mx-auto max-w-3xl px-6 py-16">
+            <div className="mb-8 text-center">
+              <HelpCircle className="mx-auto mb-3 h-8 w-8 text-primary" />
+              <h2 className="text-2xl font-bold text-foreground md:text-3xl">Frequently Asked Questions</h2>
+              <p className="mt-2 text-muted-foreground">Quick answers to common questions</p>
+            </div>
+            <div className="space-y-3">
+              {faqTopics.map((topic, i) => (
+                <Collapsible key={i}>
+                  <CollapsibleTrigger className="flex w-full items-center justify-between rounded-xl border bg-card px-5 py-4 text-left text-sm font-medium text-foreground hover:bg-muted/50 transition-colors group">
+                    <span>{topic}</span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="px-5 pt-2 pb-4 text-sm text-muted-foreground">
+                    Ask our AI assistant for a detailed answer — click the chat button below!
+                  </CollapsibleContent>
+                </Collapsible>
               ))}
             </div>
           </div>
@@ -185,35 +209,23 @@ const ChatbotPage = () => {
               Try the AI Assistant Now
             </h2>
             <p className="text-muted-foreground">
-              Ask anything about {chatbot.business_name} — products, services, pricing, or FAQs.
+              Ask anything about {chatbot.business_name} — menu, reservations, hours, or specials.
             </p>
           </div>
-
-          {/* Quick Questions */}
-          {faqTopics.length > 0 && (
-            <div className="mb-6 flex flex-wrap justify-center gap-2">
-              {faqTopics.slice(0, 5).map((q, i) => (
-                <span key={i} className="rounded-full bg-muted px-4 py-2 text-sm text-muted-foreground">
-                  {q}
-                </span>
-              ))}
-            </div>
-          )}
-
           <p className="text-center text-sm text-muted-foreground">
-            👇 Click the chat button in the bottom-right corner to start a conversation
+            👇 Click the chat button in the bottom-right corner to start
           </p>
         </div>
       </section>
 
-      {/* CTA / Booking Section */}
+      {/* CTA Section */}
       {calendarUrl && (
         <section className="border-t bg-primary/5">
           <div className="mx-auto max-w-3xl px-6 py-16 text-center">
             <Calendar className="mx-auto mb-4 h-10 w-10 text-primary" />
             <h2 className="mb-3 text-2xl font-bold text-foreground">Book a Demo</h2>
             <p className="mb-6 text-muted-foreground">
-              Schedule a quick call to see how the AI assistant can help {chatbot.business_name} automate customer support.
+              See how our AI assistant can transform customer experience for {chatbot.business_name}.
             </p>
             <Button size="lg" className="gap-2 text-base" onClick={handleBookCall}>
               <Calendar className="h-5 w-5" />
@@ -248,14 +260,13 @@ const ChatbotPage = () => {
         greeting={greeting}
         logoUrl={logoUrl}
         businessName={chatbot.business_name}
-        suggestions={suggestions}
       />
     </div>
   );
 };
 
 const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) => (
-  <div className="rounded-xl border bg-card p-6 text-center shadow-sm transition-shadow hover:shadow-md">
+  <div className="rounded-xl border bg-card p-6 text-center shadow-sm transition-all hover:shadow-md hover:-translate-y-1 duration-200">
     <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10">
       {icon}
     </div>

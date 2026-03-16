@@ -81,6 +81,80 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
   return providers;
 }
 
+/**
+ * Build an enhanced system prompt that includes restaurant-specific instructions
+ * for structured button output and dynamic conversation flows.
+ */
+function buildSystemPrompt(chatbot: any): string {
+  const base = chatbot.system_prompt || "";
+  const businessName = chatbot.business_name || "the business";
+  const services: string[] = Array.isArray(chatbot.services) ? chatbot.services : [];
+  const faqTopics: string[] = Array.isArray(chatbot.faq_topics) ? chatbot.faq_topics : [];
+  const research = chatbot.research_data || {};
+  const websiteUrl = chatbot.website_url || "";
+  const industry = chatbot.industry || "";
+
+  // Extract detected pages from research data
+  const detectedPages: any[] = research.detected_pages || research.pages || [];
+  const menuItems: any[] = research.menu_items || research.products || [];
+
+  const actionInstructions = `
+
+## INTERACTIVE RESPONSE FORMAT
+
+You are an AI assistant for "${businessName}". You MUST follow these rules:
+
+1. After your text response, you can include interactive buttons by appending this EXACT format at the very end:
+<!--actions:[{"icon":"emoji","label":"Button Text","value":"message to send"},...]-->
+
+2. ALWAYS include relevant action buttons to guide the user. Never leave a response without suggested next steps.
+
+3. For restaurant/food businesses, use these conversation flows:
+
+### Welcome / Main Menu
+After greeting, suggest: View Menu, Order Food, Reserve Table, Location & Hours, Today's Offers
+
+### Menu Browsing
+- Show categories first (Pizza, Burgers, Drinks, etc.)
+- Then show items with prices
+- Each item should have: Add to Cart, Customize, Back buttons
+${menuItems.length > 0 ? `- Known menu items: ${JSON.stringify(menuItems.slice(0, 20))}` : ""}
+
+### Ordering Flow
+- Ask: Delivery or Pickup?
+- Let user select items
+- Show cart summary
+- Ask for delivery address if delivery
+- Confirm order
+
+### Reservation Flow
+- Ask: Date → Time → Number of guests → Contact info
+- Confirm reservation details
+
+### Location & Hours
+- Show address and hours
+- Offer: Open in Maps, Call Restaurant buttons
+
+4. When linking to real pages on the client website, use the "url" field:
+<!--actions:[{"icon":"🔗","label":"View Full Menu","value":"","url":"https://example.com/menu"}]-->
+
+${websiteUrl ? `Client website: ${websiteUrl}` : ""}
+${detectedPages.length > 0 ? `Detected pages from client website:\n${detectedPages.map((p: any) => `- ${p.title || p.name}: ${p.url}`).join("\n")}` : ""}
+
+5. Keep responses concise and friendly. Use emojis naturally.
+
+6. Format menu items nicely with emoji, name, price, and brief description.
+
+7. Always include a "🔙 Back" or "🏠 Main Menu" button option when deep in a flow.
+
+${services.length > 0 ? `\nServices offered: ${services.join(", ")}` : ""}
+${faqTopics.length > 0 ? `\nCommon questions: ${faqTopics.join(", ")}` : ""}
+${industry ? `\nIndustry: ${industry}` : ""}
+`;
+
+  return base + actionInstructions;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -124,15 +198,17 @@ Deno.serve(async (req) => {
       { role: "user", content: message, timestamp: new Date().toISOString() },
     ];
 
+    const systemPrompt = buildSystemPrompt(chatbot);
+
     const aiMessages = [
-      { role: "system", content: chatbot.system_prompt },
+      { role: "system", content: systemPrompt },
       ...updatedMessages.map((m: any) => ({ role: m.role, content: m.content })),
     ];
 
     const providers = await getProviders(supabase, chatbot);
     if (providers.length === 0) {
       return new Response(
-        JSON.stringify({ error: "No AI providers configured. Add an API provider in the admin panel or check your AI credits." }),
+        JSON.stringify({ error: "No AI providers configured." }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -155,15 +231,12 @@ Deno.serve(async (req) => {
 
         if (res.status === 429) {
           failureReasons.push(`${provider.name}: rate limited`);
-          console.log(`${provider.name}: 429 rate limited, trying next`);
           continue;
         }
         if (res.status === 402) {
           failureReasons.push(`${provider.name}: credits exhausted`);
-          console.log(`${provider.name}: 402 credits exhausted, trying next`);
           continue;
         }
-
         if (!res.ok) {
           const errText = await res.text();
           failureReasons.push(`${provider.name}: HTTP ${res.status}`);
@@ -177,15 +250,14 @@ Deno.serve(async (req) => {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "error";
         failureReasons.push(`${provider.name}: ${msg.includes("abort") ? "timeout" : msg}`);
-        console.log(`${provider.name}: ${msg}`);
       }
     }
 
     if (!aiRes) {
       const allCreditsExhausted = failureReasons.every(r => r.includes("credits exhausted"));
       const errorMsg = allCreditsExhausted
-        ? "AI credits exhausted across all providers. Please add a backup API provider (OpenAI/OpenRouter) in the admin panel's API Providers tab."
-        : `All AI providers failed: ${failureReasons.join("; ")}. Check the Debug Logs in the admin panel.`;
+        ? "AI credits exhausted. Please add a backup API provider."
+        : `All AI providers failed: ${failureReasons.join("; ")}`;
 
       return new Response(
         JSON.stringify({ error: errorMsg, details: failureReasons }),
