@@ -203,12 +203,12 @@ async function createVapiAssistant(
     firstMessage,
     model: {
       provider: "openai",
-      model: "gpt-4",
+      model: "gpt-4o",
       messages: [{ role: "system", content: fullPrompt }],
     },
     voice: {
-      provider: "11labs",
-      voiceId: "rachel",
+      provider: "azure",
+      voiceId: "andrew",
     },
     endCallMessage: `Thank you for calling ${businessName}. Goodbye!`,
     maxDurationSeconds: 600,
