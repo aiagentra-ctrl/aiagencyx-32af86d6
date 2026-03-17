@@ -263,6 +263,7 @@ const ApiDocsPage = () => {
             </div>
           </CardContent>
         </Card>
+      </main>
     </div>
   );
 };
