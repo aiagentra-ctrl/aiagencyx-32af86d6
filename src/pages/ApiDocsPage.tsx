@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Check, ArrowLeft, Layers, Bot, Phone } from "lucide-react";
+import { Copy, Check, ArrowLeft, Layers, Bot, Phone, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -189,6 +189,77 @@ const ApiDocsPage = () => {
               <p className="text-muted-foreground">
                 Pass <code className="bg-background px-1 rounded text-xs">"origin"</code> in API calls for clean generated URLs, or omit it to use the server-configured SITE_URL.
               </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Automated Voice Agent API */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              <CardTitle>Automated Voice Agent API</CardTitle>
+            </div>
+            <CardDescription>
+              Fully automated pipeline: scrape website → generate production-quality system prompt via AI → create VAPI assistant. Returns only the assistantId.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <p className="mb-2 text-sm font-medium text-foreground">Endpoint</p>
+              <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
+                POST {SUPABASE_URL}/functions/v1/create-voice-agent
+              </code>
+            </div>
+
+            <div className="rounded-lg border bg-muted/50 p-4 text-sm space-y-2">
+              <p className="font-medium text-foreground">Pipeline</p>
+              <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
+                <li>Validates input: <code className="bg-background px-1 rounded text-xs">businessName</code>, <code className="bg-background px-1 rounded text-xs">category</code>, <code className="bg-background px-1 rounded text-xs">websiteUrl</code></li>
+                <li>Scrapes website via Firecrawl (extracts services, FAQs, pricing, contact info)</li>
+                <li>Generates structured system prompt + knowledge base via AI (with provider failover)</li>
+                <li>Creates VAPI assistant with optimized voice + model config</li>
+                <li>Returns only <code className="bg-background px-1 rounded text-xs">assistantId</code></li>
+              </ol>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Request</p>
+              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-voice-agent' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer ${ANON_KEY}' \\
+  -d '{
+    "businessName": "ABC Dental Clinic",
+    "category": "Healthcare",
+    "websiteUrl": "https://abcdental.com"
+  }'`} />
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Response</p>
+              <CodeBlock code={`{
+  "assistantId": "vapi-assistant-uuid-here"
+}`} />
+            </div>
+
+            <div className="rounded-lg border bg-primary/5 p-4 text-sm space-y-2">
+              <p className="font-medium text-foreground">⚡ What gets generated</p>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li><strong>System prompt</strong> — Role, Identity, Tasks, Do's &amp; Don'ts, Error Handling (business-specific)</li>
+                <li><strong>Knowledge base</strong> — Extracted services, pricing, FAQs, contact details from the website</li>
+                <li><strong>First message</strong> — Dynamic greeting tailored to the business</li>
+                <li><strong>Voice</strong> — 11Labs Rachel (high-quality, natural)</li>
+                <li><strong>Model</strong> — OpenAI GPT-4 for intelligent conversation</li>
+              </ul>
+            </div>
+
+            <div className="rounded-lg border bg-destructive/5 p-4 text-sm space-y-2">
+              <p className="font-medium text-foreground">Error Responses</p>
+              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                <li><code className="bg-background px-1 rounded text-xs">400</code> — Missing required fields</li>
+                <li><code className="bg-background px-1 rounded text-xs">502</code> — Website scraping or VAPI creation failed</li>
+                <li><code className="bg-background px-1 rounded text-xs">500</code> — Internal error</li>
+              </ul>
             </div>
           </CardContent>
         </Card>
