@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.chatbot-conversation]
 verify_jwt = false
+
+[functions.create-voice-agent]
+verify_jwt = false

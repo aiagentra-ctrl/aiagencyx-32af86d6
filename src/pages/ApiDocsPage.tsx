@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Check, ArrowLeft, Layers, Bot, Phone } from "lucide-react";
+import { Copy, Check, ArrowLeft, Layers, Bot, Phone, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
