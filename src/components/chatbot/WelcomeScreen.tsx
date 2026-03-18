@@ -12,22 +12,19 @@ interface WelcomeScreenProps {
 const WelcomeScreen = ({ businessName, logoUrl, greeting, quickActions, onAction }: WelcomeScreenProps) => {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-8 text-center animate-fade-in">
-      {/* Logo with pulse animation */}
+      {/* Logo — responsive, supports rectangular */}
       <div className="relative mb-5">
-        <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" style={{ animationDuration: "2s" }} />
-        <div className="relative h-16 w-16 rounded-full bg-gradient-to-br from-primary to-primary/80 p-0.5 shadow-lg shadow-primary/25">
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt={businessName}
-              className="h-full w-full rounded-full object-cover bg-card"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-full bg-card">
-              <Bot className="h-7 w-7 text-primary" />
-            </div>
-          )}
-        </div>
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt={businessName}
+            className="h-20 w-auto max-w-[160px] rounded-xl object-contain bg-card shadow-md"
+          />
+        ) : (
+          <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 shadow-md">
+            <Bot className="h-8 w-8 text-primary" />
+          </div>
+        )}
       </div>
 
       {/* Business name */}

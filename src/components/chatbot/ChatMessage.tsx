@@ -27,18 +27,18 @@ const ChatMessage = ({ role, content, onAction, isLatest }: ChatMessageProps) =>
   const { text, buttons } = role === "assistant" ? parseActions(content) : { text: content, buttons: [] };
 
   return (
-    <div className={cn("flex w-full animate-fade-in", role === "user" ? "justify-end" : "justify-start")}>
+    <div className={cn("flex w-full", role === "user" ? "justify-end" : "justify-start")}>
       <div className="max-w-[85%] space-y-2">
         <div
           className={cn(
-            "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+            "rounded-2xl px-4 py-3 text-sm leading-relaxed",
             role === "user"
               ? "bg-primary text-primary-foreground rounded-br-md shadow-sm"
               : "bg-muted text-foreground rounded-bl-md"
           )}
         >
           {role === "assistant" ? (
-            <div className="prose prose-sm max-w-none dark:prose-invert [&>p]:m-0 [&>ul]:my-1 [&>ol]:my-1 [&>p:not(:last-child)]:mb-2">
+            <div className="prose prose-sm max-w-none dark:prose-invert [&>p]:m-0 [&>ul]:my-1 [&>ol]:my-1 [&>p:not(:last-child)]:mb-2 [&>h3]:mt-2 [&>h3]:mb-1 [&>h3]:text-sm [&>h3]:font-semibold">
               <ReactMarkdown>{text}</ReactMarkdown>
             </div>
           ) : (

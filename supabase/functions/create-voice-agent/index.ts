@@ -26,6 +26,31 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 3
   }
 }
 
+// ── Check scraped_data cache ──
+async function getCachedContent(supabase: any, websiteUrl: string): Promise<{ content: string; structured_data?: any } | null> {
+  const { data } = await supabase
+    .from("scraped_data")
+    .select("*")
+    .eq("website_url", websiteUrl)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+
+  if (data) {
+    console.log(`[cache] Hit for ${websiteUrl}`);
+    return { content: data.raw_content || "", structured_data: data.structured_data };
+  }
+  return null;
+}
+
+async function saveScrapeCache(supabase: any, websiteUrl: string, content: string) {
+  await supabase.from("scraped_data").upsert({
+    website_url: websiteUrl,
+    raw_content: content,
+    scraped_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  }, { onConflict: "website_url" });
+}
+
 // ── Firecrawl scraping with failover ──
 async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<string> {
   const { data: firecrawlProviders } = await supabase
@@ -68,14 +93,95 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<string>
   throw new Error(`All Firecrawl keys failed. Last: ${lastError}`);
 }
 
-// ── LLM: generate structured voice agent prompt ──
-async function generateVoicePrompt(
+// ── Build restaurant-specific voice prompt ──
+function buildRestaurantPrompt(businessName: string, category: string, websiteContent: string, structuredData?: any): {
+  systemPrompt: string; firstMessage: string; knowledgeBase: string;
+} {
+  const menu = structuredData?.menu_items || [];
+  const hours = structuredData?.business_hours || "";
+  const address = structuredData?.address || "";
+  const phone = structuredData?.phone || "";
+  const services = structuredData?.services || [];
+  const faqs = structuredData?.faq_topics || [];
+
+  const menuSection = menu.length > 0
+    ? `\n### Menu\n${menu.map((item: any) => `- ${item.name}: ${item.price}${item.description ? ` — ${item.description}` : ""}`).join("\n")}`
+    : "";
+
+  const knowledgeBase = `## Business Information
+- Name: ${businessName}
+- Category: ${category}
+${address ? `- Address: ${address}` : ""}
+${phone ? `- Phone: ${phone}` : ""}
+${hours ? `- Hours: ${hours}` : ""}
+${services.length > 0 ? `- Services: ${services.join(", ")}` : ""}
+${menuSection}
+${faqs.length > 0 ? `\n### Common Questions\n${faqs.map((f: string) => `- ${f}`).join("\n")}` : ""}
+
+### Additional Context
+${websiteContent.substring(0, 3000)}`;
+
+  const systemPrompt = `## Role & Identity
+You are the AI phone assistant for ${businessName}. You are friendly, professional, and speak naturally like a real team member.
+
+## Core Tasks
+A. Food Ordering:
+   - Ask what items they'd like to order
+   - Confirm quantities
+   - Ask if delivery or pickup
+   - If delivery, collect address
+   - Repeat the order back for confirmation
+   - Provide estimated time if possible
+
+B. Table Reservation:
+   - Ask for preferred date
+   - Ask for preferred time
+   - Ask how many guests
+   - Collect name and phone number
+   - Confirm all details back to the caller
+
+C. General Inquiry:
+   - Answer questions using the knowledge base below
+   - Keep responses concise (2-3 sentences max for voice)
+   - If you don't have the info, offer to connect with staff
+
+## Conversation Style
+- Speak naturally and warmly — avoid robotic or scripted language
+- Keep responses under 2-3 sentences for clarity on phone
+- Confirm details by repeating them back
+- Use natural transitions: "Great choice!", "Sure thing!", "Let me help with that"
+- Be patient — if caller is unsure, offer suggestions
+
+## Do's & Don'ts
+DO:
+- Stay in character as a helpful team member
+- Confirm before finalizing any order or reservation
+- Offer alternatives when something is unavailable
+- Be proactive: "Would you like anything else?"
+
+DON'T:
+- Make up information not in the knowledge base
+- Discuss competitors or unrelated topics
+- Share internal business data
+- Rush the caller
+
+## Error Handling
+- If you can't hear clearly: "I'm sorry, could you repeat that?"
+- If asked something outside your scope: "That's a great question. I'd recommend speaking with our team directly. Would you like their phone number?"
+- If the caller seems frustrated: "I apologize for the inconvenience. Let me see how I can help."`;
+
+  const firstMessage = `Hi, thank you for calling ${businessName}! I can help you place an order, book a table, or answer any questions you might have. What would you like to do?`;
+
+  return { systemPrompt, firstMessage, knowledgeBase };
+}
+
+// ── LLM: enhance prompt with scraped content (optional) ──
+async function enhanceWithLLM(
   supabase: any,
   businessName: string,
   category: string,
   websiteContent: string,
-): Promise<{ systemPrompt: string; firstMessage: string; knowledgeBase: string }> {
-  // Collect providers
+): Promise<{ systemPrompt: string; firstMessage: string; knowledgeBase: string } | null> {
   const { data: llmProviders } = await supabase
     .from("api_providers")
     .select("*")
@@ -106,51 +212,48 @@ async function generateVoicePrompt(
       providers.push({ name: p.name, url, key: p.api_key, model: p.model || "gpt-4" });
     }
   }
-  if (providers.length === 0) throw new Error("No AI providers configured");
+  if (providers.length === 0) return null;
 
-  const userPrompt = `Analyze this business and generate a production-quality AI voice assistant configuration.
+  const userPrompt = `Extract structured restaurant data from this website content. Return menu items with prices, business hours, address, phone, and key FAQs.
 
-Business Name: ${businessName}
+Business: ${businessName}
 Category: ${category}
 
-Website Content (scraped):
-${websiteContent.substring(0, 10000)}
-
-Generate:
-1. A comprehensive system prompt for a phone voice assistant with: Role & Identity, Core Tasks, Conversation Style, Do's & Don'ts, Error Handling instructions.
-2. A warm first message greeting.
-3. A knowledge base summary with key business info (services, pricing, FAQs, contact details).`;
+Website Content:
+${websiteContent.substring(0, 10000)}`;
 
   const body = (model: string) => ({
     model,
     messages: [
-      {
-        role: "system",
-        content: "You are an expert at creating production-quality AI voice assistant configurations. Generate detailed, business-specific content. The system prompt must be comprehensive — covering identity, tasks, tone, boundaries, and error handling. Call the provided tool with the result.",
-      },
+      { role: "system", content: "Extract structured restaurant data. Call the tool with accurate data from the website content." },
       { role: "user", content: userPrompt },
     ],
     tools: [{
       type: "function",
       function: {
-        name: "create_voice_config",
-        description: "Return the voice assistant configuration",
+        name: "extract_restaurant_data",
+        description: "Return structured restaurant data",
         parameters: {
           type: "object",
           properties: {
-            systemPrompt: { type: "string", description: "Complete system prompt with Role, Identity, Tasks, Do's & Don'ts, Error Handling" },
-            firstMessage: { type: "string", description: "Warm greeting message the assistant says first" },
-            knowledgeBase: { type: "string", description: "Structured knowledge base with services, pricing, FAQs, contact info" },
+            menu_items: {
+              type: "array",
+              items: { type: "object", properties: { name: { type: "string" }, price: { type: "string" }, category: { type: "string" }, description: { type: "string" } } },
+            },
+            business_hours: { type: "string" },
+            address: { type: "string" },
+            phone: { type: "string" },
+            services: { type: "array", items: { type: "string" } },
+            faq_topics: { type: "array", items: { type: "string" } },
           },
-          required: ["systemPrompt", "firstMessage", "knowledgeBase"],
+          required: ["menu_items"],
           additionalProperties: false,
         },
       },
     }],
-    tool_choice: { type: "function", function: { name: "create_voice_config" } },
+    tool_choice: { type: "function", function: { name: "extract_restaurant_data" } },
   });
 
-  let lastError = "";
   for (const provider of providers) {
     try {
       console.log(`[llm] Trying ${provider.name}`);
@@ -160,29 +263,19 @@ Generate:
         body: JSON.stringify(body(provider.model)),
       }, 60000);
 
-      if (res.status === 429 || res.status === 402) { lastError = `${provider.name}: ${res.status}`; await res.text(); continue; }
-      if (!res.ok) { lastError = `${provider.name}: ${res.status}`; await res.text(); continue; }
+      if (res.status === 429 || res.status === 402) { await res.text(); continue; }
+      if (!res.ok) { await res.text(); continue; }
 
       const data = await res.json();
       const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
       if (toolCall?.function?.arguments) {
         const result = JSON.parse(toolCall.function.arguments);
-        await log(supabase, "voice_agent_llm", "success", `Prompt generated via ${provider.name}`, { provider: provider.name });
+        // Update cache with structured data
         return result;
       }
-      lastError = `${provider.name}: no tool call`;
-    } catch (err) {
-      lastError = `${provider.name}: ${err instanceof Error ? err.message : String(err)}`;
-    }
+    } catch { /* continue */ }
   }
-
-  // Fallback
-  await log(supabase, "voice_agent_llm", "warn", `All AI providers failed, using fallback. Last: ${lastError}`, {});
-  return {
-    systemPrompt: `You are a professional AI phone assistant for ${businessName}, a ${category} business. Help callers with inquiries about services, scheduling, and general information. Be polite, professional, and concise. If you don't know something, offer to connect the caller with a team member.`,
-    firstMessage: `Hello! Thank you for calling ${businessName}. How can I help you today?`,
-    knowledgeBase: websiteContent.substring(0, 3000),
-  };
+  return null;
 }
 
 // ── Create VAPI Assistant ──
@@ -195,7 +288,6 @@ async function createVapiAssistant(
   const vapiKey = Deno.env.get("VAPI_API_KEY");
   if (!vapiKey) throw new Error("VAPI_API_KEY is not configured");
 
-  // Combine system prompt + knowledge base
   const fullPrompt = `${systemPrompt}\n\n## Knowledge Base\n${knowledgeBase}`;
 
   const payload = {
@@ -210,7 +302,7 @@ async function createVapiAssistant(
       provider: "azure",
       voiceId: "andrew",
     },
-    endCallMessage: `Thank you for calling ${businessName}. Goodbye!`,
+    endCallMessage: `Thank you for calling ${businessName}. Have a great day!`,
     maxDurationSeconds: 600,
     firstMessageMode: "assistant-speaks-first",
   };
@@ -245,7 +337,7 @@ Deno.serve(async (req) => {
   const supabase = getSupabase();
 
   try {
-    const { businessName, category, websiteUrl } = await req.json();
+    const { businessName, category, websiteUrl, forceRefresh } = await req.json();
 
     if (!businessName || !category || !websiteUrl) {
       return new Response(
@@ -261,23 +353,51 @@ Deno.serve(async (req) => {
 
     await log(supabase, "voice_agent_creation", "info", `Starting voice agent for "${businessName}"`, { businessName, category, websiteUrl: formattedUrl });
 
-    // Step 1: Scrape
-    let websiteContent: string;
-    try {
-      websiteContent = await scrapeWebsite(supabase, formattedUrl);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Scraping failed";
-      await log(supabase, "voice_agent_creation", "error", `Scrape failed: ${msg}`, { businessName });
-      return new Response(
-        JSON.stringify({ error: `Website scraping failed: ${msg}` }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    // Step 1: Check cache first
+    let websiteContent: string | null = null;
+    let structuredData: any = null;
+
+    if (!forceRefresh) {
+      const cached = await getCachedContent(supabase, formattedUrl);
+      if (cached) {
+        websiteContent = cached.content;
+        structuredData = cached.structured_data;
+      }
     }
 
-    // Step 2: Generate prompt via LLM
-    const { systemPrompt, firstMessage, knowledgeBase } = await generateVoicePrompt(supabase, businessName, category, websiteContent);
+    if (!websiteContent) {
+      try {
+        websiteContent = await scrapeWebsite(supabase, formattedUrl);
+        // Save to cache
+        await saveScrapeCache(supabase, formattedUrl, websiteContent);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Scraping failed";
+        await log(supabase, "voice_agent_creation", "error", `Scrape failed: ${msg}`, { businessName });
+        return new Response(
+          JSON.stringify({ error: `Website scraping failed: ${msg}` }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
 
-    // Step 3: Create VAPI assistant
+    // Step 2: Try LLM extraction if no structured data
+    if (!structuredData || !structuredData.menu_items?.length) {
+      const llmData = await enhanceWithLLM(supabase, businessName, category, websiteContent);
+      if (llmData) {
+        structuredData = llmData;
+        // Update cache with structured data
+        await supabase.from("scraped_data").update({
+          structured_data: structuredData,
+        }).eq("website_url", formattedUrl);
+      }
+    }
+
+    // Step 3: Build prompt (restaurant-optimized)
+    const { systemPrompt, firstMessage, knowledgeBase } = buildRestaurantPrompt(
+      businessName, category, websiteContent, structuredData
+    );
+
+    // Step 4: Create VAPI assistant
     let assistantId: string;
     try {
       assistantId = await createVapiAssistant(systemPrompt, firstMessage, knowledgeBase, businessName);

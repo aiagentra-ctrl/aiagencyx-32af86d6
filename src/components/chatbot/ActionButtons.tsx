@@ -39,16 +39,16 @@ const ActionButtons = ({ buttons, onAction, disabled, variant = "default" }: Act
           onClick={() => handleClick(btn)}
           disabled={disabled}
           className={cn(
-            "group relative rounded-xl border border-primary/20 bg-card px-3.5 py-2.5 text-left text-sm font-medium",
+            "relative rounded-xl border border-primary/20 bg-card px-3.5 py-2.5 text-left text-sm font-medium",
             "text-foreground shadow-sm transition-all duration-200",
             "hover:border-primary/40 hover:bg-primary/5 hover:shadow-md hover:-translate-y-0.5",
             "active:translate-y-0 active:shadow-sm",
-            "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0",
+            "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm disabled:hover:bg-card disabled:hover:border-primary/20",
             variant === "compact" && "px-3 py-2 text-xs rounded-lg"
           )}
         >
           <span className="flex items-center gap-2">
-            {btn.icon && <span className="text-base">{btn.icon}</span>}
+            {btn.icon && <span className="text-sm">{btn.icon}</span>}
             <span>{btn.label}</span>
           </span>
           {btn.url && (

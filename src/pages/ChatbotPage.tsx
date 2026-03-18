@@ -213,7 +213,7 @@ const ChatbotPage = () => {
             </p>
           </div>
           <p className="text-center text-sm text-muted-foreground">
-            👇 Click the chat button in the bottom-right corner to start
+            Click the chat button in the bottom-right corner to start
           </p>
         </div>
       </section>

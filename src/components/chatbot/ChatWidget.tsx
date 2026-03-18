@@ -20,11 +20,11 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
   const isMobile = useIsMobile();
 
   const navItems: ActionButton[] = [
-    { icon: "🍽", label: "Menu", value: "Show me the full menu" },
-    { icon: "🛒", label: "Order", value: "I want to order food" },
-    { icon: "📅", label: "Reserve", value: "I want to reserve a table" },
-    { icon: "📍", label: "Location", value: "What's your location and hours?" },
-    { icon: "❓", label: "FAQ", value: "What are your frequently asked questions?" },
+    { label: "Menu", value: "Show me the full menu" },
+    { label: "Order", value: "I want to order food" },
+    { label: "Reserve", value: "I want to reserve a table" },
+    { label: "Location", value: "What's your location and hours?" },
+    { label: "FAQ", value: "What are your frequently asked questions?" },
   ];
 
   const [pendingMsg, setPendingMsg] = useState<string | null>(null);
@@ -45,18 +45,20 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
           {/* Header */}
           <div className="relative flex items-center justify-between border-b bg-gradient-to-r from-primary to-primary/90 px-4 py-3 text-primary-foreground">
             <div className="flex items-center gap-3">
-              {/* Logo with animation */}
-              <div className="relative">
-                <div className="absolute inset-0 rounded-full bg-primary-foreground/20 animate-pulse" />
+              {/* Logo */}
+              <div className="relative shrink-0">
                 {logoUrl ? (
-                  <img src={logoUrl} alt="" className="relative h-9 w-9 rounded-full object-cover ring-2 ring-primary-foreground/30" />
+                  <img
+                    src={logoUrl}
+                    alt={businessName || ""}
+                    className="relative h-10 w-10 rounded-lg object-cover ring-2 ring-primary-foreground/20"
+                  />
                 ) : (
-                  <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-primary-foreground/20">
+                  <div className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-primary-foreground/20">
                     <MessageCircle className="h-5 w-5" />
                   </div>
                 )}
-                {/* Online dot */}
-                <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-primary bg-green-400" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-primary bg-green-400" />
               </div>
               <div>
                 <span className="font-semibold text-sm block leading-tight">{businessName || "Chat with us"}</span>
@@ -93,8 +95,7 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
                     onClick={() => handleNavAction(item)}
                     className="flex flex-col items-center gap-1 rounded-lg px-2 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
                   >
-                    <span className="text-lg">{item.icon}</span>
-                    <span>{item.label}</span>
+                    <span className="text-sm">{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -104,7 +105,7 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
           {/* Chat window */}
           <ChatWindow
             chatbotId={chatbotId}
-            greeting={greeting || "Hi! How can I help you today?"}
+            greeting={greeting || "How can I help you today?"}
             suggestions={suggestions}
             businessName={businessName}
             logoUrl={logoUrl}
@@ -122,7 +123,7 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
         >
           {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
           {!open && (
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-green-400 border-2 border-background animate-pulse" />
+            <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-green-400 border-2 border-background" />
           )}
         </Button>
       )}

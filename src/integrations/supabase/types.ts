@@ -258,6 +258,36 @@ export type Database = {
         }
         Relationships: []
       }
+      scraped_data: {
+        Row: {
+          expires_at: string | null
+          id: string
+          logo_url: string | null
+          raw_content: string | null
+          scraped_at: string | null
+          structured_data: Json | null
+          website_url: string
+        }
+        Insert: {
+          expires_at?: string | null
+          id?: string
+          logo_url?: string | null
+          raw_content?: string | null
+          scraped_at?: string | null
+          structured_data?: Json | null
+          website_url: string
+        }
+        Update: {
+          expires_at?: string | null
+          id?: string
+          logo_url?: string | null
+          raw_content?: string | null
+          scraped_at?: string | null
+          structured_data?: Json | null
+          website_url?: string
+        }
+        Relationships: []
+      }
       site_settings: {
         Row: {
           created_at: string

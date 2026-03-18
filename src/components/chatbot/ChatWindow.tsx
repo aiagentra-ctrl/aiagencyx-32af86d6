@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Send, Loader2 } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import WelcomeScreen from "./WelcomeScreen";
@@ -32,6 +31,7 @@ const ChatWindow = ({
   const [isLoading, setIsLoading] = useState(false);
   const [started, setStarted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const sessionId = useRef(crypto.randomUUID());
 
   useEffect(() => {
@@ -113,7 +113,6 @@ const ChatWindow = ({
         }
       }
 
-      // flush
       if (textBuffer.trim()) {
         for (const raw of textBuffer.split("\n")) {
           if (raw) processLine(raw);
@@ -127,6 +126,8 @@ const ChatWindow = ({
       ]);
     } finally {
       setIsLoading(false);
+      // Re-focus input after response
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [chatbotId, isLoading, started]);
 
@@ -135,10 +136,10 @@ const ChatWindow = ({
   }, [sendMessage]);
 
   const defaultQuickActions: ActionButton[] = quickActions || [
-    { icon: "🍽", label: "View Menu", value: "Show me the menu" },
-    { icon: "📅", label: "Reserve Table", value: "I want to reserve a table" },
-    { icon: "📍", label: "Location & Hours", value: "What are your hours and location?" },
-    { icon: "🎉", label: "Today's Offers", value: "What deals or offers do you have today?" },
+    { label: "View Menu", value: "Show me the menu" },
+    { label: "Reserve Table", value: "I want to reserve a table" },
+    { label: "Location & Hours", value: "What are your hours and location?" },
+    { label: "Today's Offers", value: "What deals or offers do you have today?" },
   ];
 
   return (
@@ -153,7 +154,7 @@ const ChatWindow = ({
             onAction={handleAction}
           />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {messages.map((msg, i) => (
               <ChatMessage
                 key={i}
@@ -166,7 +167,7 @@ const ChatWindow = ({
 
             {/* Typing indicator */}
             {isLoading && messages[messages.length - 1]?.role === "user" && (
-              <div className="flex justify-start animate-fade-in">
+              <div className="flex justify-start">
                 <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
                   <div className="flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
@@ -181,23 +182,24 @@ const ChatWindow = ({
       </div>
 
       {/* Input bar */}
-      <div className="border-t bg-card/50 p-3">
+      <div className="border-t bg-card/80 backdrop-blur-sm p-3">
         <form
           onSubmit={(e) => { e.preventDefault(); sendMessage(input); }}
           className="flex gap-2"
         >
-          <Input
+          <input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type a message..."
             disabled={isLoading}
-            className="flex-1 rounded-xl border-muted-foreground/20"
+            className="flex-1 rounded-xl border border-input bg-background px-4 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
           <Button
             type="submit"
             size="icon"
             disabled={isLoading || !input.trim()}
-            className="rounded-xl shrink-0"
+            className="rounded-xl shrink-0 h-10 w-10"
           >
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
