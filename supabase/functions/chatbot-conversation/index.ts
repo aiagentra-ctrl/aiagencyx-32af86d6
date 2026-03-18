@@ -81,10 +81,6 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
   return providers;
 }
 
-/**
- * Build an enhanced system prompt that includes restaurant-specific instructions
- * for structured button output and dynamic conversation flows.
- */
 function buildSystemPrompt(chatbot: any): string {
   const base = chatbot.system_prompt || "";
   const businessName = chatbot.business_name || "the business";
@@ -94,62 +90,64 @@ function buildSystemPrompt(chatbot: any): string {
   const websiteUrl = chatbot.website_url || "";
   const industry = chatbot.industry || "";
 
-  // Extract detected pages from research data
   const detectedPages: any[] = research.detected_pages || research.pages || [];
-  const menuItems: any[] = research.menu_items || research.products || [];
+  const menuItems: any[] = research.menu_items || [];
+  const businessHours = research.business_hours || "";
+  const address = research.address || "";
+  const phone = research.phone || "";
 
   const actionInstructions = `
 
+## ROLE & IDENTITY
+You are the AI assistant for "${businessName}". You are helpful, professional, and knowledgeable about the business.
+
 ## INTERACTIVE RESPONSE FORMAT
 
-You are an AI assistant for "${businessName}". You MUST follow these rules:
+After your text response, you can include interactive buttons using this EXACT format at the end:
+<!--actions:[{"icon":"icon","label":"Button Text","value":"message to send"},...]-->
 
-1. After your text response, you can include interactive buttons by appending this EXACT format at the very end:
-<!--actions:[{"icon":"emoji","label":"Button Text","value":"message to send"},...]-->
+Always include relevant action buttons to guide the user to the next step. Keep button labels clean and professional.
 
-2. ALWAYS include relevant action buttons to guide the user. Never leave a response without suggested next steps.
+## CONVERSATION FLOWS
 
-3. For restaurant/food businesses, use these conversation flows:
+### Menu & Ordering
+- Show menu categories first, then items with prices
+- Each item: name, price, brief description
+- Include "Back" and "Main Menu" buttons for navigation
+${menuItems.length > 0 ? `Available menu items:\n${menuItems.slice(0, 30).map((item: any) => `- ${item.name}: ${item.price}${item.category ? ` (${item.category})` : ""}`).join("\n")}` : ""}
 
-### Welcome / Main Menu
-After greeting, suggest: View Menu, Order Food, Reserve Table, Location & Hours, Today's Offers
+### Table Reservation (Step-by-Step)
+When a user wants to reserve a table, collect information one step at a time:
+1. Ask for date — show button options for "Today", "Tomorrow", "This Weekend"
+2. Ask for time — show common time slots as buttons
+3. Ask for number of guests — show options: "2", "3-4", "5-6", "7+"
+4. Ask for name
+5. Ask for phone/contact
+6. Show full confirmation with all details and "Confirm" / "Edit" buttons
 
-### Menu Browsing
-- Show categories first (Pizza, Burgers, Drinks, etc.)
-- Then show items with prices
-- Each item should have: Add to Cart, Customize, Back buttons
-${menuItems.length > 0 ? `- Known menu items: ${JSON.stringify(menuItems.slice(0, 20))}` : ""}
+### General Inquiry
+- Answer from knowledge base
+- Keep responses concise and clear
+- Offer related follow-up options as buttons
 
-### Ordering Flow
-- Ask: Delivery or Pickup?
-- Let user select items
-- Show cart summary
-- Ask for delivery address if delivery
-- Confirm order
+## BUSINESS INFORMATION
+${address ? `Address: ${address}` : ""}
+${phone ? `Phone: ${phone}` : ""}
+${businessHours ? `Hours: ${businessHours}` : ""}
+${websiteUrl ? `Website: ${websiteUrl}` : ""}
+${detectedPages.length > 0 ? `\nPages:\n${detectedPages.map((p: any) => `- ${p.title || p.name}: ${p.url}`).join("\n")}` : ""}
 
-### Reservation Flow
-- Ask: Date → Time → Number of guests → Contact info
-- Confirm reservation details
+## RESPONSE GUIDELINES
+- Keep responses concise and helpful
+- Use markdown formatting for readability
+- When linking to pages, use the "url" field in action buttons:
+  <!--actions:[{"icon":"link","label":"View Page","value":"","url":"https://example.com"}]-->
+- Always offer a "Main Menu" option when deep in a conversation flow
+- Format prices clearly
 
-### Location & Hours
-- Show address and hours
-- Offer: Open in Maps, Call Restaurant buttons
-
-4. When linking to real pages on the client website, use the "url" field:
-<!--actions:[{"icon":"🔗","label":"View Full Menu","value":"","url":"https://example.com/menu"}]-->
-
-${websiteUrl ? `Client website: ${websiteUrl}` : ""}
-${detectedPages.length > 0 ? `Detected pages from client website:\n${detectedPages.map((p: any) => `- ${p.title || p.name}: ${p.url}`).join("\n")}` : ""}
-
-5. Keep responses concise and friendly. Use emojis naturally.
-
-6. Format menu items nicely with emoji, name, price, and brief description.
-
-7. Always include a "🔙 Back" or "🏠 Main Menu" button option when deep in a flow.
-
-${services.length > 0 ? `\nServices offered: ${services.join(", ")}` : ""}
-${faqTopics.length > 0 ? `\nCommon questions: ${faqTopics.join(", ")}` : ""}
-${industry ? `\nIndustry: ${industry}` : ""}
+${services.length > 0 ? `Services: ${services.join(", ")}` : ""}
+${faqTopics.length > 0 ? `Common questions: ${faqTopics.join(", ")}` : ""}
+${industry ? `Industry: ${industry}` : ""}
 `;
 
   return base + actionInstructions;
@@ -229,14 +227,8 @@ Deno.serve(async (req) => {
           body: JSON.stringify({ model: provider.model, messages: aiMessages, stream: true }),
         }, 30000);
 
-        if (res.status === 429) {
-          failureReasons.push(`${provider.name}: rate limited`);
-          continue;
-        }
-        if (res.status === 402) {
-          failureReasons.push(`${provider.name}: credits exhausted`);
-          continue;
-        }
+        if (res.status === 429) { failureReasons.push(`${provider.name}: rate limited`); continue; }
+        if (res.status === 402) { failureReasons.push(`${provider.name}: credits exhausted`); continue; }
         if (!res.ok) {
           const errText = await res.text();
           failureReasons.push(`${provider.name}: HTTP ${res.status}`);
@@ -265,7 +257,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Stream response and capture full content
     let fullResponse = "";
     const { readable, writable } = new TransformStream({
       transform(chunk, controller) {

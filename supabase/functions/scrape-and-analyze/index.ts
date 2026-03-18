@@ -34,6 +34,38 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 3
   }
 }
 
+// ── Check cache first ──
+async function getCachedScrape(supabase: any, websiteUrl: string): Promise<{ content: string; logoUrl?: string; structured_data?: any } | null> {
+  const { data } = await supabase
+    .from("scraped_data")
+    .select("*")
+    .eq("website_url", websiteUrl)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+
+  if (data) {
+    console.log(`Cache hit for ${websiteUrl}`);
+    await log(supabase, "scrape_cache", "info", `Cache hit for ${websiteUrl}`, { websiteUrl });
+    return {
+      content: data.raw_content || "",
+      logoUrl: data.logo_url || undefined,
+      structured_data: data.structured_data || undefined,
+    };
+  }
+  return null;
+}
+
+async function saveScrapeCache(supabase: any, websiteUrl: string, content: string, logoUrl?: string, structuredData?: any) {
+  await supabase.from("scraped_data").upsert({
+    website_url: websiteUrl,
+    raw_content: content,
+    logo_url: logoUrl || null,
+    structured_data: structuredData || {},
+    scraped_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  }, { onConflict: "website_url" });
+}
+
 async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ content: string; source: string; logoUrl?: string }> {
   const { data: firecrawlProviders } = await supabase
     .from("api_providers")
@@ -130,18 +162,20 @@ async function analyzeWithAI(supabase: any, businessName: string, websiteUrl: st
 
   if (providers.length === 0) throw new Error("No AI providers configured");
 
-  const analysisPrompt = `Analyze this business website and extract structured information.
+  const analysisPrompt = `Analyze this business website and extract structured information for a restaurant/food business.
 
 Business Name: ${businessName}
 Website URL: ${websiteUrl}
 
 Website Content:
-${websiteContent.substring(0, 8000)}`;
+${websiteContent.substring(0, 10000)}
+
+Extract ALL menu items with prices, categories, hours, address, contact info, and FAQs. Be thorough with menu extraction.`;
 
   const requestBody = (model: string) => ({
     model,
     messages: [
-      { role: "system", content: "You are a business analyst. Analyze the website content and extract structured business information. Call the provided tool with accurate data." },
+      { role: "system", content: "You are a business analyst specializing in restaurants and food businesses. Extract comprehensive structured data including full menus with prices, categories, business hours, contact details, and FAQs. Call the provided tool with accurate data." },
       { role: "user", content: analysisPrompt },
     ],
     tools: [{
@@ -156,7 +190,25 @@ ${websiteContent.substring(0, 8000)}`;
             brand_tone: { type: "string" },
             services: { type: "array", items: { type: "string" } },
             faq_topics: { type: "array", items: { type: "string" } },
-            system_prompt: { type: "string", description: "A complete chatbot system prompt for this business that includes specific product/service details." },
+            system_prompt: { type: "string", description: "A complete chatbot system prompt for this business." },
+            menu_items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  price: { type: "string" },
+                  category: { type: "string" },
+                  description: { type: "string" },
+                },
+              },
+              description: "All menu items with prices and categories",
+            },
+            categories: { type: "array", items: { type: "string" }, description: "Menu categories" },
+            business_hours: { type: "string", description: "Opening hours" },
+            address: { type: "string", description: "Business address" },
+            phone: { type: "string", description: "Phone number" },
+            email: { type: "string", description: "Email address" },
           },
           required: ["industry", "brand_tone", "services", "faq_topics", "system_prompt"],
           additionalProperties: false,
@@ -228,7 +280,7 @@ Deno.serve(async (req) => {
   const supabase = getSupabase();
 
   try {
-    const { businessName, websiteUrl } = await req.json();
+    const { businessName, websiteUrl, forceRefresh } = await req.json();
 
     if (!businessName || !websiteUrl) {
       return new Response(
@@ -244,26 +296,57 @@ Deno.serve(async (req) => {
 
     await log(supabase, "chatbot_creation", "info", `Starting chatbot creation for "${businessName}"`, { businessName, websiteUrl: formattedUrl });
 
-    // Step 1: Scrape with branding/logo extraction
+    // Step 1: Check cache first (unless forceRefresh)
     let websiteContent: string;
     let scrapeSource: string;
     let logoUrl: string | undefined;
-    try {
-      const result = await scrapeWebsite(supabase, formattedUrl);
-      websiteContent = result.content;
-      scrapeSource = result.source;
-      logoUrl = result.logoUrl;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Scraping failed";
-      await log(supabase, "chatbot_creation", "error", `Scraping failed: ${msg}`, { businessName });
-      return new Response(
-        JSON.stringify({ error: `Website scraping failed: ${msg}`, step: "scraping" }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    let cachedStructuredData: any = undefined;
+
+    if (!forceRefresh) {
+      const cached = await getCachedScrape(supabase, formattedUrl);
+      if (cached) {
+        websiteContent = cached.content;
+        scrapeSource = "cache";
+        logoUrl = cached.logoUrl;
+        cachedStructuredData = cached.structured_data;
+      }
+    }
+
+    if (!websiteContent!) {
+      try {
+        const result = await scrapeWebsite(supabase, formattedUrl);
+        websiteContent = result.content;
+        scrapeSource = result.source;
+        logoUrl = result.logoUrl;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Scraping failed";
+        await log(supabase, "chatbot_creation", "error", `Scraping failed: ${msg}`, { businessName });
+        return new Response(
+          JSON.stringify({ error: `Website scraping failed: ${msg}`, step: "scraping" }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Step 2: AI Analysis
-    const analysis = await analyzeWithAI(supabase, businessName, formattedUrl, websiteContent);
+    const analysis = await analyzeWithAI(supabase, businessName, formattedUrl, websiteContent!);
+
+    // Build structured data for cache
+    const structuredData = {
+      menu_items: analysis.menu_items || cachedStructuredData?.menu_items || [],
+      categories: analysis.categories || cachedStructuredData?.categories || [],
+      business_hours: analysis.business_hours || cachedStructuredData?.business_hours || "",
+      address: analysis.address || cachedStructuredData?.address || "",
+      phone: analysis.phone || cachedStructuredData?.phone || "",
+      email: analysis.email || cachedStructuredData?.email || "",
+      services: analysis.services || [],
+      faq_topics: analysis.faq_topics || [],
+    };
+
+    // Save to cache
+    if (scrapeSource! !== "cache") {
+      await saveScrapeCache(supabase, formattedUrl, websiteContent!, logoUrl, structuredData);
+    }
 
     // Step 3: Save chatbot
     let slug = slugify(businessName);
@@ -282,14 +365,15 @@ Deno.serve(async (req) => {
       faq_topics: analysis.faq_topics,
       logo_url: logoUrl || null,
       widget_config: {
-        greeting: `Hi! Welcome to ${businessName}. How can I help you today?`,
+        greeting: `Welcome to ${businessName}! How can I help you today?`,
         position: "bottom-right",
         logo: logoUrl || null,
       },
       research_data: {
-        website_content_preview: websiteContent.substring(0, 2000),
+        ...structuredData,
+        website_content_preview: websiteContent!.substring(0, 2000),
         analyzed_at: new Date().toISOString(),
-        scrape_source: scrapeSource,
+        scrape_source: scrapeSource!,
         ai_provider: analysis._provider,
         was_fallback: !!analysis._fallback,
       },
@@ -304,7 +388,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build URL using SITE_URL or relative path
     const siteUrl = Deno.env.get("SITE_URL") || "";
     const baseUrl = siteUrl.replace(/\/+$/, "");
     const chatbotUrl = baseUrl ? `${baseUrl}/chatbot/${slug}` : `/chatbot/${slug}`;
@@ -324,12 +407,15 @@ Deno.serve(async (req) => {
           services: analysis.services,
           faq_topics: analysis.faq_topics,
           system_prompt: analysis.system_prompt,
+          menu_items: structuredData.menu_items,
+          categories: structuredData.categories,
         },
         meta: {
-          scrape_source: scrapeSource,
+          scrape_source: scrapeSource!,
           ai_provider: analysis._provider,
           was_fallback: !!analysis._fallback,
           logo_url: logoUrl || null,
+          cached: scrapeSource! === "cache",
         },
         chatbot,
       }),
