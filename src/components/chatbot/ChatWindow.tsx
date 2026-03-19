@@ -19,12 +19,13 @@ interface ChatWindowProps {
   businessName?: string;
   logoUrl?: string;
   quickActions?: ActionButton[];
+  calendarUrl?: string;
 }
 
 const ChatWindow = ({
   chatbotId, greeting, className, suggestions,
   pendingMessage, onPendingConsumed,
-  businessName, logoUrl, quickActions,
+  businessName, logoUrl, quickActions, calendarUrl,
 }: ChatWindowProps) => {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -59,13 +60,16 @@ const ChatWindow = ({
     let assistantSoFar = "";
 
     try {
+      const body: any = { chatbotId, sessionId: sessionId.current, message: text };
+      if (calendarUrl) body.calendarUrl = calendarUrl;
+
       const resp = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ chatbotId, sessionId: sessionId.current, message: text }),
+        body: JSON.stringify(body),
       });
 
       if (!resp.ok) {
@@ -126,10 +130,9 @@ const ChatWindow = ({
       ]);
     } finally {
       setIsLoading(false);
-      // Re-focus input after response
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [chatbotId, isLoading, started]);
+  }, [chatbotId, isLoading, started, calendarUrl]);
 
   const handleAction = useCallback((btn: ActionButton) => {
     if (!btn.url) sendMessage(btn.value);
@@ -165,7 +168,6 @@ const ChatWindow = ({
               />
             ))}
 
-            {/* Typing indicator */}
             {isLoading && messages[messages.length - 1]?.role === "user" && (
               <div className="flex justify-start">
                 <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">

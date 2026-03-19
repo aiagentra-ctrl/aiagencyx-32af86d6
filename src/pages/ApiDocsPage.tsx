@@ -69,6 +69,7 @@ const ApiDocsPage = () => {
               <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
                 <li>Set <code className="bg-background px-1 rounded text-xs">"type"</code> to <code className="bg-background px-1 rounded text-xs">"voice"</code>, <code className="bg-background px-1 rounded text-xs">"chatbot"</code>, or <code className="bg-background px-1 rounded text-xs">"both"</code></li>
                 <li>Pass <code className="bg-background px-1 rounded text-xs">"origin"</code> with your domain (e.g. <code className="bg-background px-1 rounded text-xs">https://yourdomain.com</code>) for clean URLs</li>
+                <li><strong className="text-foreground">calendarUrl</strong> — (optional) Client's booking/calendar link. Automatically used in all "Book a Call" buttons and chatbot reservation flows</li>
                 <li>If omitted, URLs use the configured SITE_URL or relative paths</li>
                 <li>Auto-detects type if not specified: voice (if assistantId+vapiKey present) or chatbot (if websiteUrl present)</li>
               </ul>
@@ -91,6 +92,7 @@ const ApiDocsPage = () => {
     "clientName": "John",
     "companyName": "ABC Dental",
     "industry": "Healthcare",
+    "calendarUrl": "https://calendly.com/your-link",
     "origin": "https://yourdomain.com"
   }'`} />
               <p className="mt-2 text-xs text-muted-foreground">Response:</p>
@@ -119,6 +121,7 @@ const ApiDocsPage = () => {
     "type": "chatbot",
     "businessName": "ABC Dental Clinic",
     "websiteUrl": "https://abcdental.com",
+    "calendarUrl": "https://calendly.com/your-link",
     "origin": "https://yourdomain.com"
   }'`} />
               <p className="mt-2 text-xs text-muted-foreground">Response:</p>
@@ -158,6 +161,7 @@ const ApiDocsPage = () => {
     "clientName": "John",
     "companyName": "ABC Dental",
     "industry": "Healthcare",
+    "calendarUrl": "https://calendly.com/your-link",
     "origin": "https://yourdomain.com"
   }'`} />
               <p className="mt-2 text-xs text-muted-foreground">Response:</p>
@@ -176,9 +180,24 @@ const ApiDocsPage = () => {
 }`} />
             </div>
 
-            {/* Domain note */}
+            {/* Calendar & Domain notes */}
+            <div className="rounded-lg border bg-accent/5 p-4 text-sm space-y-2">
+              <p className="font-medium text-foreground">Calendar Link System</p>
+              <p className="text-muted-foreground">
+                Pass <code className="bg-background px-1 rounded text-xs">"calendarUrl"</code> in your API call to set a per-client booking link. This link is automatically:
+              </p>
+              <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                <li>Used in all "Book a Call" and "Book Demo" buttons on the landing page</li>
+                <li>Integrated into the AI chatbot's reservation flow</li>
+                <li>Included in the voice agent's booking instructions</li>
+              </ul>
+              <p className="text-muted-foreground">
+                Each client can have a different calendar link (Calendly, Cal.com, etc.) — the system handles it dynamically.
+              </p>
+            </div>
+
             <div className="rounded-lg border bg-primary/5 p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">🌐 Domain System</p>
+              <p className="font-medium text-foreground">Domain System</p>
               <p className="text-muted-foreground">
                 URLs automatically adapt to whichever domain you access the app from:
               </p>
@@ -187,7 +206,7 @@ const ApiDocsPage = () => {
                 <li><code className="bg-background px-1 rounded text-xs">yourdomain.com/chatbot/gaming</code> — on custom domain</li>
               </ul>
               <p className="text-muted-foreground">
-                Pass <code className="bg-background px-1 rounded text-xs">"origin"</code> in API calls for clean generated URLs, or omit it to use the server-configured SITE_URL.
+                Pass <code className="bg-background px-1 rounded text-xs">"origin"</code> in API calls for clean generated URLs (only the base domain is used, any paths are stripped).
               </p>
             </div>
           </CardContent>
@@ -231,7 +250,8 @@ const ApiDocsPage = () => {
   -d '{
     "businessName": "ABC Dental Clinic",
     "category": "Healthcare",
-    "websiteUrl": "https://abcdental.com"
+    "websiteUrl": "https://abcdental.com",
+    "calendarUrl": "https://calendly.com/your-link"
   }'`} />
             </div>
 
@@ -243,13 +263,14 @@ const ApiDocsPage = () => {
             </div>
 
             <div className="rounded-lg border bg-primary/5 p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">⚡ What gets generated</p>
+              <p className="font-medium text-foreground">What gets generated</p>
               <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
                 <li><strong>System prompt</strong> — Role, Identity, Tasks, Do's &amp; Don'ts, Error Handling (business-specific)</li>
                 <li><strong>Knowledge base</strong> — Extracted services, pricing, FAQs, contact details from the website</li>
                 <li><strong>First message</strong> — Dynamic greeting tailored to the business</li>
-                <li><strong>Voice</strong> — 11Labs Rachel (high-quality, natural)</li>
-                <li><strong>Model</strong> — OpenAI GPT-4 for intelligent conversation</li>
+                <li><strong>Calendar link</strong> — Integrated into booking flow if provided</li>
+                <li><strong>Voice</strong> — Azure Andrew (high-quality, natural)</li>
+                <li><strong>Model</strong> — OpenAI GPT-4o for intelligent conversation</li>
               </ul>
             </div>
 

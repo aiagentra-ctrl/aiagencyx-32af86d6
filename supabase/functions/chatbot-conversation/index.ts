@@ -81,7 +81,7 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
   return providers;
 }
 
-function buildSystemPrompt(chatbot: any): string {
+function buildSystemPrompt(chatbot: any, calendarUrl?: string): string {
   const base = chatbot.system_prompt || "";
   const businessName = chatbot.business_name || "the business";
   const services: string[] = Array.isArray(chatbot.services) ? chatbot.services : [];
@@ -95,6 +95,9 @@ function buildSystemPrompt(chatbot: any): string {
   const businessHours = research.business_hours || "";
   const address = research.address || "";
   const phone = research.phone || "";
+
+  // Resolve calendar link: passed param > widget_config > empty
+  const bookingLink = calendarUrl || chatbot.widget_config?.calendarUrl || "";
 
   const actionInstructions = `
 
@@ -116,14 +119,29 @@ Always include relevant action buttons to guide the user to the next step. Keep 
 - Include "Back" and "Main Menu" buttons for navigation
 ${menuItems.length > 0 ? `Available menu items:\n${menuItems.slice(0, 30).map((item: any) => `- ${item.name}: ${item.price}${item.category ? ` (${item.category})` : ""}`).join("\n")}` : ""}
 
-### Table Reservation (Step-by-Step)
-When a user wants to reserve a table, collect information one step at a time:
-1. Ask for date — show button options for "Today", "Tomorrow", "This Weekend"
-2. Ask for time — show common time slots as buttons
-3. Ask for number of guests — show options: "2", "3-4", "5-6", "7+"
-4. Ask for name
-5. Ask for phone/contact
-6. Show full confirmation with all details and "Confirm" / "Edit" buttons
+### Table Reservation (Step-by-Step Flow)
+When a user wants to reserve a table, DO NOT send a link. Instead, guide them through these steps one at a time:
+
+**Step 1 — Date:** Ask "What date would you like to reserve?" and show buttons:
+<!--actions:[{"label":"Today","value":"I want to reserve for today"},{"label":"Tomorrow","value":"I want to reserve for tomorrow"},{"label":"This Weekend","value":"I want to reserve for this weekend"}]-->
+
+**Step 2 — Time:** Ask "What time works best?" and show buttons:
+<!--actions:[{"label":"12:00 PM","value":"12:00 PM"},{"label":"1:00 PM","value":"1:00 PM"},{"label":"6:00 PM","value":"6:00 PM"},{"label":"7:00 PM","value":"7:00 PM"},{"label":"8:00 PM","value":"8:00 PM"}]-->
+
+**Step 3 — Guests:** Ask "How many guests?" and show buttons:
+<!--actions:[{"label":"2 guests","value":"2 guests"},{"label":"3-4 guests","value":"3-4 guests"},{"label":"5-6 guests","value":"5-6 guests"},{"label":"7+ guests","value":"7+ guests"}]-->
+
+**Step 4 — Name:** Ask "What name should the reservation be under?"
+
+**Step 5 — Contact:** Ask "And a phone number or email for confirmation?"
+
+**Step 6 — Confirmation:** Summarize ALL details clearly:
+- Date, Time, Number of guests, Name, Contact
+Then show:
+<!--actions:[{"label":"Confirm Reservation","value":"Yes, confirm my reservation"},{"label":"Edit Details","value":"I want to change something"}]-->
+
+**Step 7 — Success:** After confirmation, show a success message: "Your table has been reserved! We look forward to seeing you."
+${bookingLink ? `Also include: "You can also manage your booking here:" with a link button:\n<!--actions:[{"label":"View Booking Calendar","value":"","url":"${bookingLink}"}]-->` : ""}
 
 ### General Inquiry
 - Answer from knowledge base
@@ -161,7 +179,7 @@ Deno.serve(async (req) => {
   const supabase = getSupabase();
 
   try {
-    const { chatbotId, sessionId, message } = await req.json();
+    const { chatbotId, sessionId, message, calendarUrl } = await req.json();
 
     if (!chatbotId || !sessionId || !message) {
       return new Response(
@@ -196,7 +214,7 @@ Deno.serve(async (req) => {
       { role: "user", content: message, timestamp: new Date().toISOString() },
     ];
 
-    const systemPrompt = buildSystemPrompt(chatbot);
+    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl);
 
     const aiMessages = [
       { role: "system", content: systemPrompt },

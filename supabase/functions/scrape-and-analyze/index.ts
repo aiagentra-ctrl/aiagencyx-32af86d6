@@ -272,6 +272,15 @@ Extract ALL menu items with prices, categories, hours, address, contact info, an
   };
 }
 
+/** Extract only protocol+host from a URL, stripping any path */
+function sanitizeOrigin(raw: string): string {
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw.replace(/\/+$/, "");
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -280,7 +289,7 @@ Deno.serve(async (req) => {
   const supabase = getSupabase();
 
   try {
-    const { businessName, websiteUrl, forceRefresh } = await req.json();
+    const { businessName, websiteUrl, forceRefresh, calendarUrl, origin } = await req.json();
 
     if (!businessName || !websiteUrl) {
       return new Response(
@@ -354,6 +363,13 @@ Deno.serve(async (req) => {
     const { data: existing } = await supabase.from("chatbots").select("id").eq("slug", slug).maybeSingle();
     if (existing) slug = `${slug}-${randomSuffix()}`;
 
+    const widgetConfig: any = {
+      greeting: `Welcome to ${businessName}! How can I help you today?`,
+      position: "bottom-right",
+      logo: logoUrl || null,
+    };
+    if (calendarUrl) widgetConfig.calendarUrl = calendarUrl;
+
     const { data: chatbot, error: insertError } = await supabase.from("chatbots").insert({
       business_name: businessName,
       website_url: formattedUrl,
@@ -364,11 +380,7 @@ Deno.serve(async (req) => {
       services: analysis.services,
       faq_topics: analysis.faq_topics,
       logo_url: logoUrl || null,
-      widget_config: {
-        greeting: `Welcome to ${businessName}! How can I help you today?`,
-        position: "bottom-right",
-        logo: logoUrl || null,
-      },
+      widget_config: widgetConfig,
       research_data: {
         ...structuredData,
         website_content_preview: websiteContent!.substring(0, 2000),
@@ -388,7 +400,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const siteUrl = Deno.env.get("SITE_URL") || "";
+    // Sanitize origin for URL generation
+    const siteUrl = origin ? sanitizeOrigin(origin) : (Deno.env.get("SITE_URL") || "");
     const baseUrl = siteUrl.replace(/\/+$/, "");
     const chatbotUrl = baseUrl ? `${baseUrl}/chatbot/${slug}` : `/chatbot/${slug}`;
 
