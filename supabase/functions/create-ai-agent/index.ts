@@ -20,6 +20,15 @@ function randomSuffix(): string {
   return Math.random().toString(36).substring(2, 6);
 }
 
+/** Extract only protocol+host from a URL, stripping any path */
+function sanitizeOrigin(raw: string): string {
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw.replace(/\/+$/, "");
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -35,19 +44,19 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json();
     const {
-      type, // "voice" | "chatbot" | "both"
+      type,
       businessName,
-      // Voice agent fields
       assistantId, vapiKey,
       clientName, companyName, industry,
-      heroTitle, heroSubtitle, calendlyUrl, ctaText,
+      heroTitle, heroSubtitle, calendlyUrl, calendarUrl, ctaText,
       contactEmail, contactPhone, customSubdomain,
       description,
-      // Chatbot fields
       websiteUrl,
-      // Origin for URL generation
       origin,
     } = body;
+
+    // Support both calendlyUrl and calendarUrl
+    const resolvedCalendarUrl = calendarUrl || calendlyUrl || null;
 
     if (!businessName) {
       return new Response(
@@ -76,8 +85,8 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Determine base URL: use provided origin, or SITE_URL, or fallback
-    const siteUrl = origin || Deno.env.get("SITE_URL") || "";
+    // Sanitize origin to base domain only
+    const siteUrl = origin ? sanitizeOrigin(origin) : (Deno.env.get("SITE_URL") || "");
     const baseUrl = siteUrl.replace(/\/+$/, "");
 
     const results: any = { businessName };
@@ -107,7 +116,7 @@ Deno.serve(async (req) => {
         industry: industry || null,
         hero_title: heroTitle || null,
         hero_subtitle: heroSubtitle || null,
-        calendly_url: calendlyUrl || null,
+        calendly_url: resolvedCalendarUrl,
         cta_text: ctaText || null,
         contact_email: contactEmail || null,
         contact_phone: contactPhone || null,
@@ -131,14 +140,13 @@ Deno.serve(async (req) => {
 
     // --- Create Chatbot ---
     if (agentType === "chatbot" || agentType === "both") {
-      // Call the scrape-and-analyze function internally
       const scrapeRes = await fetch(`${supabaseUrl}/functions/v1/scrape-and-analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${supabaseServiceKey}`,
         },
-        body: JSON.stringify({ businessName, websiteUrl }),
+        body: JSON.stringify({ businessName, websiteUrl, calendarUrl: resolvedCalendarUrl }),
       });
 
       const scrapeData = await scrapeRes.json();

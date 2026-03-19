@@ -12,9 +12,10 @@ interface ChatWidgetProps {
   businessName?: string;
   suggestions?: string[];
   quickActions?: ActionButton[];
+  calendarUrl?: string;
 }
 
-const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, quickActions }: ChatWidgetProps) => {
+const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, quickActions, calendarUrl }: ChatWidgetProps) => {
   const [open, setOpen] = useState(false);
   const [showNav, setShowNav] = useState(false);
   const isMobile = useIsMobile();
@@ -45,13 +46,12 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
           {/* Header */}
           <div className="relative flex items-center justify-between border-b bg-gradient-to-r from-primary to-primary/90 px-4 py-3 text-primary-foreground">
             <div className="flex items-center gap-3">
-              {/* Logo */}
               <div className="relative shrink-0">
                 {logoUrl ? (
                   <img
                     src={logoUrl}
                     alt={businessName || ""}
-                    className="relative h-10 w-10 rounded-lg object-cover ring-2 ring-primary-foreground/20"
+                    className="relative h-10 w-auto max-w-[80px] rounded-lg object-contain ring-2 ring-primary-foreground/20 bg-primary-foreground/10"
                   />
                 ) : (
                   <div className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-primary-foreground/20">
@@ -112,6 +112,7 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
             quickActions={quickActions}
             pendingMessage={pendingMsg}
             onPendingConsumed={() => setPendingMsg(null)}
+            calendarUrl={calendarUrl}
           />
         </div>
       )}

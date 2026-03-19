@@ -94,7 +94,7 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<string>
 }
 
 // ── Build restaurant-specific voice prompt ──
-function buildRestaurantPrompt(businessName: string, category: string, websiteContent: string, structuredData?: any): {
+function buildRestaurantPrompt(businessName: string, category: string, websiteContent: string, structuredData?: any, calendarUrl?: string): {
   systemPrompt: string; firstMessage: string; knowledgeBase: string;
 } {
   const menu = structuredData?.menu_items || [];
@@ -139,6 +139,7 @@ B. Table Reservation:
    - Ask how many guests
    - Collect name and phone number
    - Confirm all details back to the caller
+${calendarUrl ? `   - If they want to book online, direct them to: ${calendarUrl}` : ""}
 
 C. General Inquiry:
    - Answer questions using the knowledge base below
@@ -270,7 +271,6 @@ ${websiteContent.substring(0, 10000)}`;
       const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
       if (toolCall?.function?.arguments) {
         const result = JSON.parse(toolCall.function.arguments);
-        // Update cache with structured data
         return result;
       }
     } catch { /* continue */ }
@@ -337,7 +337,7 @@ Deno.serve(async (req) => {
   const supabase = getSupabase();
 
   try {
-    const { businessName, category, websiteUrl, forceRefresh } = await req.json();
+    const { businessName, category, websiteUrl, forceRefresh, calendarUrl } = await req.json();
 
     if (!businessName || !category || !websiteUrl) {
       return new Response(
@@ -368,7 +368,6 @@ Deno.serve(async (req) => {
     if (!websiteContent) {
       try {
         websiteContent = await scrapeWebsite(supabase, formattedUrl);
-        // Save to cache
         await saveScrapeCache(supabase, formattedUrl, websiteContent);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Scraping failed";
@@ -385,16 +384,15 @@ Deno.serve(async (req) => {
       const llmData = await enhanceWithLLM(supabase, businessName, category, websiteContent);
       if (llmData) {
         structuredData = llmData;
-        // Update cache with structured data
         await supabase.from("scraped_data").update({
           structured_data: structuredData,
         }).eq("website_url", formattedUrl);
       }
     }
 
-    // Step 3: Build prompt (restaurant-optimized)
+    // Step 3: Build prompt (restaurant-optimized, with calendar link)
     const { systemPrompt, firstMessage, knowledgeBase } = buildRestaurantPrompt(
-      businessName, category, websiteContent, structuredData
+      businessName, category, websiteContent, structuredData, calendarUrl
     );
 
     // Step 4: Create VAPI assistant
