@@ -1,113 +1,121 @@
-## Plan: Personalized Landing Pages, Dynamic Calendar Links, Chatbot Booking Flow, and Domain Handling
 
-### Summary
 
-Four workstreams: (1) Use researched data to enrich landing pages, (2) Add per-client `calendarUrl` field to APIs and wire it everywhere, (3) Build in-chat step-by-step booking flow, (4) Redirect bare base domain to `aiagentra.cloud` and strip paths from API URLs.
+## Plan: Unified AI System API, Logo Scraping, and Conversion-Focused Demo Pages
 
 ---
 
-### 1. Domain Redirect Logic
+### 1. Unified `create-ai-system` Edge Function
 
-**File: `src/App.tsx**`
+**New file: `supabase/functions/create-ai-system/index.ts`**
 
-Add a top-level redirect component that runs on mount:
+A single endpoint that orchestrates everything:
 
-- If `window.location.origin` is `https://aiagentfor.lovable.app` AND `window.location.pathname` is exactly `/` or `/admin`, redirect to `https://aiagentra.cloud/`
-- All other paths (`/abc`, `/chatbot/xyz`, `/api-docs`) work normally
+1. Accept: `businessName`, `websiteUrl`, `category`, `calendarUrl`, `origin`, `clientName`, `forceRefresh`
+2. Scrape website (cache-first) with Firecrawl using `formats: ["markdown", "branding"]` to extract logo
+3. Run LLM analysis to extract structured data (menu, hours, address, FAQs)
+4. Build ONE shared system prompt (the existing restaurant prompt from `create-voice-agent`)
+5. Create VAPI voice assistant using shared prompt + knowledge base
+6. Create chatbot record using SAME prompt + SAME structured data
+7. Create demo page record linked to both
+8. Return all URLs + IDs in one response
 
-This keeps the base domain clean while allowing client pages to load.
+Key principle: all three agents share identical `systemPrompt`, `knowledgeBase`, and `structuredData` — no mismatch.
 
----
-
-### 2. Dynamic Per-Client Calendar Link
-
-**API changes (`create-ai-agent`, `create-voice-agent`, `scrape-and-analyze`):**
-
-- Accept new optional field `calendarUrl` in request body
-- Store it on `demo_pages.calendly_url` (voice agent) and `chatbots.widget_config.calendarUrl` (chatbot)
-- Return it in the API response
-
-**API docs (`ApiDocsPage.tsx`):**
-
-- Add `calendarUrl` as a documented field in all API examples with a note that it's used for all "Book a Call" / "Book Demo" buttons
-
-**Frontend usage:**
-
-- `DemoPage.tsx` — already uses `page.calendly_url`, works as-is
-- `ChatbotPage.tsx` — read `calendarUrl` from `chatbot.widget_config.calendarUrl` as priority, then fall back to global `site_settings` calendar_url
-- Pass `calendarUrl` into `ChatWidget` as a new prop
-- `ChatWidget` → `ChatWindow` → pass it down so the chatbot conversation system prompt can reference it
-
-**Chatbot conversation edge function:**
-
-- Include the calendar link in the system prompt so the AI can use it in booking confirmation messages
+Also update `supabase/config.toml` to register the new function.
 
 ---
 
-### 3. Enriched Landing Pages 
+### 2. Fix Logo Scraping in `create-voice-agent`
 
-Improve the landing page UI to a world-class, premium level.
+Currently `create-voice-agent` scrapes with `formats: ["markdown"]` only — no branding/logo extraction.
 
-Focus on clean layout, strong visual hierarchy, modern typography, and smooth spacing. Make the design feel high-end, minimal, and conversion-focused.
-
-Upgrade all sections:
-
-- Hero section with bold headline, clear value, and strong CTA
-- Add smooth animations, hover effects, and micro-interactions
-- Use consistent colors, gradients, and modern design system
-- Improve responsiveness for mobile and tablet
-
-Enhance trust and clarity:
-
-- Add testimonials, use cases, and clear benefits
-- Make sections easy to scan and visually appealing
-
-Ensure everything feels fast, polished, and professional like a top SaaS product.
-
-&nbsp;
+**Edit `supabase/functions/create-voice-agent/index.ts`:**
+- Change scrape formats to `["markdown", "branding"]`
+- Extract `logo_url` from branding response (same as `scrape-and-analyze` does)
+- Save logo to `scraped_data` cache
+- Return `logoUrl` in response
 
 ---
 
-### 4. In-Chat Table Reservation Flow
+### 3. Conversion-Focused Demo Page Redesign
 
-**File: `chatbot-conversation/index.ts` (system prompt)**
+Completely restructure `DemoPage.tsx` section order to follow the psychological flow:
 
-Update `buildSystemPrompt` to instruct the AI to handle "Reserve a Table" as a step-by-step conversation flow:
+```text
+1. Personalized Hook   → "Your AI receptionist for [Name] is ready"
+2. Try Voice Agent      → BIG call button (primary action)
+3. Try Chatbot          → Embedded chat widget (auto-open or prominent)
+4. Personalization Proof → "AI already knows your business" (menu, pricing, hours)
+5. Problem Reminder     → "How many customers hang up?" (emotional trigger)
+6. Outcome              → More orders, no missed calls, no extra staff
+7. CTA                  → "Want this running for [Name]?" + Book Call button
+```
 
-1. Ask date → show button options ("Today", "Tomorrow", "This Weekend")
-2. Ask time → show time slot buttons
-3. Ask number of guests → show buttons ("2", "3-4", "5-6", "7+")
-4. Ask name
-5. Ask phone/contact
-6. Show confirmation with all details + "Confirm" / "Edit" buttons
-7. On confirm → show success message with calendar link if available
+**Files to edit:**
 
-This is purely a prompt engineering change — the AI already supports `<!--actions:[...]-->` format for buttons.
+| File | Changes |
+|------|---------|
+| `src/pages/DemoPage.tsx` | Complete restructure: new section order, pass logo/research data, fetch linked chatbot's research_data |
+| `src/components/demo/HeroSection.tsx` | Accept `logoUrl`, show business logo in navbar + hero, personalized headline |
+| `src/components/demo/VoiceAgentSection.tsx` | Bigger CTA button, more prominent "Call your AI receptionist" |
+| `src/components/demo/BenefitsSection.tsx` | Rename to "Personalization Proof" — show actual menu, pricing, hours, location from research data |
+| `src/components/demo/FeaturesSection.tsx` | Repurpose as "Problem Reminder" — missed calls, lost orders, busy staff |
+| `src/components/demo/CTASection.tsx` | "Want this running for [Name]?" + "No commitment" line + Book Call |
+| `src/components/demo/FooterSection.tsx` | Add logo to footer |
+
+**New component:** `src/components/demo/PersonalizationProofSection.tsx`
+- Shows actual scraped data: menu categories, pricing, hours, address
+- "Your AI already knows your business" headline
+- Pulls data from linked chatbot's `research_data` or from `scraped_data` table
+
+**New component:** `src/components/demo/ProblemSection.tsx`
+- "How many customers hang up when you don't answer?"
+- Missed calls = lost orders
+- Busy staff = missed bookings
+- Emotional, visual, short
+
+**New component:** `src/components/demo/OutcomeSection.tsx`
+- More orders, More reservations, No missed calls, No extra staff
+- Clean icon grid
 
 ---
 
-### 5. URL Sanitization in API Responses
+### 4. Demo Page Data Flow
 
-**Files: `create-ai-agent/index.ts`, `scrape-and-analyze/index.ts**`
-
-- When building the `baseUrl` from `origin`, extract only the origin (protocol + host), stripping any path
-- Use `new URL(origin).origin` to safely extract the base domain
-- This ensures returned URLs are always `https://domain.com/slug` not `https://domain.com/some/path/slug`
+`DemoPage.tsx` currently doesn't have access to research data. Fix:
+- After fetching `demo_pages` record, also fetch linked chatbot via `demo_page_id`
+- From the chatbot, get `research_data` (menu items, hours, address, etc.)
+- Also check `scraped_data` table as fallback
+- Pass this data to the new personalization proof section
+- Pass `logo_url` from chatbot/scraped_data to HeroSection and FooterSection
 
 ---
 
-### Files to Edit
+### 5. API Docs Update
 
+**Edit `src/pages/ApiDocsPage.tsx`:**
+- Add documentation for `POST /create-ai-system` endpoint
+- Show all required/optional fields
+- Show example response with voice agent, chatbot, and demo page URLs
 
-| File                                               | Changes                                                               |
-| -------------------------------------------------- | --------------------------------------------------------------------- |
-| `src/App.tsx`                                      | Add base domain redirect to aiagentra.cloud                           |
-| `src/pages/ChatbotPage.tsx`                        | Enrich with research data (menu, hours, contact), per-client calendar |
-| &nbsp;                                             | &nbsp;                                                                |
-| `src/pages/ApiDocsPage.tsx`                        | Add `calendarUrl` to API docs                                         |
-| `src/components/chatbot/ChatWidget.tsx`            | Accept & pass calendarUrl prop                                        |
-| `src/components/chatbot/ChatWindow.tsx`            | Pass calendarUrl to system context                                    |
-| `supabase/functions/create-ai-agent/index.ts`      | Accept calendarUrl, sanitize origin URL                               |
-| `supabase/functions/create-voice-agent/index.ts`   | Accept calendarUrl                                                    |
-| `supabase/functions/scrape-and-analyze/index.ts`   | Accept calendarUrl, sanitize origin URL                               |
-| `supabase/functions/chatbot-conversation/index.ts` | Enhanced booking flow prompt, include calendarUrl                     |
+---
+
+### Files Summary
+
+| File | Action |
+|------|--------|
+| `supabase/functions/create-ai-system/index.ts` | Create — unified API |
+| `supabase/config.toml` | Edit — register new function |
+| `supabase/functions/create-voice-agent/index.ts` | Edit — add branding format to scrape |
+| `src/pages/DemoPage.tsx` | Edit — restructure sections, fetch research data + logo |
+| `src/components/demo/HeroSection.tsx` | Edit — accept logoUrl, personalized headline |
+| `src/components/demo/VoiceAgentSection.tsx` | Edit — bigger CTA, "Call your AI receptionist" |
+| `src/components/demo/BenefitsSection.tsx` | Edit — repurpose as outcome section |
+| `src/components/demo/FeaturesSection.tsx` | Edit — repurpose as problem reminder |
+| `src/components/demo/CTASection.tsx` | Edit — "Want this for [Name]?" + no commitment line |
+| `src/components/demo/FooterSection.tsx` | Edit — add logo |
+| `src/components/demo/PersonalizationProofSection.tsx` | Create — show scraped menu/hours/location |
+| `src/components/demo/ProblemSection.tsx` | Create — emotional missed calls section |
+| `src/components/demo/OutcomeSection.tsx` | Create — results grid |
+| `src/pages/ApiDocsPage.tsx` | Edit — document create-ai-system |
+
