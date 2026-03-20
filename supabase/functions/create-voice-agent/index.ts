@@ -27,7 +27,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 3
 }
 
 // ── Check scraped_data cache ──
-async function getCachedContent(supabase: any, websiteUrl: string): Promise<{ content: string; structured_data?: any } | null> {
+async function getCachedContent(supabase: any, websiteUrl: string): Promise<{ content: string; logoUrl?: string; structured_data?: any } | null> {
   const { data } = await supabase
     .from("scraped_data")
     .select("*")
@@ -37,7 +37,7 @@ async function getCachedContent(supabase: any, websiteUrl: string): Promise<{ co
 
   if (data) {
     console.log(`[cache] Hit for ${websiteUrl}`);
-    return { content: data.raw_content || "", structured_data: data.structured_data };
+    return { content: data.raw_content || "", logoUrl: data.logo_url || undefined, structured_data: data.structured_data };
   }
   return null;
 }
