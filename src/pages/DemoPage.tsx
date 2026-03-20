@@ -49,8 +49,10 @@ const DemoPage = () => {
   const [linkedChatbot, setLinkedChatbot] = useState<LinkedChatbot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [vapiStarted, setVapiStarted] = useState(false);
+  const [callStatus, setCallStatus] = useState<CallStatus>("idle");
   const [vapiInstance, setVapiInstance] = useState<any>(null);
+  const [callSeconds, setCallSeconds] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [globalCalendarUrl, setGlobalCalendarUrl] = useState<string | null>(null);
   const [scrolledPastHero, setScrolledPastHero] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
