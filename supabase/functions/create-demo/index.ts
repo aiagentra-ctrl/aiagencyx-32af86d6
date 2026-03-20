@@ -1,0 +1,407 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+function getSupabase() {
+  return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+}
+
+function slugify(text: string): string {
+  return text.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[\s_]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function randomSuffix(): string {
+  return Math.random().toString(36).substring(2, 6);
+}
+
+async function log(supabase: any, status: string, message: string, metadata: any = {}) {
+  try { await supabase.from("activity_logs").insert({ event_type: "create_demo", status, message, metadata }); } catch { /* */ }
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try { return await fetch(url, { ...options, signal: controller.signal }); } finally { clearTimeout(timer); }
+}
+
+// ── Load ALL admin settings from site_settings table ──
+async function loadAdminSettings(supabase: any): Promise<Record<string, string>> {
+  const { data } = await supabase.from("site_settings").select("key, value");
+  const map: Record<string, string> = {};
+  if (data) for (const row of data) { map[row.key] = row.value || ""; }
+  return map;
+}
+
+// ── Cache ──
+async function getCachedContent(supabase: any, websiteUrl: string) {
+  const { data } = await supabase.from("scraped_data").select("*")
+    .eq("website_url", websiteUrl).gt("expires_at", new Date().toISOString()).maybeSingle();
+  if (data) {
+    console.log(`[cache] Hit for ${websiteUrl}`);
+    return { content: data.raw_content || "", logoUrl: data.logo_url || undefined, structured_data: data.structured_data };
+  }
+  return null;
+}
+
+async function saveScrapeCache(supabase: any, websiteUrl: string, content: string, logoUrl?: string, structuredData?: any) {
+  await supabase.from("scraped_data").upsert({
+    website_url: websiteUrl, raw_content: content, logo_url: logoUrl || null,
+    structured_data: structuredData || {},
+    scraped_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  }, { onConflict: "website_url" });
+}
+
+// ── Firecrawl ──
+async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ content: string; logoUrl?: string }> {
+  const { data: firecrawlProviders } = await supabase.from("api_providers").select("*")
+    .eq("category", "firecrawl").eq("is_enabled", true).order("priority", { ascending: true });
+
+  const keys: { key: string; source: string }[] = [];
+  const envKey = Deno.env.get("FIRECRAWL_API_KEY");
+  if (envKey) keys.push({ key: envKey, source: "env" });
+  if (firecrawlProviders) for (const p of firecrawlProviders) keys.push({ key: p.api_key, source: p.name });
+  if (keys.length === 0) throw new Error("No Firecrawl API keys configured");
+
+  let lastError = "";
+  for (const { key, source } of keys) {
+    try {
+      console.log(`[scrape] Trying ${source}`);
+      const res = await fetchWithTimeout("https://api.firecrawl.dev/v1/scrape", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ url: websiteUrl, formats: ["markdown", "branding"], onlyMainContent: true }),
+      }, 25000);
+
+      if (res.status === 402) { lastError = `${source}: credits exhausted`; await res.text(); continue; }
+      if (!res.ok) { lastError = `${source}: ${res.status}`; await res.text(); continue; }
+
+      const data = await res.json();
+      const content = data.data?.markdown || data.markdown || "";
+      const logoUrl = data.data?.branding?.logo || data.branding?.logo || data.data?.branding?.images?.logo || undefined;
+      return { content, logoUrl };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      lastError = msg.includes("abort") ? `${source}: timeout` : msg;
+    }
+  }
+  throw new Error(`All Firecrawl keys failed. Last: ${lastError}`);
+}
+
+// ── LLM extraction ──
+async function extractStructuredData(supabase: any, businessName: string, websiteContent: string): Promise<any> {
+  const { data: llmProviders } = await supabase.from("api_providers").select("*")
+    .eq("category", "llm").eq("is_enabled", true).order("priority", { ascending: true });
+
+  interface P { name: string; url: string; key: string; model: string }
+  const providers: P[] = [];
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  if (lovableKey) providers.push({ name: "Lovable AI", url: "https://ai.gateway.lovable.dev/v1/chat/completions", key: lovableKey, model: "google/gemini-3-flash-preview" });
+  if (llmProviders) for (const p of llmProviders) {
+    let url = p.endpoint_url;
+    if (!url) { if (p.provider_type === "openai") url = "https://api.openai.com/v1/chat/completions"; else if (p.provider_type === "openrouter") url = "https://openrouter.ai/api/v1/chat/completions"; else continue; }
+    providers.push({ name: p.name, url, key: p.api_key, model: p.model || "gpt-4" });
+  }
+  if (providers.length === 0) return null;
+
+  const body = (model: string) => ({
+    model,
+    messages: [
+      { role: "system", content: "Extract structured restaurant/business data. Call the tool with accurate data from the website content." },
+      { role: "user", content: `Extract structured data from this website.\n\nBusiness: ${businessName}\n\nContent:\n${websiteContent.substring(0, 10000)}` },
+    ],
+    tools: [{
+      type: "function",
+      function: {
+        name: "extract_business_data",
+        description: "Return structured business data",
+        parameters: {
+          type: "object",
+          properties: {
+            menu_items: { type: "array", items: { type: "object", properties: { name: { type: "string" }, price: { type: "string" }, category: { type: "string" }, description: { type: "string" } } } },
+            categories: { type: "array", items: { type: "string" } },
+            business_hours: { type: "string" },
+            address: { type: "string" },
+            phone: { type: "string" },
+            email: { type: "string" },
+            services: { type: "array", items: { type: "string" } },
+            faq_topics: { type: "array", items: { type: "string" } },
+            industry: { type: "string" },
+            brand_tone: { type: "string" },
+          },
+          required: ["menu_items"],
+          additionalProperties: false,
+        },
+      },
+    }],
+    tool_choice: { type: "function", function: { name: "extract_business_data" } },
+  });
+
+  for (const provider of providers) {
+    try {
+      console.log(`[llm] Trying ${provider.name}`);
+      const res = await fetchWithTimeout(provider.url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${provider.key}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body(provider.model)),
+      }, 60000);
+      if (res.status === 429 || res.status === 402) { await res.text(); continue; }
+      if (!res.ok) { await res.text(); continue; }
+      const data = await res.json();
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      if (toolCall?.function?.arguments) return JSON.parse(toolCall.function.arguments);
+    } catch { /* continue */ }
+  }
+  return null;
+}
+
+// ── Build knowledge base from structured data ──
+function buildKnowledgeBase(businessName: string, structuredData: any, websiteContent: string): string {
+  const menu = structuredData?.menu_items || [];
+  const hours = structuredData?.business_hours || "";
+  const address = structuredData?.address || "";
+  const phone = structuredData?.phone || "";
+  const services = structuredData?.services || [];
+  const faqs = structuredData?.faq_topics || [];
+
+  const menuSection = menu.length > 0
+    ? `\n### Menu\n${menu.map((item: any) => `- ${item.name}: ${item.price}${item.description ? ` — ${item.description}` : ""}`).join("\n")}`
+    : "";
+
+  return `## Business Information
+- Name: ${businessName}
+${address ? `- Address: ${address}` : ""}
+${phone ? `- Phone: ${phone}` : ""}
+${hours ? `- Hours: ${hours}` : ""}
+${services.length > 0 ? `- Services: ${services.join(", ")}` : ""}
+${menuSection}
+${faqs.length > 0 ? `\n### Common Questions\n${faqs.map((f: string) => `- ${f}`).join("\n")}` : ""}
+
+### Additional Context
+${websiteContent.substring(0, 3000)}`;
+}
+
+// ── Inject variables into template ──
+function injectVars(template: string, vars: Record<string, string>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(vars)) {
+    result = result.replaceAll(`{${key}}`, value);
+  }
+  return result;
+}
+
+// ── Create VAPI Assistant using admin settings ──
+async function createVapiAssistant(
+  adminSettings: Record<string, string>,
+  systemPrompt: string,
+  firstMessage: string,
+  knowledgeBase: string,
+  businessName: string,
+): Promise<string> {
+  // Use admin-configured VAPI private key, fall back to env
+  const vapiKey = adminSettings.vapi_private_key || Deno.env.get("VAPI_API_KEY");
+  if (!vapiKey) throw new Error("VAPI private key not configured. Set it in Admin → Settings.");
+
+  const fullPrompt = `${systemPrompt}\n\n## Knowledge Base\n${knowledgeBase}`;
+  const voiceProvider = adminSettings.voice_provider || "azure";
+  const voiceId = adminSettings.voice_id || "andrew";
+  const modelProvider = adminSettings.ai_model_provider || "openai";
+  const model = adminSettings.ai_model || "gpt-4o";
+  const endCallMessage = injectVars(adminSettings.default_end_call_message || "Thank you for calling {business_name}. Have a great day!", { business_name: businessName });
+
+  const res = await fetchWithTimeout("https://api.vapi.ai/assistant", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${vapiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: businessName.substring(0, 40),
+      firstMessage,
+      model: { provider: modelProvider, model, messages: [{ role: "system", content: fullPrompt }] },
+      voice: { provider: voiceProvider, voiceId },
+      endCallMessage,
+      maxDurationSeconds: 600,
+      firstMessageMode: "assistant-speaks-first",
+    }),
+  }, 30000);
+
+  if (!res.ok) { const err = await res.text(); throw new Error(`VAPI error ${res.status}: ${err}`); }
+  const data = await res.json();
+  if (!data.id) throw new Error("VAPI response missing assistant id");
+  return data.id;
+}
+
+// ── Main handler ──
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const supabase = getSupabase();
+
+  try {
+    const { business_name, website_url, calendar_link } = await req.json();
+
+    if (!business_name || !website_url) {
+      return new Response(JSON.stringify({ error: "business_name and website_url are required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    let formattedUrl = website_url.trim();
+    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) formattedUrl = `https://${formattedUrl}`;
+
+    await log(supabase, "info", `Starting demo creation for "${business_name}"`, { business_name, website_url: formattedUrl });
+
+    // Step 0: Load ALL admin settings
+    const adminSettings = await loadAdminSettings(supabase);
+    const calendarUrl = calendar_link || adminSettings.calendar_url || "";
+    const siteUrl = (adminSettings.site_url || Deno.env.get("SITE_URL") || "").replace(/\/+$/, "");
+
+    // Step 1: Scrape (cache-first)
+    let websiteContent = "";
+    let logoUrl: string | undefined;
+    let structuredData: any = null;
+
+    const cached = await getCachedContent(supabase, formattedUrl);
+    if (cached) {
+      websiteContent = cached.content;
+      logoUrl = cached.logoUrl;
+      structuredData = cached.structured_data;
+    }
+
+    if (!websiteContent) {
+      try {
+        const result = await scrapeWebsite(supabase, formattedUrl);
+        websiteContent = result.content;
+        logoUrl = result.logoUrl;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Scraping failed";
+        await log(supabase, "error", `Scrape failed: ${msg}`, { business_name });
+        return new Response(JSON.stringify({ error: `Website scraping failed: ${msg}` }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
+
+    // Step 2: LLM extraction
+    if (!structuredData?.menu_items?.length) {
+      const llmData = await extractStructuredData(supabase, business_name, websiteContent);
+      if (llmData) structuredData = llmData;
+    }
+
+    await saveScrapeCache(supabase, formattedUrl, websiteContent, logoUrl, structuredData);
+
+    // Step 3: Build prompt from admin template + inject variables
+    const templateVars = { business_name, calendar_url: calendarUrl };
+    const promptTemplate = adminSettings.default_system_prompt || "";
+    const systemPrompt = promptTemplate
+      ? injectVars(promptTemplate, templateVars)
+      : `You are the AI assistant for ${business_name}. Be friendly, professional, and helpful.`;
+
+    const knowledgeBase = buildKnowledgeBase(business_name, structuredData, websiteContent);
+    const firstMessage = injectVars(
+      adminSettings.default_first_message || "Hi, thank you for calling {business_name}! How can I help you?",
+      templateVars
+    );
+
+    // Step 4: Create VAPI voice assistant
+    let assistantId: string;
+    try {
+      assistantId = await createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "VAPI creation failed";
+      await log(supabase, "error", `VAPI failed: ${msg}`, { business_name });
+      return new Response(JSON.stringify({ error: `Voice agent creation failed: ${msg}` }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Step 5: Create demo page
+    const vapiPublicKey = adminSettings.vapi_public_key || "";
+    let demoSlug = slugify(business_name);
+    if (!demoSlug) demoSlug = "demo";
+    const { data: existingDemo } = await supabase.from("demo_pages").select("id").eq("slug", demoSlug).maybeSingle();
+    if (existingDemo) demoSlug = `${demoSlug}-${randomSuffix()}`;
+
+    const ctaText = adminSettings.default_cta_text || "Book a 10-min Setup Call";
+
+    const { data: demoPage, error: demoErr } = await supabase.from("demo_pages").insert({
+      slug: demoSlug,
+      assistant_id: assistantId,
+      business_name: business_name,
+      vapi_key: vapiPublicKey,
+      company_name: business_name,
+      industry: structuredData?.industry || "Restaurant",
+      calendly_url: calendarUrl || null,
+      hero_title: `Your AI Receptionist for ${business_name} is Ready`,
+      hero_subtitle: `We built a live AI that answers calls and chats for ${business_name} — try it now.`,
+      contact_phone: structuredData?.phone || null,
+      contact_email: structuredData?.email || null,
+      cta_text: ctaText,
+      custom_subdomain: demoSlug,
+    }).select().single();
+
+    if (demoErr) {
+      console.error("Demo page insert error:", demoErr);
+      return new Response(JSON.stringify({ error: "Failed to create demo page" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Step 6: Create chatbot (same prompt, same data)
+    let chatbotSlug = slugify(business_name + "-chat");
+    if (!chatbotSlug) chatbotSlug = "chatbot";
+    const { data: existingChat } = await supabase.from("chatbots").select("id").eq("slug", chatbotSlug).maybeSingle();
+    if (existingChat) chatbotSlug = `${chatbotSlug}-${randomSuffix()}`;
+
+    const chatbotGreeting = injectVars(
+      adminSettings.chatbot_greeting || "Welcome to {business_name}! How can I help you today?",
+      templateVars
+    );
+
+    const widgetConfig: any = {
+      greeting: chatbotGreeting,
+      position: adminSettings.chatbot_position || "bottom-right",
+      logo: logoUrl || null,
+    };
+    if (calendarUrl) widgetConfig.calendarUrl = calendarUrl;
+
+    const chatbotSystemPrompt = `${systemPrompt}\n\n## Knowledge Base\n${knowledgeBase}`;
+
+    const { error: chatErr } = await supabase.from("chatbots").insert({
+      business_name: business_name,
+      website_url: formattedUrl,
+      slug: chatbotSlug,
+      system_prompt: chatbotSystemPrompt,
+      industry: structuredData?.industry || "Restaurant",
+      brand_tone: structuredData?.brand_tone || "Professional and friendly",
+      services: structuredData?.services || [],
+      faq_topics: structuredData?.faq_topics || [],
+      logo_url: logoUrl || null,
+      widget_config: widgetConfig,
+      demo_page_id: demoPage.id,
+      research_data: {
+        ...structuredData,
+        website_content_preview: websiteContent.substring(0, 2000),
+        analyzed_at: new Date().toISOString(),
+      },
+    });
+
+    if (chatErr) console.error("Chatbot insert error:", chatErr);
+
+    // Build demo URL
+    const demoUrl = siteUrl ? `${siteUrl}/${demoSlug}` : `/${demoSlug}`;
+
+    await log(supabase, "success", `Demo created for "${business_name}": ${demoUrl}`, {
+      assistantId, demoSlug, chatbotSlug, hasLogo: !!logoUrl,
+    });
+
+    // Return ONLY the demo URL
+    return new Response(JSON.stringify({ demo_url: demoUrl }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Internal server error";
+    console.error("Unexpected error:", err);
+    await log(supabase, "error", `Unexpected: ${msg}`, {});
+    return new Response(JSON.stringify({ error: msg }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+});
