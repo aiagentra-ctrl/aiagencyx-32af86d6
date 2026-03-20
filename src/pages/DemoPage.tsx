@@ -198,16 +198,20 @@ const DemoPage = () => {
           heroSubtitle={page.hero_subtitle || undefined}
           logoUrl={logoUrl}
           onTryCall={startVapi}
+          onEndCall={endVapi}
           onTryChat={() => {/* chatbot opens via widget */}}
-          vapiStarted={vapiStarted}
+          callStatus={callStatus}
+          callSeconds={callSeconds}
         />
       </div>
 
       <div id="demo-section">
         <VoiceAgentSection
           companyName={companyName}
-          vapiStarted={vapiStarted}
+          callStatus={callStatus}
+          callSeconds={callSeconds}
           onTryDemo={startVapi}
+          onEndCall={endVapi}
         />
       </div>
 
@@ -242,8 +246,9 @@ const DemoPage = () => {
       {/* Sticky Call Button */}
       <StickyCallButton
         visible={scrolledPastHero}
-        vapiStarted={vapiStarted}
+        callStatus={callStatus}
         onTryCall={startVapi}
+        onEndCall={endVapi}
       />
 
       {/* Embedded Chatbot */}
