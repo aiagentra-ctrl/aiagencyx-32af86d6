@@ -358,19 +358,23 @@ Deno.serve(async (req) => {
     // Step 1: Check cache first
     let websiteContent: string | null = null;
     let structuredData: any = null;
+    let logoUrl: string | undefined;
 
     if (!forceRefresh) {
       const cached = await getCachedContent(supabase, formattedUrl);
       if (cached) {
         websiteContent = cached.content;
         structuredData = cached.structured_data;
+        logoUrl = cached.logoUrl;
       }
     }
 
     if (!websiteContent) {
       try {
-        websiteContent = await scrapeWebsite(supabase, formattedUrl);
-        await saveScrapeCache(supabase, formattedUrl, websiteContent);
+        const result = await scrapeWebsite(supabase, formattedUrl);
+        websiteContent = result.content;
+        logoUrl = result.logoUrl;
+        await saveScrapeCache(supabase, formattedUrl, websiteContent, logoUrl);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Scraping failed";
         await log(supabase, "voice_agent_creation", "error", `Scrape failed: ${msg}`, { businessName });
