@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.create-voice-agent]
 verify_jwt = false
+
+[functions.create-ai-system]
+verify_jwt = false
