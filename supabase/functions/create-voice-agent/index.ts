@@ -42,10 +42,11 @@ async function getCachedContent(supabase: any, websiteUrl: string): Promise<{ co
   return null;
 }
 
-async function saveScrapeCache(supabase: any, websiteUrl: string, content: string) {
+async function saveScrapeCache(supabase: any, websiteUrl: string, content: string, logoUrl?: string) {
   await supabase.from("scraped_data").upsert({
     website_url: websiteUrl,
     raw_content: content,
+    logo_url: logoUrl || null,
     scraped_at: new Date().toISOString(),
     expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   }, { onConflict: "website_url" });
