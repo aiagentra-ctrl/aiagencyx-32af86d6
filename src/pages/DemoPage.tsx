@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import HeroSection from "@/components/demo/HeroSection";
@@ -6,8 +6,11 @@ import VoiceAgentSection from "@/components/demo/VoiceAgentSection";
 import PersonalizationProofSection from "@/components/demo/PersonalizationProofSection";
 import ProblemSection from "@/components/demo/ProblemSection";
 import OutcomeSection from "@/components/demo/OutcomeSection";
+import HowItWorksSection from "@/components/demo/HowItWorksSection";
 import CTASection from "@/components/demo/CTASection";
 import FooterSection from "@/components/demo/FooterSection";
+import StickyCallButton from "@/components/demo/StickyCallButton";
+import DemoNavbar from "@/components/demo/DemoNavbar";
 import ChatWidget from "@/components/chatbot/ChatWidget";
 
 interface DemoPageData {
@@ -47,6 +50,8 @@ const DemoPage = () => {
   const [vapiStarted, setVapiStarted] = useState(false);
   const [vapiInstance, setVapiInstance] = useState<any>(null);
   const [globalCalendarUrl, setGlobalCalendarUrl] = useState<string | null>(null);
+  const [scrolledPastHero, setScrolledPastHero] = useState(false);
+  const heroRef = useRef<HTMLDivElement>(null);
 
   const resolvedSlug = (() => {
     if (slug) return slug;
@@ -75,7 +80,6 @@ const DemoPage = () => {
       setPage(data as unknown as DemoPageData);
       setLoading(false);
 
-      // Parallel: global calendar + linked chatbot
       const [settingsRes, chatbotRes] = await Promise.all([
         supabase.from("site_settings").select("*").eq("key", "calendar_url").maybeSingle(),
         supabase.from("chatbots").select("id, widget_config, research_data, logo_url")
@@ -87,12 +91,23 @@ const DemoPage = () => {
       }
       if (chatbotRes.data) setLinkedChatbot(chatbotRes.data as unknown as LinkedChatbot);
 
-      // Increment views
       await supabase.from("demo_pages").update({ views: (data.views ?? 0) + 1 }).eq("id", data.id);
     };
 
     fetchPage();
   }, [resolvedSlug]);
+
+  // Track scroll for sticky button
+  useEffect(() => {
+    const handleScroll = () => {
+      if (heroRef.current) {
+        const heroBottom = heroRef.current.getBoundingClientRect().bottom;
+        setScrolledPastHero(heroBottom < 0);
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const startVapi = useCallback(async () => {
     if (!page || vapiStarted) return;
@@ -111,6 +126,10 @@ const DemoPage = () => {
     const url = page?.calendly_url || globalCalendarUrl;
     if (url) window.open(url, "_blank");
   }, [page, globalCalendarUrl]);
+
+  const scrollToDemo = useCallback(() => {
+    document.getElementById("demo-section")?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
   if (loading) {
     return (
@@ -137,25 +156,33 @@ const DemoPage = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* 1. Personalized Hook */}
-      <HeroSection
-        clientName={page.client_name || undefined}
-        companyName={companyName}
-        heroTitle={page.hero_title || undefined}
-        heroSubtitle={page.hero_subtitle || undefined}
+      <DemoNavbar
         logoUrl={logoUrl}
-        onTryDemo={startVapi}
+        companyName={companyName}
+        onTryDemo={scrollToDemo}
         onBookCall={handleBookCall}
       />
 
-      {/* 2. Try Voice Agent */}
-      <VoiceAgentSection
-        companyName={companyName}
-        vapiStarted={vapiStarted}
-        onTryDemo={startVapi}
-      />
+      <div ref={heroRef}>
+        <HeroSection
+          companyName={companyName}
+          heroTitle={page.hero_title || undefined}
+          heroSubtitle={page.hero_subtitle || undefined}
+          logoUrl={logoUrl}
+          onTryCall={startVapi}
+          onTryChat={() => {/* chatbot opens via widget */}}
+          vapiStarted={vapiStarted}
+        />
+      </div>
 
-      {/* 3. Personalization Proof */}
+      <div id="demo-section">
+        <VoiceAgentSection
+          companyName={companyName}
+          vapiStarted={vapiStarted}
+          onTryDemo={startVapi}
+        />
+      </div>
+
       <PersonalizationProofSection
         companyName={companyName}
         menuItems={research.menu_items}
@@ -165,18 +192,16 @@ const DemoPage = () => {
         phone={research.phone}
       />
 
-      {/* 4. Problem Reminder */}
       <ProblemSection companyName={companyName} />
 
-      {/* 5. Outcome */}
       <OutcomeSection />
 
-      {/* 6. CTA */}
+      <HowItWorksSection companyName={companyName} />
+
       <CTASection
         companyName={companyName}
         ctaText={page.cta_text || undefined}
         onBookCall={handleBookCall}
-        onTryDemo={startVapi}
       />
 
       <FooterSection
@@ -184,6 +209,13 @@ const DemoPage = () => {
         contactEmail={page.contact_email || undefined}
         contactPhone={page.contact_phone || undefined}
         logoUrl={logoUrl}
+      />
+
+      {/* Sticky Call Button */}
+      <StickyCallButton
+        visible={scrolledPastHero}
+        vapiStarted={vapiStarted}
+        onTryCall={startVapi}
       />
 
       {/* Embedded Chatbot */}

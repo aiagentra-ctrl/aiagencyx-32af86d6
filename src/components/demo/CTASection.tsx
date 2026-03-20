@@ -1,35 +1,38 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CTASectionProps {
   companyName?: string;
   ctaText?: string;
   onBookCall: () => void;
-  onTryDemo: () => void;
 }
 
 const CTASection = ({ companyName, ctaText, onBookCall }: CTASectionProps) => {
   return (
-    <section className="bg-primary px-6 py-20">
+    <section className="border-t bg-primary px-5 py-20 md:py-24">
       <div className="mx-auto max-w-3xl text-center">
-        <h2 className="mb-4 text-3xl font-bold text-primary-foreground md:text-4xl">
-          {ctaText || `Want This Running for ${companyName || "Your Business"}?`}
+        <h2 className="mb-4 text-3xl font-bold text-primary-foreground md:text-4xl" style={{ textWrap: "balance" }}>
+          {ctaText || `Want This Running for ${companyName || "Your Restaurant"}?`}
         </h2>
-        <p className="mx-auto mb-4 max-w-xl text-primary-foreground/80">
+        <p className="mx-auto mb-3 max-w-lg text-lg text-primary-foreground/80">
           We'll set this up fully for your restaurant in 24 hours.
         </p>
-        <p className="mx-auto mb-8 max-w-xl text-sm text-primary-foreground/60">
-          No commitment — we'll show you how it works for your business.
+        <p className="mx-auto mb-8 text-sm text-primary-foreground/50">
+          No commitment — just see how it works for your business.
         </p>
         <Button
           size="lg"
           variant="secondary"
-          className="gap-2 px-8 text-base"
+          className="gap-2.5 px-8 text-base shadow-lg active:scale-[0.97] transition-transform"
           onClick={onBookCall}
         >
           Book a 10-min Setup Call
           <ArrowRight className="h-5 w-5" />
         </Button>
+        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-primary-foreground/50">
+          <Shield className="h-3.5 w-3.5" />
+          <span>Free setup • Cancel anytime • Results in 24 hours</span>
+        </div>
       </div>
     </section>
   );
