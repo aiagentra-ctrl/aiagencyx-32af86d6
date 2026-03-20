@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Check, ArrowLeft, Zap } from "lucide-react";
+import { Copy, Check, ArrowLeft, Zap, Phone, MessageCircle, Globe } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -44,11 +44,12 @@ const ApiDocsPage = () => {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-8 px-6 py-8">
+        {/* Full Automation API */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-primary" />
-              <CardTitle>Create Demo API</CardTitle>
+              <CardTitle>Create Demo (Full Automation)</CardTitle>
             </div>
             <CardDescription>
               One endpoint. Three inputs. Returns a live demo URL with voice agent + chatbot + personalized website.
@@ -62,21 +63,8 @@ const ApiDocsPage = () => {
               </code>
             </div>
 
-            <div className="rounded-lg border bg-muted/50 p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">How it works</p>
-              <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
-                <li>Scrapes website via Firecrawl (content + logo)</li>
-                <li>LLM extracts menu, pricing, hours, address, FAQs</li>
-                <li>Injects data into admin-configured system prompt</li>
-                <li>Creates VAPI voice assistant</li>
-                <li>Creates AI chatbot (same prompt + data)</li>
-                <li>Generates personalized demo website</li>
-                <li>Returns <code className="bg-background px-1 rounded text-xs">demo_url</code></li>
-              </ol>
-            </div>
-
             <div>
-              <p className="text-sm font-medium text-foreground mb-2">Request (only 3 fields)</p>
+              <p className="text-sm font-medium text-foreground mb-2">Request</p>
               <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-demo' \\
   -H 'Content-Type: application/json' \\
   -H 'Authorization: Bearer ${ANON_KEY}' \\
@@ -89,33 +77,128 @@ const ApiDocsPage = () => {
 
             <div>
               <p className="text-sm font-medium text-foreground mb-2">Response</p>
-              <CodeBlock code={`{
-  "demo_url": "https://yourdomain.com/marios-pizza"
-}`} />
-            </div>
-
-            <div className="rounded-lg border bg-accent/5 p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">Key Features</p>
-              <ul className="list-disc pl-5 text-muted-foreground space-y-1">
-                <li><strong>Zero config in API</strong> — all settings (VAPI keys, system prompt, voice, branding) come from admin panel</li>
-                <li><strong>Single prompt</strong> — voice agent and chatbot use identical system prompt</li>
-                <li><strong>Logo extraction</strong> — automatically scraped and shown on demo page + chatbot</li>
-                <li><strong>Cache-first</strong> — reuses scraped data for 30 days</li>
-                <li><strong>calendar_link</strong> is optional — falls back to admin default</li>
-              </ul>
-            </div>
-
-            <div className="rounded-lg border p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">Prerequisites (one-time setup in Admin → Settings)</p>
-              <ul className="list-disc pl-5 text-muted-foreground space-y-1">
-                <li>VAPI Public Key + Private Key</li>
-                <li>Default system prompt (with {"{business_name}"} placeholder)</li>
-                <li>Voice settings (provider, voice ID)</li>
-                <li>Default calendar link (optional fallback)</li>
-              </ul>
+              <CodeBlock code={`{ "demo_url": "https://yourdomain.com/marios-pizza" }`} />
             </div>
           </CardContent>
         </Card>
+
+        {/* Modular: Create Voice Agent */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Phone className="h-5 w-5 text-primary" />
+              <CardTitle>Create Voice Agent</CardTitle>
+            </div>
+            <CardDescription>Create a VAPI voice assistant independently.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
+                POST {SUPABASE_URL}/functions/v1/create-voice-agent
+              </code>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Request</p>
+              <CodeBlock code={`{
+  "business_name": "Mario's Pizza",
+  "system_prompt": "Optional custom prompt",
+  "knowledge_base": "Optional knowledge base text"
+}`} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Response</p>
+              <CodeBlock code={`{
+  "assistant_id": "uuid",
+  "vapi_public_key": "key"
+}`} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Modular: Create Chatbot */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-accent" />
+              <CardTitle>Create Chatbot</CardTitle>
+            </div>
+            <CardDescription>Create an AI chatbot independently.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
+                POST {SUPABASE_URL}/functions/v1/create-chatbot
+              </code>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Request</p>
+              <CodeBlock code={`{
+  "business_name": "Mario's Pizza",
+  "website_url": "https://mariospizza.com",
+  "system_prompt": "Optional custom prompt",
+  "knowledge_base": "Optional knowledge base",
+  "logo_url": "https://...",
+  "industry": "Restaurant",
+  "demo_page_id": "optional-uuid"
+}`} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Response</p>
+              <CodeBlock code={`{
+  "chatbot_id": "uuid",
+  "chatbot_slug": "marios-pizza-chat"
+}`} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Modular: Generate Website */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-primary" />
+              <CardTitle>Generate Website</CardTitle>
+            </div>
+            <CardDescription>Generate a personalized demo page from an existing assistant.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
+                POST {SUPABASE_URL}/functions/v1/generate-website
+              </code>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Request</p>
+              <CodeBlock code={`{
+  "business_name": "Mario's Pizza",
+  "assistant_id": "vapi-assistant-uuid",
+  "vapi_public_key": "optional (uses admin default)",
+  "calendar_link": "https://calendly.com/...",
+  "industry": "Restaurant",
+  "logo_url": "https://...",
+  "contact_phone": "+1234567890"
+}`} />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Response</p>
+              <CodeBlock code={`{
+  "demo_url": "https://yourdomain.com/marios-pizza",
+  "demo_page_id": "uuid",
+  "slug": "marios-pizza"
+}`} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="rounded-lg border p-4 text-sm space-y-2">
+          <p className="font-medium text-foreground">Prerequisites (one-time setup in Admin → Settings)</p>
+          <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+            <li>VAPI Public Key + Private Key</li>
+            <li>Default system prompt (with {"{business_name}"} placeholder)</li>
+            <li>Voice settings (provider, voice ID)</li>
+            <li>Default calendar link (optional fallback)</li>
+          </ul>
+        </div>
       </main>
     </div>
   );

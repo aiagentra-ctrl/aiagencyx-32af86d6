@@ -10,9 +10,10 @@ interface VoiceAgentSectionProps {
   callSeconds: number;
   onTryDemo: () => void;
   onEndCall: () => void;
+  onOpenChat?: () => void;
 }
 
-const VoiceAgentSection = ({ companyName, callStatus, callSeconds, onTryDemo, onEndCall }: VoiceAgentSectionProps) => {
+const VoiceAgentSection = ({ companyName, callStatus, callSeconds, onTryDemo, onEndCall, onOpenChat }: VoiceAgentSectionProps) => {
   const prompts = [
     { emoji: "📅", text: "Book a table for tonight" },
     { emoji: "🍕", text: "I'd like to place an order" },
@@ -68,7 +69,6 @@ const VoiceAgentSection = ({ companyName, callStatus, callSeconds, onTryDemo, on
                 )}
               </div>
 
-              {/* Status text */}
               <p className="mb-1 text-sm font-medium text-foreground">
                 {isActive ? "AI is listening..." : isCalling ? "Connecting..." : callStatus === "ended" ? "Call ended" : "Click below to start a live call"}
               </p>
@@ -76,7 +76,6 @@ const VoiceAgentSection = ({ companyName, callStatus, callSeconds, onTryDemo, on
                 <p className="mb-3 text-xs tabular-nums text-muted-foreground">{fmt(callSeconds)}</p>
               )}
 
-              {/* Call / End buttons */}
               {isActive ? (
                 <Button
                   size="lg"
@@ -129,12 +128,16 @@ const VoiceAgentSection = ({ companyName, callStatus, callSeconds, onTryDemo, on
                 <MessageCircle className="h-9 w-9 text-accent" />
               </div>
               <p className="mb-4 text-sm text-muted-foreground text-center">
-                Click the chat bubble in the bottom-right corner to start
+                Chat with the AI assistant instantly
               </p>
-              <div className="flex w-full items-center gap-2 rounded-lg border bg-background px-3 py-2.5 text-sm text-muted-foreground">
-                <MessageCircle className="h-4 w-4 shrink-0" />
-                <span>Type a message...</span>
-              </div>
+              <Button
+                size="lg"
+                className="w-full gap-2 bg-accent text-accent-foreground shadow-md active:scale-[0.97] transition-transform"
+                onClick={onOpenChat}
+              >
+                <MessageCircle className="h-5 w-5" />
+                Open Chatbot
+              </Button>
             </div>
 
             <div>

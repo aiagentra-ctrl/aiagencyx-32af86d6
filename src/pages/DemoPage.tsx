@@ -1,19 +1,19 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, lazy, Suspense } from "react";
 import { useParams } from "react-router-dom";
 
 export type CallStatus = "idle" | "calling" | "connected" | "ended";
 import { supabase } from "@/integrations/supabase/client";
 import HeroSection from "@/components/demo/HeroSection";
-import VoiceAgentSection from "@/components/demo/VoiceAgentSection";
-import PersonalizationProofSection from "@/components/demo/PersonalizationProofSection";
-import ProblemSection from "@/components/demo/ProblemSection";
-import OutcomeSection from "@/components/demo/OutcomeSection";
-import HowItWorksSection from "@/components/demo/HowItWorksSection";
-import CTASection from "@/components/demo/CTASection";
-import FooterSection from "@/components/demo/FooterSection";
-import StickyCallButton from "@/components/demo/StickyCallButton";
 import DemoNavbar from "@/components/demo/DemoNavbar";
-import ChatWidget from "@/components/chatbot/ChatWidget";
+
+const VoiceAgentSection = lazy(() => import("@/components/demo/VoiceAgentSection"));
+const PersonalizationProofSection = lazy(() => import("@/components/demo/PersonalizationProofSection"));
+const ProblemSection = lazy(() => import("@/components/demo/ProblemSection"));
+const OutcomeSection = lazy(() => import("@/components/demo/OutcomeSection"));
+const CTASection = lazy(() => import("@/components/demo/CTASection"));
+const FooterSection = lazy(() => import("@/components/demo/FooterSection"));
+const StickyCallButton = lazy(() => import("@/components/demo/StickyCallButton"));
+const ChatWidget = lazy(() => import("@/components/chatbot/ChatWidget"));
 
 interface DemoPageData {
   id: string;
@@ -43,6 +43,8 @@ interface LinkedChatbot {
   logo_url: string | null;
 }
 
+const SectionFallback = () => <div className="h-32" />;
+
 const DemoPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const [page, setPage] = useState<DemoPageData | null>(null);
@@ -56,6 +58,7 @@ const DemoPage = () => {
   const [globalCalendarUrl, setGlobalCalendarUrl] = useState<string | null>(null);
   const [scrolledPastHero, setScrolledPastHero] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const resolvedSlug = (() => {
     if (slug) return slug;
@@ -101,7 +104,6 @@ const DemoPage = () => {
     fetchPage();
   }, [resolvedSlug]);
 
-  // Track scroll for sticky button
   useEffect(() => {
     const handleScroll = () => {
       if (heroRef.current) {
@@ -159,6 +161,10 @@ const DemoPage = () => {
     document.getElementById("demo-section")?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
+  const openChatbot = useCallback(() => {
+    setChatOpen(true);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -199,68 +205,68 @@ const DemoPage = () => {
           logoUrl={logoUrl}
           onTryCall={startVapi}
           onEndCall={endVapi}
-          onTryChat={() => {/* chatbot opens via widget */}}
+          onTryChat={openChatbot}
           callStatus={callStatus}
           callSeconds={callSeconds}
         />
       </div>
 
-      <div id="demo-section">
-        <VoiceAgentSection
+      <Suspense fallback={<SectionFallback />}>
+        <div id="demo-section">
+          <VoiceAgentSection
+            companyName={companyName}
+            callStatus={callStatus}
+            callSeconds={callSeconds}
+            onTryDemo={startVapi}
+            onEndCall={endVapi}
+            onOpenChat={openChatbot}
+          />
+        </div>
+
+        <PersonalizationProofSection
           companyName={companyName}
+          menuItems={research.menu_items}
+          categories={research.categories}
+          businessHours={research.business_hours}
+          address={research.address}
+          phone={research.phone}
+        />
+
+        <ProblemSection companyName={companyName} />
+        <OutcomeSection />
+
+        <CTASection
+          companyName={companyName}
+          ctaText={page.cta_text || undefined}
+          onBookCall={handleBookCall}
+        />
+
+        <FooterSection
+          businessName={page.business_name}
+          contactEmail={page.contact_email || undefined}
+          contactPhone={page.contact_phone || undefined}
+          logoUrl={logoUrl}
+        />
+
+        <StickyCallButton
+          visible={scrolledPastHero}
           callStatus={callStatus}
-          callSeconds={callSeconds}
-          onTryDemo={startVapi}
+          onTryCall={startVapi}
           onEndCall={endVapi}
         />
-      </div>
 
-      <PersonalizationProofSection
-        companyName={companyName}
-        menuItems={research.menu_items}
-        categories={research.categories}
-        businessHours={research.business_hours}
-        address={research.address}
-        phone={research.phone}
-      />
-
-      <ProblemSection companyName={companyName} />
-
-      <OutcomeSection />
-
-      <HowItWorksSection companyName={companyName} />
-
-      <CTASection
-        companyName={companyName}
-        ctaText={page.cta_text || undefined}
-        onBookCall={handleBookCall}
-      />
-
-      <FooterSection
-        businessName={page.business_name}
-        contactEmail={page.contact_email || undefined}
-        contactPhone={page.contact_phone || undefined}
-        logoUrl={logoUrl}
-      />
-
-      {/* Sticky Call Button */}
-      <StickyCallButton
-        visible={scrolledPastHero}
-        callStatus={callStatus}
-        onTryCall={startVapi}
-        onEndCall={endVapi}
-      />
-
-      {/* Embedded Chatbot */}
-      {linkedChatbot && (
-        <ChatWidget
-          chatbotId={linkedChatbot.id}
-          greeting={linkedChatbot.widget_config?.greeting}
-          logoUrl={logoUrl}
-          businessName={companyName}
-          calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
-        />
-      )}
+        {linkedChatbot && (
+          <ChatWidget
+            chatbotId={linkedChatbot.id}
+            greeting={linkedChatbot.widget_config?.greeting}
+            logoUrl={logoUrl}
+            businessName={companyName}
+            calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
+            externalOpen={chatOpen}
+            onExternalOpenChange={setChatOpen}
+          />
+        )}
+      </Suspense>
     </div>
   );
 };

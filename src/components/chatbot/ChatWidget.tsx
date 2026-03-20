@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MessageCircle, X, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -13,12 +13,24 @@ interface ChatWidgetProps {
   suggestions?: string[];
   quickActions?: ActionButton[];
   calendarUrl?: string;
+  externalOpen?: boolean;
+  onExternalOpenChange?: (open: boolean) => void;
 }
 
-const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, quickActions, calendarUrl }: ChatWidgetProps) => {
-  const [open, setOpen] = useState(false);
+const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, quickActions, calendarUrl, externalOpen, onExternalOpenChange }: ChatWidgetProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    setInternalOpen(v);
+    onExternalOpenChange?.(v);
+  };
   const [showNav, setShowNav] = useState(false);
   const isMobile = useIsMobile();
+
+  // Sync external open state
+  useEffect(() => {
+    if (externalOpen !== undefined) setInternalOpen(externalOpen);
+  }, [externalOpen]);
 
   const navItems: ActionButton[] = [
     { label: "Menu", value: "Show me the full menu" },
@@ -43,16 +55,11 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
     <div className={isMobile && open ? "" : "fixed bottom-5 right-5 z-50"}>
       {open && (
         <div className={windowClass}>
-          {/* Header */}
           <div className="relative flex items-center justify-between border-b bg-gradient-to-r from-primary to-primary/90 px-4 py-3 text-primary-foreground">
             <div className="flex items-center gap-3">
               <div className="relative shrink-0">
                 {logoUrl ? (
-                  <img
-                    src={logoUrl}
-                    alt={businessName || ""}
-                    className="relative h-10 w-auto max-w-[80px] rounded-lg object-contain ring-2 ring-primary-foreground/20 bg-primary-foreground/10"
-                  />
+                  <img src={logoUrl} alt={businessName || ""} className="relative h-10 w-auto max-w-[80px] rounded-lg object-contain ring-2 ring-primary-foreground/20 bg-primary-foreground/10" />
                 ) : (
                   <div className="relative flex h-10 w-10 items-center justify-center rounded-lg bg-primary-foreground/20">
                     <MessageCircle className="h-5 w-5" />
@@ -66,35 +73,20 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10"
-                onClick={() => setShowNav(!showNav)}
-              >
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10" onClick={() => setShowNav(!showNav)}>
                 <Menu className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10"
-                onClick={() => setOpen(false)}
-              >
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10" onClick={() => setOpen(false)}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          {/* Navigation dropdown */}
           {showNav && (
             <div className="border-b bg-card p-2 animate-fade-in">
               <div className="grid grid-cols-3 gap-1.5">
                 {navItems.map((item, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleNavAction(item)}
-                    className="flex flex-col items-center gap-1 rounded-lg px-2 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
-                  >
+                  <button key={i} onClick={() => handleNavAction(item)} className="flex flex-col items-center gap-1 rounded-lg px-2 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors">
                     <span className="text-sm">{item.label}</span>
                   </button>
                 ))}
@@ -102,7 +94,6 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
             </div>
           )}
 
-          {/* Chat window */}
           <ChatWindow
             chatbotId={chatbotId}
             greeting={greeting || "How can I help you today?"}
