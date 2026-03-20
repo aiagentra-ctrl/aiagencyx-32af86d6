@@ -114,17 +114,41 @@ const DemoPage = () => {
   }, []);
 
   const startVapi = useCallback(async () => {
-    if (!page || vapiStarted) return;
+    if (!page || callStatus !== "idle") return;
     try {
+      setCallStatus("calling");
+      setCallSeconds(0);
       const { default: Vapi } = await import("@vapi-ai/web");
       const vapi = new Vapi(page.vapi_key);
+
+      vapi.on("call-start", () => {
+        setCallStatus("connected");
+        timerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
+      });
+      vapi.on("call-end", () => {
+        setCallStatus("ended");
+        if (timerRef.current) clearInterval(timerRef.current);
+      });
+
       vapi.start(page.assistant_id);
       setVapiInstance(vapi);
-      setVapiStarted(true);
     } catch (err) {
       console.error("Vapi initialization failed:", err);
+      setCallStatus("idle");
     }
-  }, [page, vapiStarted]);
+  }, [page, callStatus]);
+
+  const endVapi = useCallback(() => {
+    if (vapiInstance) {
+      vapiInstance.stop();
+      setCallStatus("ended");
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  }, [vapiInstance]);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
 
   const handleBookCall = useCallback(() => {
     const url = page?.calendly_url || globalCalendarUrl;
