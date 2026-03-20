@@ -44,16 +44,100 @@ const ApiDocsPage = () => {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-8 px-6 py-8">
-        {/* Unified API */}
+        {/* Unified AI System API */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              <CardTitle>Unified AI System API</CardTitle>
+            </div>
+            <CardDescription>
+              One endpoint to create everything: scrapes website, builds voice agent + chatbot + demo page — all using the same data and prompt.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div>
+              <p className="mb-2 text-sm font-medium text-foreground">Endpoint</p>
+              <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
+                POST {SUPABASE_URL}/functions/v1/create-ai-system
+              </code>
+            </div>
+
+            <div className="rounded-lg border bg-muted/50 p-4 text-sm space-y-2">
+              <p className="font-medium text-foreground">How it works</p>
+              <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
+                <li>Scrapes website via Firecrawl (extracts content + logo via branding)</li>
+                <li>LLM extracts menu, pricing, hours, address, FAQs</li>
+                <li>Builds ONE shared system prompt for all agents</li>
+                <li>Creates VAPI voice assistant</li>
+                <li>Creates AI chatbot with same prompt + data</li>
+                <li>Creates personalized demo page linked to both</li>
+                <li>Returns all URLs + IDs</li>
+              </ol>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Request</p>
+              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-ai-system' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer ${ANON_KEY}' \\
+  -d '{
+    "businessName": "Mario\\'s Pizza",
+    "websiteUrl": "https://mariospizza.com",
+    "category": "Restaurant",
+    "calendarUrl": "https://calendly.com/your-link",
+    "clientName": "Mario",
+    "origin": "https://yourdomain.com"
+  }'`} />
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Response</p>
+              <CodeBlock code={`{
+  "success": true,
+  "businessName": "Mario's Pizza",
+  "voiceAgent": {
+    "assistantId": "vapi-uuid",
+    "demoPage": {
+      "slug": "mario",
+      "url": "https://yourdomain.com/mario",
+      "id": "uuid"
+    }
+  },
+  "chatbot": {
+    "slug": "marios-pizza-chat",
+    "url": "https://yourdomain.com/chatbot/marios-pizza-chat",
+    "id": "uuid"
+  },
+  "meta": {
+    "logoUrl": "https://mariospizza.com/logo.png",
+    "industry": "Restaurant",
+    "menuItemsCount": 45
+  }
+}`} />
+            </div>
+
+            <div className="rounded-lg border bg-accent/5 p-4 text-sm space-y-2">
+              <p className="font-medium text-foreground">Key Features</p>
+              <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                <li><strong>Single prompt</strong> — Voice agent and chatbot use identical system prompt and knowledge base</li>
+                <li><strong>Logo extraction</strong> — Automatically scraped and used in demo page + chatbot UI</li>
+                <li><strong>Calendar link</strong> — Dynamically used in all CTAs and chatbot booking flow</li>
+                <li><strong>Cache-first</strong> — Reuses scraped data for 30 days (pass <code className="bg-background px-1 rounded text-xs">forceRefresh: true</code> to override)</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Legacy Unified API */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-primary" />
-              <CardTitle>Unified AI Agent API</CardTitle>
+              <CardTitle>AI Agent API (Legacy)</CardTitle>
             </div>
             <CardDescription>
-              Single endpoint to create AI Voice Agents, AI Chatbots, or both at once.
-              URLs are automatically generated using your domain.
+              Create Voice Agents, Chatbots, or both separately. For new integrations, use the Unified AI System API above.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -68,146 +152,28 @@ const ApiDocsPage = () => {
               <p className="font-medium text-foreground">How it works</p>
               <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
                 <li>Set <code className="bg-background px-1 rounded text-xs">"type"</code> to <code className="bg-background px-1 rounded text-xs">"voice"</code>, <code className="bg-background px-1 rounded text-xs">"chatbot"</code>, or <code className="bg-background px-1 rounded text-xs">"both"</code></li>
-                <li>Pass <code className="bg-background px-1 rounded text-xs">"origin"</code> with your domain (e.g. <code className="bg-background px-1 rounded text-xs">https://yourdomain.com</code>) for clean URLs</li>
-                <li><strong className="text-foreground">calendarUrl</strong> — (optional) Client's booking/calendar link. Automatically used in all "Book a Call" buttons and chatbot reservation flows</li>
-                <li>If omitted, URLs use the configured SITE_URL or relative paths</li>
-                <li>Auto-detects type if not specified: voice (if assistantId+vapiKey present) or chatbot (if websiteUrl present)</li>
+                <li>Voice agents require <code className="bg-background px-1 rounded text-xs">assistantId</code> + <code className="bg-background px-1 rounded text-xs">vapiKey</code></li>
+                <li>Chatbots require <code className="bg-background px-1 rounded text-xs">websiteUrl</code></li>
+                <li>Pass <code className="bg-background px-1 rounded text-xs">"calendarUrl"</code> for dynamic booking links</li>
               </ul>
             </div>
 
-            {/* Voice Agent Example */}
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <Phone className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium text-foreground">Create AI Voice Agent</p>
+                <p className="text-sm font-medium text-foreground">Voice Agent Example</p>
               </div>
               <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-ai-agent' \\
   -H 'Content-Type: application/json' \\
   -H 'Authorization: Bearer ${ANON_KEY}' \\
   -d '{
     "type": "voice",
-    "businessName": "ABC Dental Clinic",
+    "businessName": "ABC Restaurant",
     "assistantId": "your-vapi-assistant-id",
     "vapiKey": "your-vapi-public-key",
-    "clientName": "John",
-    "companyName": "ABC Dental",
-    "industry": "Healthcare",
     "calendarUrl": "https://calendly.com/your-link",
     "origin": "https://yourdomain.com"
   }'`} />
-              <p className="mt-2 text-xs text-muted-foreground">Response:</p>
-              <CodeBlock code={`{
-  "success": true,
-  "type": "voice",
-  "businessName": "ABC Dental Clinic",
-  "voiceAgent": {
-    "slug": "john",
-    "url": "https://yourdomain.com/john",
-    "id": "uuid"
-  }
-}`} />
-            </div>
-
-            {/* Chatbot Example */}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Bot className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium text-foreground">Create AI Chatbot</p>
-              </div>
-              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-ai-agent' \\
-  -H 'Content-Type: application/json' \\
-  -H 'Authorization: Bearer ${ANON_KEY}' \\
-  -d '{
-    "type": "chatbot",
-    "businessName": "ABC Dental Clinic",
-    "websiteUrl": "https://abcdental.com",
-    "calendarUrl": "https://calendly.com/your-link",
-    "origin": "https://yourdomain.com"
-  }'`} />
-              <p className="mt-2 text-xs text-muted-foreground">Response:</p>
-              <CodeBlock code={`{
-  "success": true,
-  "type": "chatbot",
-  "businessName": "ABC Dental Clinic",
-  "chatbot": {
-    "slug": "abc-dental-clinic",
-    "url": "https://yourdomain.com/chatbot/abc-dental-clinic",
-    "id": "uuid",
-    "analysis": {
-      "industry": "Healthcare",
-      "brand_tone": "Professional and caring",
-      "services": ["Dental Cleaning", "Root Canal"],
-      "faq_topics": ["What insurance do you accept?"]
-    }
-  }
-}`} />
-            </div>
-
-            {/* Both Example */}
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Layers className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium text-foreground">Create Both (Voice + Chatbot)</p>
-              </div>
-              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-ai-agent' \\
-  -H 'Content-Type: application/json' \\
-  -H 'Authorization: Bearer ${ANON_KEY}' \\
-  -d '{
-    "type": "both",
-    "businessName": "ABC Dental Clinic",
-    "assistantId": "your-vapi-assistant-id",
-    "vapiKey": "your-vapi-public-key",
-    "websiteUrl": "https://abcdental.com",
-    "clientName": "John",
-    "companyName": "ABC Dental",
-    "industry": "Healthcare",
-    "calendarUrl": "https://calendly.com/your-link",
-    "origin": "https://yourdomain.com"
-  }'`} />
-              <p className="mt-2 text-xs text-muted-foreground">Response:</p>
-              <CodeBlock code={`{
-  "success": true,
-  "type": "both",
-  "businessName": "ABC Dental Clinic",
-  "voiceAgent": {
-    "slug": "john",
-    "url": "https://yourdomain.com/john"
-  },
-  "chatbot": {
-    "slug": "abc-dental-clinic",
-    "url": "https://yourdomain.com/chatbot/abc-dental-clinic"
-  }
-}`} />
-            </div>
-
-            {/* Calendar & Domain notes */}
-            <div className="rounded-lg border bg-accent/5 p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">Calendar Link System</p>
-              <p className="text-muted-foreground">
-                Pass <code className="bg-background px-1 rounded text-xs">"calendarUrl"</code> in your API call to set a per-client booking link. This link is automatically:
-              </p>
-              <ul className="list-disc pl-5 text-muted-foreground space-y-1">
-                <li>Used in all "Book a Call" and "Book Demo" buttons on the landing page</li>
-                <li>Integrated into the AI chatbot's reservation flow</li>
-                <li>Included in the voice agent's booking instructions</li>
-              </ul>
-              <p className="text-muted-foreground">
-                Each client can have a different calendar link (Calendly, Cal.com, etc.) — the system handles it dynamically.
-              </p>
-            </div>
-
-            <div className="rounded-lg border bg-primary/5 p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">Domain System</p>
-              <p className="text-muted-foreground">
-                URLs automatically adapt to whichever domain you access the app from:
-              </p>
-              <ul className="list-disc pl-5 text-muted-foreground space-y-1">
-                <li><code className="bg-background px-1 rounded text-xs">aiagentfor.lovable.app/chatbot/gaming</code> — on Lovable</li>
-                <li><code className="bg-background px-1 rounded text-xs">yourdomain.com/chatbot/gaming</code> — on custom domain</li>
-              </ul>
-              <p className="text-muted-foreground">
-                Pass <code className="bg-background px-1 rounded text-xs">"origin"</code> in API calls for clean generated URLs (only the base domain is used, any paths are stripped).
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -216,11 +182,11 @@ const ApiDocsPage = () => {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-primary" />
+              <Phone className="h-5 w-5 text-primary" />
               <CardTitle>Automated Voice Agent API</CardTitle>
             </div>
             <CardDescription>
-              Fully automated pipeline: scrape website → generate production-quality system prompt via AI → create VAPI assistant. Returns only the assistantId.
+              Scrape → AI prompt → VAPI assistant. Returns assistantId + logoUrl.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -231,26 +197,15 @@ const ApiDocsPage = () => {
               </code>
             </div>
 
-            <div className="rounded-lg border bg-muted/50 p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">Pipeline</p>
-              <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
-                <li>Validates input: <code className="bg-background px-1 rounded text-xs">businessName</code>, <code className="bg-background px-1 rounded text-xs">category</code>, <code className="bg-background px-1 rounded text-xs">websiteUrl</code></li>
-                <li>Scrapes website via Firecrawl (extracts services, FAQs, pricing, contact info)</li>
-                <li>Generates structured system prompt + knowledge base via AI (with provider failover)</li>
-                <li>Creates VAPI assistant with optimized voice + model config</li>
-                <li>Returns only <code className="bg-background px-1 rounded text-xs">assistantId</code></li>
-              </ol>
-            </div>
-
             <div>
               <p className="text-sm font-medium text-foreground mb-2">Request</p>
               <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-voice-agent' \\
   -H 'Content-Type: application/json' \\
   -H 'Authorization: Bearer ${ANON_KEY}' \\
   -d '{
-    "businessName": "ABC Dental Clinic",
-    "category": "Healthcare",
-    "websiteUrl": "https://abcdental.com",
+    "businessName": "ABC Restaurant",
+    "category": "Restaurant",
+    "websiteUrl": "https://abcrestaurant.com",
     "calendarUrl": "https://calendly.com/your-link"
   }'`} />
             </div>
@@ -258,29 +213,9 @@ const ApiDocsPage = () => {
             <div>
               <p className="text-sm font-medium text-foreground mb-2">Response</p>
               <CodeBlock code={`{
-  "assistantId": "vapi-assistant-uuid-here"
+  "assistantId": "vapi-assistant-uuid",
+  "logoUrl": "https://abcrestaurant.com/logo.png"
 }`} />
-            </div>
-
-            <div className="rounded-lg border bg-primary/5 p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">What gets generated</p>
-              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                <li><strong>System prompt</strong> — Role, Identity, Tasks, Do's &amp; Don'ts, Error Handling (business-specific)</li>
-                <li><strong>Knowledge base</strong> — Extracted services, pricing, FAQs, contact details from the website</li>
-                <li><strong>First message</strong> — Dynamic greeting tailored to the business</li>
-                <li><strong>Calendar link</strong> — Integrated into booking flow if provided</li>
-                <li><strong>Voice</strong> — Azure Andrew (high-quality, natural)</li>
-                <li><strong>Model</strong> — OpenAI GPT-4o for intelligent conversation</li>
-              </ul>
-            </div>
-
-            <div className="rounded-lg border bg-destructive/5 p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">Error Responses</p>
-              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                <li><code className="bg-background px-1 rounded text-xs">400</code> — Missing required fields</li>
-                <li><code className="bg-background px-1 rounded text-xs">502</code> — Website scraping or VAPI creation failed</li>
-                <li><code className="bg-background px-1 rounded text-xs">500</code> — Internal error</li>
-              </ul>
             </div>
           </CardContent>
         </Card>

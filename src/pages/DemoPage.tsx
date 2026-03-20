@@ -2,10 +2,10 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import HeroSection from "@/components/demo/HeroSection";
-import BenefitsSection from "@/components/demo/BenefitsSection";
-import FeaturesSection from "@/components/demo/FeaturesSection";
 import VoiceAgentSection from "@/components/demo/VoiceAgentSection";
-import SocialProofSection from "@/components/demo/SocialProofSection";
+import PersonalizationProofSection from "@/components/demo/PersonalizationProofSection";
+import ProblemSection from "@/components/demo/ProblemSection";
+import OutcomeSection from "@/components/demo/OutcomeSection";
 import CTASection from "@/components/demo/CTASection";
 import FooterSection from "@/components/demo/FooterSection";
 import ChatWidget from "@/components/chatbot/ChatWidget";
@@ -34,6 +34,8 @@ interface DemoPageData {
 interface LinkedChatbot {
   id: string;
   widget_config: any;
+  research_data: any;
+  logo_url: string | null;
 }
 
 const DemoPage = () => {
@@ -46,76 +48,47 @@ const DemoPage = () => {
   const [vapiInstance, setVapiInstance] = useState<any>(null);
   const [globalCalendarUrl, setGlobalCalendarUrl] = useState<string | null>(null);
 
-  // Detect subdomain-based routing
   const resolvedSlug = (() => {
     if (slug) return slug;
     const hostname = window.location.hostname;
     const parts = hostname.split(".");
-    // If subdomain exists (e.g. clientname.myagency.com)
-    if (parts.length >= 3 && parts[0] !== "www") {
-      return parts[0];
-    }
+    if (parts.length >= 3 && parts[0] !== "www") return parts[0];
     return null;
   })();
 
   useEffect(() => {
     const fetchPage = async () => {
-      if (!resolvedSlug) {
-        setError("Demo page not found");
-        setLoading(false);
-        return;
-      }
+      if (!resolvedSlug) { setError("Demo page not found"); setLoading(false); return; }
 
-      // Fetch page and global settings in parallel
       let { data, error: fetchError } = await supabase
-        .from("demo_pages")
-        .select("*")
-        .eq("slug", resolvedSlug)
-        .single();
+        .from("demo_pages").select("*").eq("slug", resolvedSlug).single();
 
       if (fetchError || !data) {
         const subResult = await supabase
-          .from("demo_pages")
-          .select("*")
-          .eq("custom_subdomain", resolvedSlug)
-          .single();
+          .from("demo_pages").select("*").eq("custom_subdomain", resolvedSlug).single();
         data = subResult.data;
         fetchError = subResult.error;
       }
 
-      if (fetchError || !data) {
-        setError("Demo page not found");
-        setLoading(false);
-        return;
-      }
+      if (fetchError || !data) { setError("Demo page not found"); setLoading(false); return; }
 
       setPage(data as unknown as DemoPageData);
       setLoading(false);
 
-      // Fetch global calendar URL
-      const { data: settingsData } = await supabase
-        .from("site_settings")
-        .select("*")
-        .eq("key", "calendar_url")
-        .maybeSingle();
-      if (settingsData && (settingsData as any).value) {
-        setGlobalCalendarUrl((settingsData as any).value);
-      }
+      // Parallel: global calendar + linked chatbot
+      const [settingsRes, chatbotRes] = await Promise.all([
+        supabase.from("site_settings").select("*").eq("key", "calendar_url").maybeSingle(),
+        supabase.from("chatbots").select("id, widget_config, research_data, logo_url")
+          .eq("demo_page_id", data.id).eq("status", "active").maybeSingle(),
+      ]);
 
-      // Check for linked chatbot
-      const { data: chatbotData } = await supabase
-        .from("chatbots")
-        .select("id, widget_config")
-        .eq("demo_page_id", data.id)
-        .eq("status", "active")
-        .maybeSingle();
-      if (chatbotData) setLinkedChatbot(chatbotData as unknown as LinkedChatbot);
+      if (settingsRes.data && (settingsRes.data as any).value) {
+        setGlobalCalendarUrl((settingsRes.data as any).value);
+      }
+      if (chatbotRes.data) setLinkedChatbot(chatbotRes.data as unknown as LinkedChatbot);
 
       // Increment views
-      await supabase
-        .from("demo_pages")
-        .update({ views: (data.views ?? 0) + 1 })
-        .eq("id", data.id);
+      await supabase.from("demo_pages").update({ views: (data.views ?? 0) + 1 }).eq("id", data.id);
     };
 
     fetchPage();
@@ -136,9 +109,7 @@ const DemoPage = () => {
 
   const handleBookCall = useCallback(() => {
     const url = page?.calendly_url || globalCalendarUrl;
-    if (url) {
-      window.open(url, "_blank");
-    }
+    if (url) window.open(url, "_blank");
   }, [page, globalCalendarUrl]);
 
   if (loading) {
@@ -160,45 +131,69 @@ const DemoPage = () => {
     );
   }
 
+  const research = (linkedChatbot?.research_data as any) || {};
+  const logoUrl = linkedChatbot?.logo_url || linkedChatbot?.widget_config?.logo || undefined;
+  const companyName = page.company_name || page.business_name;
+
   return (
     <div className="min-h-screen bg-background">
+      {/* 1. Personalized Hook */}
       <HeroSection
         clientName={page.client_name || undefined}
-        companyName={page.company_name || page.business_name}
+        companyName={companyName}
         heroTitle={page.hero_title || undefined}
         heroSubtitle={page.hero_subtitle || undefined}
+        logoUrl={logoUrl}
         onTryDemo={startVapi}
         onBookCall={handleBookCall}
       />
-      <BenefitsSection
-        companyName={page.company_name || page.business_name}
-        benefits={page.benefits as string[] | undefined}
-      />
+
+      {/* 2. Try Voice Agent */}
       <VoiceAgentSection
-        companyName={page.company_name || page.business_name}
+        companyName={companyName}
         vapiStarted={vapiStarted}
         onTryDemo={startVapi}
       />
-      <FeaturesSection
-        companyName={page.company_name || page.business_name}
-        features={page.features as string[] | undefined}
+
+      {/* 3. Personalization Proof */}
+      <PersonalizationProofSection
+        companyName={companyName}
+        menuItems={research.menu_items}
+        categories={research.categories}
+        businessHours={research.business_hours}
+        address={research.address}
+        phone={research.phone}
       />
-      <SocialProofSection socialProof={page.social_proof as any} />
+
+      {/* 4. Problem Reminder */}
+      <ProblemSection companyName={companyName} />
+
+      {/* 5. Outcome */}
+      <OutcomeSection />
+
+      {/* 6. CTA */}
       <CTASection
-        companyName={page.company_name || page.business_name}
+        companyName={companyName}
         ctaText={page.cta_text || undefined}
         onBookCall={handleBookCall}
         onTryDemo={startVapi}
       />
+
       <FooterSection
         businessName={page.business_name}
         contactEmail={page.contact_email || undefined}
         contactPhone={page.contact_phone || undefined}
+        logoUrl={logoUrl}
       />
+
+      {/* Embedded Chatbot */}
       {linkedChatbot && (
         <ChatWidget
           chatbotId={linkedChatbot.id}
           greeting={linkedChatbot.widget_config?.greeting}
+          logoUrl={logoUrl}
+          businessName={companyName}
+          calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
         />
       )}
     </div>

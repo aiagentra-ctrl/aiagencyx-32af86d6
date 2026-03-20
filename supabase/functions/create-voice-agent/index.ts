@@ -27,7 +27,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 3
 }
 
 // ── Check scraped_data cache ──
-async function getCachedContent(supabase: any, websiteUrl: string): Promise<{ content: string; structured_data?: any } | null> {
+async function getCachedContent(supabase: any, websiteUrl: string): Promise<{ content: string; logoUrl?: string; structured_data?: any } | null> {
   const { data } = await supabase
     .from("scraped_data")
     .select("*")
@@ -37,22 +37,23 @@ async function getCachedContent(supabase: any, websiteUrl: string): Promise<{ co
 
   if (data) {
     console.log(`[cache] Hit for ${websiteUrl}`);
-    return { content: data.raw_content || "", structured_data: data.structured_data };
+    return { content: data.raw_content || "", logoUrl: data.logo_url || undefined, structured_data: data.structured_data };
   }
   return null;
 }
 
-async function saveScrapeCache(supabase: any, websiteUrl: string, content: string) {
+async function saveScrapeCache(supabase: any, websiteUrl: string, content: string, logoUrl?: string) {
   await supabase.from("scraped_data").upsert({
     website_url: websiteUrl,
     raw_content: content,
+    logo_url: logoUrl || null,
     scraped_at: new Date().toISOString(),
     expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   }, { onConflict: "website_url" });
 }
 
 // ── Firecrawl scraping with failover ──
-async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<string> {
+async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ content: string; logoUrl?: string }> {
   const { data: firecrawlProviders } = await supabase
     .from("api_providers")
     .select("*")
@@ -75,7 +76,7 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<string>
       const res = await fetchWithTimeout("https://api.firecrawl.dev/v1/scrape", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ url: websiteUrl, formats: ["markdown"], onlyMainContent: true }),
+        body: JSON.stringify({ url: websiteUrl, formats: ["markdown", "branding"], onlyMainContent: true }),
       }, 25000);
 
       if (res.status === 402) { lastError = `${source}: credits exhausted`; await res.text(); continue; }
@@ -83,8 +84,9 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<string>
 
       const data = await res.json();
       const content = data.data?.markdown || data.markdown || "";
-      await log(supabase, "voice_agent_scrape", "success", `Scraped ${content.length} chars via ${source}`, { source });
-      return content;
+      const logoUrl = data.data?.branding?.logo || data.branding?.logo || data.data?.branding?.images?.logo || undefined;
+      await log(supabase, "voice_agent_scrape", "success", `Scraped ${content.length} chars via ${source}`, { source, hasLogo: !!logoUrl });
+      return { content, logoUrl };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       lastError = msg.includes("abort") ? `${source}: timeout` : msg;
@@ -356,19 +358,23 @@ Deno.serve(async (req) => {
     // Step 1: Check cache first
     let websiteContent: string | null = null;
     let structuredData: any = null;
+    let logoUrl: string | undefined;
 
     if (!forceRefresh) {
       const cached = await getCachedContent(supabase, formattedUrl);
       if (cached) {
         websiteContent = cached.content;
         structuredData = cached.structured_data;
+        logoUrl = cached.logoUrl;
       }
     }
 
     if (!websiteContent) {
       try {
-        websiteContent = await scrapeWebsite(supabase, formattedUrl);
-        await saveScrapeCache(supabase, formattedUrl, websiteContent);
+        const result = await scrapeWebsite(supabase, formattedUrl);
+        websiteContent = result.content;
+        logoUrl = result.logoUrl;
+        await saveScrapeCache(supabase, formattedUrl, websiteContent, logoUrl);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Scraping failed";
         await log(supabase, "voice_agent_creation", "error", `Scrape failed: ${msg}`, { businessName });
@@ -408,10 +414,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    await log(supabase, "voice_agent_creation", "success", `Voice agent created: ${assistantId}`, { businessName, assistantId });
+    await log(supabase, "voice_agent_creation", "success", `Voice agent created: ${assistantId}`, { businessName, assistantId, hasLogo: !!logoUrl });
 
     return new Response(
-      JSON.stringify({ assistantId }),
+      JSON.stringify({ assistantId, logoUrl: logoUrl || null }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
