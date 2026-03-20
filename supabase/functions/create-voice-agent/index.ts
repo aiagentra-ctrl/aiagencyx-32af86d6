@@ -414,10 +414,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    await log(supabase, "voice_agent_creation", "success", `Voice agent created: ${assistantId}`, { businessName, assistantId });
+    await log(supabase, "voice_agent_creation", "success", `Voice agent created: ${assistantId}`, { businessName, assistantId, hasLogo: !!logoUrl });
 
     return new Response(
-      JSON.stringify({ assistantId }),
+      JSON.stringify({ assistantId, logoUrl: logoUrl || null }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
