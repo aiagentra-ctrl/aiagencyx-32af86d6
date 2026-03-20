@@ -2,39 +2,36 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Check, Code, Pencil, Bot, Trash2, Activity, Settings, Cog } from "lucide-react";
-import CreatePageDialog from "@/components/admin/CreatePageDialog";
+import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code } from "lucide-react";
 import EditPageDialog from "@/components/admin/EditPageDialog";
-import CreateChatbotDialog from "@/components/admin/CreateChatbotDialog";
 import EditChatbotDialog from "@/components/admin/EditChatbotDialog";
-import ApiProvidersPanel from "@/components/admin/ApiProvidersPanel";
-import ActivityLogViewer from "@/components/admin/ActivityLogViewer";
 import SiteSettingsPanel from "@/components/admin/SiteSettingsPanel";
+import ActivityLogViewer from "@/components/admin/ActivityLogViewer";
+import { Link } from "react-router-dom";
 
 interface DemoPage {
   id: string;
   slug: string;
   assistant_id: string;
   business_name: string;
-  description: string | null;
-  vapi_key: string;
   views: number;
   created_at: string;
   client_name: string | null;
   company_name: string | null;
-  industry: string | null;
-  hero_title: string | null;
-  hero_subtitle: string | null;
   calendly_url: string | null;
   cta_text: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  hero_title: string | null;
+  hero_subtitle: string | null;
+  industry: string | null;
+  description: string | null;
+  vapi_key: string;
   custom_subdomain: string | null;
 }
 
@@ -43,45 +40,39 @@ interface Chatbot {
   business_name: string;
   website_url: string | null;
   slug: string;
-  system_prompt: string;
+  status: string;
+  industry: string | null;
   ai_provider: string;
   ai_model: string;
-  api_key_encrypted: string | null;
-  industry: string | null;
-  brand_tone: string | null;
-  status: string;
   created_at: string;
+  system_prompt: string;
+  api_key_encrypted: string | null;
+  brand_tone: string | null;
 }
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const UNIFIED_API_URL = `${SUPABASE_URL}/functions/v1/create-ai-agent`;
 
 const AdminDashboard = () => {
   const [pages, setPages] = useState<DemoPage[]>([]);
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [loading, setLoading] = useState(true);
-  const [chatbotsLoading, setChatbotsLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [editPage, setEditPage] = useState<DemoPage | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editChatbot, setEditChatbot] = useState<Chatbot | null>(null);
   const [editChatbotOpen, setEditChatbotOpen] = useState(false);
 
-  const fetchPages = async () => {
-    const { data, error } = await supabase.from("demo_pages").select("*").order("created_at", { ascending: false });
-    if (data) setPages(data as unknown as DemoPage[]);
-    if (error) console.error("Error fetching pages:", error);
+  const fetchData = async () => {
+    const [pagesRes, chatbotsRes] = await Promise.all([
+      supabase.from("demo_pages").select("*").order("created_at", { ascending: false }),
+      supabase.from("chatbots").select("*").order("created_at", { ascending: false }),
+    ]);
+    if (pagesRes.data) setPages(pagesRes.data as unknown as DemoPage[]);
+    if (chatbotsRes.data) setChatbots(chatbotsRes.data as unknown as Chatbot[]);
     setLoading(false);
   };
 
-  const fetchChatbots = async () => {
-    const { data, error } = await supabase.from("chatbots").select("*").order("created_at", { ascending: false });
-    if (data) setChatbots(data as unknown as Chatbot[]);
-    if (error) console.error("Error fetching chatbots:", error);
-    setChatbotsLoading(false);
-  };
-
-  useEffect(() => { fetchPages(); fetchChatbots(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const getDemoUrl = (slug: string) => `${window.location.origin}/${slug}`;
   const getChatbotUrl = (slug: string) => `${window.location.origin}/chatbot/${slug}`;
@@ -96,34 +87,28 @@ const AdminDashboard = () => {
   const handleDeleteChatbot = async (id: string) => {
     const { error } = await supabase.from("chatbots").delete().eq("id", id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else { toast({ title: "Chatbot deleted" }); fetchChatbots(); }
+    else { toast({ title: "Chatbot deleted" }); fetchData(); }
   };
-
-  const examplePayload = `{
-  "type": "voice",
-  "businessName": "Business Name",
-  "assistantId": "your-assistant-id",
-  "vapiKey": "your-vapi-key",
-  "clientName": "John",
-  "origin": "${window.location.origin}"
-}`;
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <h1 className="text-xl font-bold text-card-foreground">AI Agency Dashboard</h1>
+          <Link to="/api-docs">
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Code className="h-3.5 w-3.5" /> API Docs
+            </Button>
+          </Link>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-8">
-        <Tabs defaultValue="voice" className="space-y-6">
+        <Tabs defaultValue="demos" className="space-y-6">
           <TabsList className="flex-wrap">
-            <TabsTrigger value="voice">Voice Agents</TabsTrigger>
-            <TabsTrigger value="chatbots">AI Chatbots</TabsTrigger>
-            <TabsTrigger value="providers">
-              <Settings className="mr-1.5 h-3.5 w-3.5" />
-              API Providers
+            <TabsTrigger value="demos">
+              <Zap className="mr-1.5 h-3.5 w-3.5" />
+              Demos
             </TabsTrigger>
             <TabsTrigger value="settings">
               <Cog className="mr-1.5 h-3.5 w-3.5" />
@@ -131,55 +116,52 @@ const AdminDashboard = () => {
             </TabsTrigger>
             <TabsTrigger value="logs">
               <Activity className="mr-1.5 h-3.5 w-3.5" />
-              Debug Logs
+              Logs
             </TabsTrigger>
           </TabsList>
 
-          {/* Voice Tab */}
-          <TabsContent value="voice" className="space-y-6">
-            <div className="flex justify-end"><CreatePageDialog onCreated={fetchPages} /></div>
+          {/* Demos Tab — shows both pages and chatbots */}
+          <TabsContent value="demos" className="space-y-6">
+            {/* API Quick Reference */}
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
-                  <Code className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">API Integration</CardTitle>
+                  <Zap className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">Create Demo (Single API)</CardTitle>
                 </div>
-                <CardDescription>Create demo pages programmatically.</CardDescription>
+                <CardDescription>One call creates voice agent + chatbot + demo website.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Endpoint</Label>
-                    <div className="mt-1 flex items-center gap-2">
-                      <code className="flex-1 rounded-md bg-muted px-3 py-2 text-sm font-mono text-foreground">POST {UNIFIED_API_URL}</code>
-                      <Button variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(UNIFIED_API_URL); toast({ title: "Copied!" }); }}>
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Example Payload</Label>
-                    <pre className="mt-1 rounded-md bg-muted p-3 text-xs font-mono text-foreground overflow-x-auto">{examplePayload}</pre>
-                  </div>
-                </div>
+                <code className="block rounded-md bg-muted px-3 py-2 text-sm font-mono text-foreground">
+                  POST {SUPABASE_URL}/functions/v1/create-demo
+                </code>
+                <pre className="mt-2 rounded-md bg-muted p-3 text-xs font-mono text-foreground">{`{
+  "business_name": "Mario's Pizza",
+  "website_url": "https://mariospizza.com",
+  "calendar_link": "https://calendly.com/your-link"
+}`}</pre>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Returns: <code className="bg-muted px-1 rounded">{`{ "demo_url": "..." }`}</code> — that's it.
+                </p>
               </CardContent>
             </Card>
+
+            {/* Demo Pages Table */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Demo Pages</CardTitle>
-                <CardDescription>{pages.length} page{pages.length !== 1 ? "s" : ""}</CardDescription>
+                <CardTitle className="text-lg">Generated Demos</CardTitle>
+                <CardDescription>{pages.length} demo{pages.length !== 1 ? "s" : ""} • {chatbots.length} chatbot{chatbots.length !== 1 ? "s" : ""}</CardDescription>
               </CardHeader>
               <CardContent>
                 {loading ? (
                   <div className="flex justify-center py-8"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
                 ) : pages.length === 0 ? (
-                  <p className="py-8 text-center text-muted-foreground">No demo pages yet.</p>
+                  <p className="py-8 text-center text-muted-foreground">No demos yet. Use the API to create one.</p>
                 ) : (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Business</TableHead>
-                        <TableHead className="hidden md:table-cell">Client</TableHead>
                         <TableHead>Slug</TableHead>
                         <TableHead className="text-right">Views</TableHead>
                         <TableHead className="hidden md:table-cell">Created</TableHead>
@@ -190,7 +172,6 @@ const AdminDashboard = () => {
                       {pages.map((page) => (
                         <TableRow key={page.id}>
                           <TableCell className="font-medium">{page.business_name}</TableCell>
-                          <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{page.client_name || "—"}</TableCell>
                           <TableCell><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{page.slug}</code></TableCell>
                           <TableCell className="text-right">{page.views}</TableCell>
                           <TableCell className="hidden md:table-cell text-muted-foreground text-sm">{new Date(page.created_at).toLocaleDateString()}</TableCell>
@@ -210,48 +191,23 @@ const AdminDashboard = () => {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Chatbots Tab */}
-          <TabsContent value="chatbots" className="space-y-6">
-            <div className="flex justify-end"><CreateChatbotDialog onCreated={fetchChatbots} /></div>
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <Code className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">Chatbot API</CardTitle>
-                </div>
-                <CardDescription>Create chatbots by scraping a website.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <code className="block rounded-md bg-muted px-3 py-2 text-sm font-mono text-foreground">
-                  POST {SUPABASE_URL}/functions/v1/scrape-and-analyze
-                </code>
-                <pre className="mt-2 rounded-md bg-muted p-3 text-xs font-mono text-foreground">{`{ "businessName": "ABC Dental", "websiteUrl": "https://abcdental.com" }`}</pre>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Bot className="h-5 w-5 text-primary" />
-                  <CardTitle className="text-lg">Chatbots</CardTitle>
-                </div>
-                <CardDescription>{chatbots.length} chatbot{chatbots.length !== 1 ? "s" : ""}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {chatbotsLoading ? (
-                  <div className="flex justify-center py-8"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
-                ) : chatbots.length === 0 ? (
-                  <p className="py-8 text-center text-muted-foreground">No chatbots yet.</p>
-                ) : (
+            {/* Chatbots Table */}
+            {chatbots.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-5 w-5 text-primary" />
+                    <CardTitle className="text-lg">Linked Chatbots</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Business</TableHead>
                         <TableHead>Slug</TableHead>
                         <TableHead className="hidden md:table-cell">Industry</TableHead>
-                        <TableHead className="hidden md:table-cell">Provider</TableHead>
-                        <TableHead className="hidden lg:table-cell">Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -261,12 +217,6 @@ const AdminDashboard = () => {
                           <TableCell className="font-medium">{bot.business_name}</TableCell>
                           <TableCell><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{bot.slug}</code></TableCell>
                           <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{bot.industry || "—"}</TableCell>
-                          <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{bot.ai_provider}</TableCell>
-                          <TableCell className="hidden lg:table-cell">
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${bot.status === "active" ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground"}`}>
-                              {bot.status}
-                            </span>
-                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button variant="ghost" size="icon" onClick={() => { setEditChatbot(bot); setEditChatbotOpen(true); }}><Pencil className="h-4 w-4" /></Button>
@@ -281,14 +231,9 @@ const AdminDashboard = () => {
                       ))}
                     </TableBody>
                   </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* API Providers Tab */}
-          <TabsContent value="providers">
-            <ApiProvidersPanel />
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Settings Tab */}
@@ -296,15 +241,15 @@ const AdminDashboard = () => {
             <SiteSettingsPanel />
           </TabsContent>
 
-          {/* Debug Logs Tab */}
+          {/* Logs Tab */}
           <TabsContent value="logs">
             <ActivityLogViewer />
           </TabsContent>
         </Tabs>
       </main>
 
-      <EditPageDialog page={editPage} open={editOpen} onOpenChange={setEditOpen} onUpdated={fetchPages} />
-      <EditChatbotDialog chatbot={editChatbot} open={editChatbotOpen} onOpenChange={setEditChatbotOpen} onUpdated={fetchChatbots} />
+      <EditPageDialog page={editPage} open={editOpen} onOpenChange={setEditOpen} onUpdated={fetchData} />
+      <EditChatbotDialog chatbot={editChatbot} open={editChatbotOpen} onOpenChange={setEditChatbotOpen} onUpdated={fetchData} />
     </div>
   );
 };

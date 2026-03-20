@@ -1,5 +1,8 @@
 project_id = "rkdzhpdfueqqjweysmvn"
 
+[functions.create-demo]
+verify_jwt = false
+
 [functions.create-demo-page]
 verify_jwt = false
 

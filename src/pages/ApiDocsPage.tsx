@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Check, ArrowLeft, Layers, Bot, Phone, Zap } from "lucide-react";
+import { Copy, Check, ArrowLeft, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -44,178 +44,75 @@ const ApiDocsPage = () => {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-8 px-6 py-8">
-        {/* Unified AI System API */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-primary" />
-              <CardTitle>Unified AI System API</CardTitle>
+              <CardTitle>Create Demo API</CardTitle>
             </div>
             <CardDescription>
-              One endpoint to create everything: scrapes website, builds voice agent + chatbot + demo page — all using the same data and prompt.
+              One endpoint. Three inputs. Returns a live demo URL with voice agent + chatbot + personalized website.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
               <p className="mb-2 text-sm font-medium text-foreground">Endpoint</p>
               <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
-                POST {SUPABASE_URL}/functions/v1/create-ai-system
+                POST {SUPABASE_URL}/functions/v1/create-demo
               </code>
             </div>
 
             <div className="rounded-lg border bg-muted/50 p-4 text-sm space-y-2">
               <p className="font-medium text-foreground">How it works</p>
               <ol className="list-decimal pl-5 space-y-1 text-muted-foreground">
-                <li>Scrapes website via Firecrawl (extracts content + logo via branding)</li>
+                <li>Scrapes website via Firecrawl (content + logo)</li>
                 <li>LLM extracts menu, pricing, hours, address, FAQs</li>
-                <li>Builds ONE shared system prompt for all agents</li>
+                <li>Injects data into admin-configured system prompt</li>
                 <li>Creates VAPI voice assistant</li>
-                <li>Creates AI chatbot with same prompt + data</li>
-                <li>Creates personalized demo page linked to both</li>
-                <li>Returns all URLs + IDs</li>
+                <li>Creates AI chatbot (same prompt + data)</li>
+                <li>Generates personalized demo website</li>
+                <li>Returns <code className="bg-background px-1 rounded text-xs">demo_url</code></li>
               </ol>
             </div>
 
             <div>
-              <p className="text-sm font-medium text-foreground mb-2">Request</p>
-              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-ai-system' \\
+              <p className="text-sm font-medium text-foreground mb-2">Request (only 3 fields)</p>
+              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-demo' \\
   -H 'Content-Type: application/json' \\
   -H 'Authorization: Bearer ${ANON_KEY}' \\
   -d '{
-    "businessName": "Mario\\'s Pizza",
-    "websiteUrl": "https://mariospizza.com",
-    "category": "Restaurant",
-    "calendarUrl": "https://calendly.com/your-link",
-    "clientName": "Mario",
-    "origin": "https://yourdomain.com"
+    "business_name": "Mario\\'s Pizza",
+    "website_url": "https://mariospizza.com",
+    "calendar_link": "https://calendly.com/your-link"
   }'`} />
             </div>
 
             <div>
               <p className="text-sm font-medium text-foreground mb-2">Response</p>
               <CodeBlock code={`{
-  "success": true,
-  "businessName": "Mario's Pizza",
-  "voiceAgent": {
-    "assistantId": "vapi-uuid",
-    "demoPage": {
-      "slug": "mario",
-      "url": "https://yourdomain.com/mario",
-      "id": "uuid"
-    }
-  },
-  "chatbot": {
-    "slug": "marios-pizza-chat",
-    "url": "https://yourdomain.com/chatbot/marios-pizza-chat",
-    "id": "uuid"
-  },
-  "meta": {
-    "logoUrl": "https://mariospizza.com/logo.png",
-    "industry": "Restaurant",
-    "menuItemsCount": 45
-  }
+  "demo_url": "https://yourdomain.com/marios-pizza"
 }`} />
             </div>
 
             <div className="rounded-lg border bg-accent/5 p-4 text-sm space-y-2">
               <p className="font-medium text-foreground">Key Features</p>
               <ul className="list-disc pl-5 text-muted-foreground space-y-1">
-                <li><strong>Single prompt</strong> — Voice agent and chatbot use identical system prompt and knowledge base</li>
-                <li><strong>Logo extraction</strong> — Automatically scraped and used in demo page + chatbot UI</li>
-                <li><strong>Calendar link</strong> — Dynamically used in all CTAs and chatbot booking flow</li>
-                <li><strong>Cache-first</strong> — Reuses scraped data for 30 days (pass <code className="bg-background px-1 rounded text-xs">forceRefresh: true</code> to override)</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Legacy Unified API */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-primary" />
-              <CardTitle>AI Agent API (Legacy)</CardTitle>
-            </div>
-            <CardDescription>
-              Create Voice Agents, Chatbots, or both separately. For new integrations, use the Unified AI System API above.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <p className="mb-2 text-sm font-medium text-foreground">Endpoint</p>
-              <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
-                POST {SUPABASE_URL}/functions/v1/create-ai-agent
-              </code>
-            </div>
-
-            <div className="rounded-lg border bg-muted/50 p-4 text-sm space-y-2">
-              <p className="font-medium text-foreground">How it works</p>
-              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
-                <li>Set <code className="bg-background px-1 rounded text-xs">"type"</code> to <code className="bg-background px-1 rounded text-xs">"voice"</code>, <code className="bg-background px-1 rounded text-xs">"chatbot"</code>, or <code className="bg-background px-1 rounded text-xs">"both"</code></li>
-                <li>Voice agents require <code className="bg-background px-1 rounded text-xs">assistantId</code> + <code className="bg-background px-1 rounded text-xs">vapiKey</code></li>
-                <li>Chatbots require <code className="bg-background px-1 rounded text-xs">websiteUrl</code></li>
-                <li>Pass <code className="bg-background px-1 rounded text-xs">"calendarUrl"</code> for dynamic booking links</li>
+                <li><strong>Zero config in API</strong> — all settings (VAPI keys, system prompt, voice, branding) come from admin panel</li>
+                <li><strong>Single prompt</strong> — voice agent and chatbot use identical system prompt</li>
+                <li><strong>Logo extraction</strong> — automatically scraped and shown on demo page + chatbot</li>
+                <li><strong>Cache-first</strong> — reuses scraped data for 30 days</li>
+                <li><strong>calendar_link</strong> is optional — falls back to admin default</li>
               </ul>
             </div>
 
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Phone className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium text-foreground">Voice Agent Example</p>
-              </div>
-              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-ai-agent' \\
-  -H 'Content-Type: application/json' \\
-  -H 'Authorization: Bearer ${ANON_KEY}' \\
-  -d '{
-    "type": "voice",
-    "businessName": "ABC Restaurant",
-    "assistantId": "your-vapi-assistant-id",
-    "vapiKey": "your-vapi-public-key",
-    "calendarUrl": "https://calendly.com/your-link",
-    "origin": "https://yourdomain.com"
-  }'`} />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Automated Voice Agent API */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Phone className="h-5 w-5 text-primary" />
-              <CardTitle>Automated Voice Agent API</CardTitle>
-            </div>
-            <CardDescription>
-              Scrape → AI prompt → VAPI assistant. Returns assistantId + logoUrl.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <p className="mb-2 text-sm font-medium text-foreground">Endpoint</p>
-              <code className="block rounded-lg bg-muted px-3 py-2 text-sm font-mono">
-                POST {SUPABASE_URL}/functions/v1/create-voice-agent
-              </code>
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-foreground mb-2">Request</p>
-              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-voice-agent' \\
-  -H 'Content-Type: application/json' \\
-  -H 'Authorization: Bearer ${ANON_KEY}' \\
-  -d '{
-    "businessName": "ABC Restaurant",
-    "category": "Restaurant",
-    "websiteUrl": "https://abcrestaurant.com",
-    "calendarUrl": "https://calendly.com/your-link"
-  }'`} />
-            </div>
-
-            <div>
-              <p className="text-sm font-medium text-foreground mb-2">Response</p>
-              <CodeBlock code={`{
-  "assistantId": "vapi-assistant-uuid",
-  "logoUrl": "https://abcrestaurant.com/logo.png"
-}`} />
+            <div className="rounded-lg border p-4 text-sm space-y-2">
+              <p className="font-medium text-foreground">Prerequisites (one-time setup in Admin → Settings)</p>
+              <ul className="list-disc pl-5 text-muted-foreground space-y-1">
+                <li>VAPI Public Key + Private Key</li>
+                <li>Default system prompt (with {"{business_name}"} placeholder)</li>
+                <li>Voice settings (provider, voice ID)</li>
+                <li>Default calendar link (optional fallback)</li>
+              </ul>
             </div>
           </CardContent>
         </Card>
