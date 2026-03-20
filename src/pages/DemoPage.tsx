@@ -114,7 +114,7 @@ const DemoPage = () => {
   }, []);
 
   const startVapi = useCallback(async () => {
-    if (!page || callStatus !== "idle") return;
+    if (!page || callStatus === "calling" || callStatus === "connected") return;
     try {
       setCallStatus("calling");
       setCallSeconds(0);
