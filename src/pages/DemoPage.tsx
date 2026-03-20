@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
+
+export type CallStatus = "idle" | "calling" | "connected" | "ended";
 import { supabase } from "@/integrations/supabase/client";
 import HeroSection from "@/components/demo/HeroSection";
 import VoiceAgentSection from "@/components/demo/VoiceAgentSection";
@@ -47,8 +49,10 @@ const DemoPage = () => {
   const [linkedChatbot, setLinkedChatbot] = useState<LinkedChatbot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [vapiStarted, setVapiStarted] = useState(false);
+  const [callStatus, setCallStatus] = useState<CallStatus>("idle");
   const [vapiInstance, setVapiInstance] = useState<any>(null);
+  const [callSeconds, setCallSeconds] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [globalCalendarUrl, setGlobalCalendarUrl] = useState<string | null>(null);
   const [scrolledPastHero, setScrolledPastHero] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -110,17 +114,41 @@ const DemoPage = () => {
   }, []);
 
   const startVapi = useCallback(async () => {
-    if (!page || vapiStarted) return;
+    if (!page || callStatus === "calling" || callStatus === "connected") return;
     try {
+      setCallStatus("calling");
+      setCallSeconds(0);
       const { default: Vapi } = await import("@vapi-ai/web");
       const vapi = new Vapi(page.vapi_key);
+
+      vapi.on("call-start", () => {
+        setCallStatus("connected");
+        timerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
+      });
+      vapi.on("call-end", () => {
+        setCallStatus("ended");
+        if (timerRef.current) clearInterval(timerRef.current);
+      });
+
       vapi.start(page.assistant_id);
       setVapiInstance(vapi);
-      setVapiStarted(true);
     } catch (err) {
       console.error("Vapi initialization failed:", err);
+      setCallStatus("idle");
     }
-  }, [page, vapiStarted]);
+  }, [page, callStatus]);
+
+  const endVapi = useCallback(() => {
+    if (vapiInstance) {
+      vapiInstance.stop();
+      setCallStatus("ended");
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  }, [vapiInstance]);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, []);
 
   const handleBookCall = useCallback(() => {
     const url = page?.calendly_url || globalCalendarUrl;
@@ -170,16 +198,20 @@ const DemoPage = () => {
           heroSubtitle={page.hero_subtitle || undefined}
           logoUrl={logoUrl}
           onTryCall={startVapi}
+          onEndCall={endVapi}
           onTryChat={() => {/* chatbot opens via widget */}}
-          vapiStarted={vapiStarted}
+          callStatus={callStatus}
+          callSeconds={callSeconds}
         />
       </div>
 
       <div id="demo-section">
         <VoiceAgentSection
           companyName={companyName}
-          vapiStarted={vapiStarted}
+          callStatus={callStatus}
+          callSeconds={callSeconds}
           onTryDemo={startVapi}
+          onEndCall={endVapi}
         />
       </div>
 
@@ -214,8 +246,9 @@ const DemoPage = () => {
       {/* Sticky Call Button */}
       <StickyCallButton
         visible={scrolledPastHero}
-        vapiStarted={vapiStarted}
+        callStatus={callStatus}
         onTryCall={startVapi}
+        onEndCall={endVapi}
       />
 
       {/* Embedded Chatbot */}
