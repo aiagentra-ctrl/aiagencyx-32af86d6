@@ -53,7 +53,7 @@ async function saveScrapeCache(supabase: any, websiteUrl: string, content: strin
 }
 
 // ── Firecrawl scraping with failover ──
-async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<string> {
+async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ content: string; logoUrl?: string }> {
   const { data: firecrawlProviders } = await supabase
     .from("api_providers")
     .select("*")
@@ -76,7 +76,7 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<string>
       const res = await fetchWithTimeout("https://api.firecrawl.dev/v1/scrape", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ url: websiteUrl, formats: ["markdown"], onlyMainContent: true }),
+        body: JSON.stringify({ url: websiteUrl, formats: ["markdown", "branding"], onlyMainContent: true }),
       }, 25000);
 
       if (res.status === 402) { lastError = `${source}: credits exhausted`; await res.text(); continue; }
@@ -84,8 +84,9 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<string>
 
       const data = await res.json();
       const content = data.data?.markdown || data.markdown || "";
-      await log(supabase, "voice_agent_scrape", "success", `Scraped ${content.length} chars via ${source}`, { source });
-      return content;
+      const logoUrl = data.data?.branding?.logo || data.branding?.logo || data.data?.branding?.images?.logo || undefined;
+      await log(supabase, "voice_agent_scrape", "success", `Scraped ${content.length} chars via ${source}`, { source, hasLogo: !!logoUrl });
+      return { content, logoUrl };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       lastError = msg.includes("abort") ? `${source}: timeout` : msg;
