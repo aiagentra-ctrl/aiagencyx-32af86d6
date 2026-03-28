@@ -7,13 +7,14 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3 } from "lucide-react";
+import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3, Layers } from "lucide-react";
 import EditPageDialog from "@/components/admin/EditPageDialog";
 import AnalyticsPanel from "@/components/admin/AnalyticsPanel";
 import EditChatbotDialog from "@/components/admin/EditChatbotDialog";
 import SiteSettingsPanel from "@/components/admin/SiteSettingsPanel";
 import ActivityLogViewer from "@/components/admin/ActivityLogViewer";
 import { Link } from "react-router-dom";
+import TemplatesPanel from "@/components/admin/TemplatesPanel";
 
 interface DemoPage {
   id: string;
@@ -119,6 +120,10 @@ const AdminDashboard = () => {
               <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
               Analytics
             </TabsTrigger>
+            <TabsTrigger value="templates">
+              <Layers className="mr-1.5 h-3.5 w-3.5" />
+              Templates
+            </TabsTrigger>
             <TabsTrigger value="logs">
               <Activity className="mr-1.5 h-3.5 w-3.5" />
               Logs
@@ -143,7 +148,8 @@ const AdminDashboard = () => {
                 <pre className="mt-2 rounded-md bg-muted p-3 text-xs font-mono text-foreground">{`{
   "business_name": "Mario's Pizza",
   "website_url": "https://mariospizza.com",
-  "calendar_link": "https://calendly.com/your-link"
+  "calendar_link": "https://calendly.com/your-link",
+  "industry": "restaurant"  // optional — auto-detected if omitted
 }`}</pre>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Returns: <code className="bg-muted px-1 rounded">{`{ "demo_url": "..." }`}</code> — that's it.
@@ -249,6 +255,11 @@ const AdminDashboard = () => {
           {/* Analytics Tab */}
           <TabsContent value="analytics">
             <AnalyticsPanel />
+          </TabsContent>
+
+          {/* Templates Tab */}
+          <TabsContent value="templates">
+            <TemplatesPanel />
           </TabsContent>
 
           {/* Logs Tab */}

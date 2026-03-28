@@ -261,6 +261,63 @@ export type Database = {
         }
         Relationships: []
       }
+      industry_templates: {
+        Row: {
+          chatbot_config: Json
+          chatbot_nav_items: Json
+          created_at: string
+          display_name: string
+          first_message_template: string
+          floating_bubbles: Json
+          hero_subtitle_template: string | null
+          id: string
+          industry_name: string
+          priority: number
+          problem_statements: Json
+          status: string
+          system_prompt_template: string
+          updated_at: string
+          voice_config: Json
+          website_template: Json
+        }
+        Insert: {
+          chatbot_config?: Json
+          chatbot_nav_items?: Json
+          created_at?: string
+          display_name: string
+          first_message_template?: string
+          floating_bubbles?: Json
+          hero_subtitle_template?: string | null
+          id?: string
+          industry_name: string
+          priority?: number
+          problem_statements?: Json
+          status?: string
+          system_prompt_template?: string
+          updated_at?: string
+          voice_config?: Json
+          website_template?: Json
+        }
+        Update: {
+          chatbot_config?: Json
+          chatbot_nav_items?: Json
+          created_at?: string
+          display_name?: string
+          first_message_template?: string
+          floating_bubbles?: Json
+          hero_subtitle_template?: string | null
+          id?: string
+          industry_name?: string
+          priority?: number
+          problem_statements?: Json
+          status?: string
+          system_prompt_template?: string
+          updated_at?: string
+          voice_config?: Json
+          website_template?: Json
+        }
+        Relationships: []
+      }
       link_events: {
         Row: {
           business_name: string
