@@ -214,6 +214,7 @@ const DemoPage = () => {
           onTryChat={openChatbot}
           callStatus={callStatus}
           callSeconds={callSeconds}
+          floatingBubbles={dc.floating_bubbles}
         />
       </div>
 
