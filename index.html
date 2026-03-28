@@ -3,19 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Instant redirect BEFORE any rendering — runs before React/CSS/JS loads
+      (function(){
+        var h = location.hostname;
+        var p = location.pathname;
+        if (h === 'aiagentfor.lovable.app' && (p === '/' || p === '/admin' || p === '/admin/')) {
+          location.replace('https://aiagentra.cloud/');
+        }
+      })();
+    </script>
     <title>AI Voice Demo Pages</title>
     <meta name="description" content="Create and manage AI voice demo pages for your clients">
-    
-    
     <meta property="og:type" content="website" />
     <meta property="og:title" content="AI Voice Demo Pages">
-  <meta name="twitter:title" content="AI Voice Demo Pages">
-  <meta property="og:description" content="Create and manage AI voice demo pages for your clients">
-  <meta name="twitter:description" content="Create and manage AI voice demo pages for your clients">
-  <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/66fed510-4df2-4fba-a48a-a34954cdce9b/id-preview-a4dcb0d1--2cd2f091-e7da-4449-b6d6-1acb31627691.lovable.app-1773564735528.png">
-  <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/66fed510-4df2-4fba-a48a-a34954cdce9b/id-preview-a4dcb0d1--2cd2f091-e7da-4449-b6d6-1acb31627691.lovable.app-1773564735528.png">
-  <meta name="twitter:card" content="summary_large_image">
-</head>
+    <meta name="twitter:title" content="AI Voice Demo Pages">
+    <meta property="og:description" content="Create and manage AI voice demo pages for your clients">
+    <meta name="twitter:description" content="Create and manage AI voice demo pages for your clients">
+    <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/66fed510-4df2-4fba-a48a-a34954cdce9b/id-preview-a4dcb0d1--2cd2f091-e7da-4449-b6d6-1acb31627691.lovable.app-1773564735528.png">
+    <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/66fed510-4df2-4fba-a48a-a34954cdce9b/id-preview-a4dcb0d1--2cd2f091-e7da-4449-b6d6-1acb31627691.lovable.app-1773564735528.png">
+    <meta name="twitter:card" content="summary_large_image">
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
