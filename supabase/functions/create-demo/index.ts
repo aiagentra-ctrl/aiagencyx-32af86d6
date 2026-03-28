@@ -66,7 +66,61 @@ async function saveScrapeCache(supabase: any, websiteUrl: string, content: strin
   }, { onConflict: "website_url" });
 }
 
-// ── Firecrawl ──
+// ── Firecrawl: Multi-page discovery + scrape ──
+async function discoverPages(apiKey: string, websiteUrl: string): Promise<string[]> {
+  try {
+    console.log("[map] Discovering pages...");
+    const res = await fetchWithTimeout("https://api.firecrawl.dev/v1/map", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ url: websiteUrl, limit: 50, includeSubdomains: false }),
+    }, 15000);
+    if (!res.ok) { await res.text(); return []; }
+    const data = await res.json();
+    const links: string[] = data.links || data.data?.links || [];
+    console.log(`[map] Found ${links.length} pages`);
+    return links;
+  } catch (err) {
+    console.log("[map] Discovery failed, falling back to single page");
+    return [];
+  }
+}
+
+function pickKeyPages(allUrls: string[], baseUrl: string): string[] {
+  const patterns = [
+    /\/(about|who-we-are|our-story)/i,
+    /\/(service|menu|product|pricing|price|plan|offer)/i,
+    /\/(faq|help|support|question)/i,
+    /\/(contact|location|find-us)/i,
+    /\/(team|staff|doctor|lawyer|agent)/i,
+  ];
+  const picked: string[] = [];
+  for (const pattern of patterns) {
+    const match = allUrls.find(u => pattern.test(u) && !picked.includes(u));
+    if (match) picked.push(match);
+  }
+  return picked.slice(0, 5);
+}
+
+async function scrapeMultiplePages(apiKey: string, urls: string[]): Promise<string> {
+  const results: string[] = [];
+  for (const url of urls) {
+    try {
+      const res = await fetchWithTimeout("https://api.firecrawl.dev/v1/scrape", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+      }, 15000);
+      if (res.ok) {
+        const data = await res.json();
+        const md = data.data?.markdown || data.markdown || "";
+        if (md) results.push(`\n--- PAGE: ${url} ---\n${md}`);
+      } else { await res.text(); }
+    } catch { /* skip */ }
+  }
+  return results.join("\n");
+}
+
 async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ content: string; logoUrl?: string }> {
   const { data: firecrawlProviders } = await supabase.from("api_providers").select("*")
     .eq("category", "firecrawl").eq("is_enabled", true).order("priority", { ascending: true });
@@ -81,6 +135,8 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ conte
   for (const { key, source } of keys) {
     try {
       console.log(`[scrape] Trying ${source}`);
+
+      // Step A: Scrape main page with branding
       const res = await fetchWithTimeout("https://api.firecrawl.dev/v1/scrape", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -91,8 +147,24 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ conte
       if (!res.ok) { lastError = `${source}: ${res.status}`; await res.text(); continue; }
 
       const data = await res.json();
-      const content = data.data?.markdown || data.markdown || "";
+      let content = data.data?.markdown || data.markdown || "";
       const logoUrl = data.data?.branding?.logo || data.branding?.logo || data.data?.branding?.images?.logo || undefined;
+
+      // Step B: Multi-page discovery + scrape for richer data
+      try {
+        const allPages = await discoverPages(key, websiteUrl);
+        if (allPages.length > 0) {
+          const keyPages = pickKeyPages(allPages, websiteUrl);
+          if (keyPages.length > 0) {
+            console.log(`[scrape] Scraping ${keyPages.length} additional pages`);
+            const extraContent = await scrapeMultiplePages(key, keyPages);
+            if (extraContent) content += extraContent;
+          }
+        }
+      } catch (err) {
+        console.log("[scrape] Multi-page scraping failed, using main page only");
+      }
+
       return { content, logoUrl };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -134,7 +206,7 @@ async function callLlmWithTools(providers: any[], body: any): Promise<any> {
   return null;
 }
 
-// ── LLM extraction (industry-aware) ──
+// ── LLM extraction (enhanced with deeper fields) ──
 async function extractStructuredData(supabase: any, businessName: string, websiteContent: string, industry: string): Promise<any> {
   const { data: llmProviders } = await supabase.from("api_providers").select("*")
     .eq("category", "llm").eq("is_enabled", true).order("priority", { ascending: true });
@@ -145,8 +217,8 @@ async function extractStructuredData(supabase: any, businessName: string, websit
 
   return callLlmWithTools(providers, {
     messages: [
-      { role: "system", content: `Extract structured business data from the website content.${industryHint} Call the tool with accurate data found on the website.` },
-      { role: "user", content: `Extract structured data from this website.\n\nBusiness: ${businessName}\n\nContent:\n${websiteContent.substring(0, 10000)}` },
+      { role: "system", content: `Extract structured business data from the website content.${industryHint} Be thorough — extract ALL services, products, pricing, and unique selling points. Call the tool with accurate data found on the website.` },
+      { role: "user", content: `Extract structured data from this website.\n\nBusiness: ${businessName}\n\nContent:\n${websiteContent.substring(0, 15000)}` },
     ],
     tools: [{
       type: "function",
@@ -168,6 +240,11 @@ async function extractStructuredData(supabase: any, businessName: string, websit
             industry: { type: "string", description: "Detected industry: restaurant, clinic, real_estate, salon, gym, ecommerce, agency, law_firm, etc." },
             brand_tone: { type: "string" },
             main_service: { type: "string", description: "The primary service or product this business offers" },
+            key_selling_points: { type: "array", description: "3-5 unique selling points that differentiate this business", items: { type: "string" } },
+            customer_flow: { type: "string", description: "How customers typically interact with this business (e.g. 'call to book appointment, arrive, get service, pay')" },
+            use_cases: { type: "array", description: "3 real scenarios showing how an AI agent would help this business", items: { type: "object", properties: { scenario: { type: "string" }, ai_action: { type: "string" }, outcome: { type: "string" } }, required: ["scenario", "ai_action", "outcome"] } },
+            brand_personality: { type: "string", description: "Brand personality in 2-3 words (e.g. 'warm and professional', 'modern and bold')" },
+            target_audience: { type: "string", description: "Primary target audience" },
           },
           additionalProperties: false,
         },
@@ -177,17 +254,20 @@ async function extractStructuredData(supabase: any, businessName: string, websit
   });
 }
 
-// ── Generate dynamic content via LLM (when no template exists) ──
-async function generateDynamicContent(supabase: any, businessName: string, industry: string, mainService: string, websiteContent: string): Promise<any> {
+// ── Generate dynamic content via LLM (expanded with outcomes, trust, voice prompts) ──
+async function generateDynamicContent(supabase: any, businessName: string, industry: string, mainService: string, websiteContent: string, structuredData: any): Promise<any> {
   const { data: llmProviders } = await supabase.from("api_providers").select("*")
     .eq("category", "llm").eq("is_enabled", true).order("priority", { ascending: true });
   const providers = buildProviderList(llmProviders || []);
   if (providers.length === 0) return null;
 
+  const sellingPoints = structuredData?.key_selling_points?.join(", ") || "";
+  const services = structuredData?.services?.join(", ") || "";
+
   return callLlmWithTools(providers, {
     messages: [
-      { role: "system", content: `You are an expert AI copywriter. Generate high-converting, industry-specific content for a ${industry} business called "${businessName}". Main service: ${mainService}.` },
-      { role: "user", content: `Generate dynamic landing page content for "${businessName}" (${industry}).\n\nWebsite context:\n${websiteContent.substring(0, 4000)}\n\nGenerate: hero_subtitle, 4 problem_statements with stats, 5 chatbot_nav_items, first_message greeting, and 2 floating_bubbles.` },
+      { role: "system", content: `You are an expert AI copywriter and conversion specialist. Generate high-converting, industry-specific content for a ${industry} business called "${businessName}". Main service: ${mainService}. ${sellingPoints ? `Key selling points: ${sellingPoints}.` : ""} ${services ? `Services: ${services}.` : ""}` },
+      { role: "user", content: `Generate dynamic landing page content for "${businessName}" (${industry}).\n\nWebsite context:\n${websiteContent.substring(0, 4000)}\n\nGenerate ALL fields: hero_subtitle, 4 problem_statements with stats, 5 chatbot_nav_items, first_message greeting, 2 floating_bubbles, 4 voice_prompts (things to try saying), 4 outcome_metrics (before/after results), and 3 trust_lines.` },
     ],
     tools: [{
       type: "function",
@@ -202,14 +282,76 @@ async function generateDynamicContent(supabase: any, businessName: string, indus
             chatbot_nav_items: { type: "array", items: { type: "object", properties: { label: { type: "string" }, value: { type: "string" } }, required: ["label", "value"] } },
             first_message: { type: "string" },
             floating_bubbles: { type: "array", items: { type: "string" } },
+            voice_prompts: { type: "array", description: "4 things users can try saying to the voice agent, each with emoji and text", items: { type: "object", properties: { emoji: { type: "string" }, text: { type: "string" } }, required: ["emoji", "text"] } },
+            outcome_metrics: { type: "array", description: "4 outcome metrics showing what happens with AI", items: { type: "object", properties: { title: { type: "string" }, desc: { type: "string" }, metric: { type: "string" }, metricLabel: { type: "string" }, icon: { type: "string", description: "Icon name: ShoppingCart, CalendarCheck, PhoneCall, UserCheck, Clock, TrendingUp, DollarSign, Star" } }, required: ["title", "desc", "metric", "metricLabel"] } },
+            trust_lines: { type: "array", description: "3 personalization trust statements", items: { type: "string" } },
           },
-          required: ["hero_subtitle", "problem_statements", "chatbot_nav_items", "first_message", "floating_bubbles"],
+          required: ["hero_subtitle", "problem_statements", "chatbot_nav_items", "first_message", "floating_bubbles", "voice_prompts", "outcome_metrics", "trust_lines"],
           additionalProperties: false,
         },
       },
     }],
     tool_choice: { type: "function", function: { name: "generate_dynamic_content" } },
   });
+}
+
+// ── Generate and save a new industry template ──
+async function generateAndSaveTemplate(supabase: any, industry: string, businessName: string, mainService: string, websiteContent: string, providers: any[]): Promise<any | null> {
+  console.log(`[template] Generating new template for industry: ${industry}`);
+
+  const result = await callLlmWithTools(providers, {
+    messages: [
+      { role: "system", content: `You are an expert AI system architect. Generate a production-level, reusable industry template for "${industry}" businesses. This template will be used for ALL future ${industry} businesses, so make it generic enough to work broadly but specific enough to be highly effective. Use {business_name}, {main_service}, {industry} as placeholders.` },
+      { role: "user", content: `Create a complete industry template for "${industry}" businesses. Context from a real ${industry} business "${businessName}":\n${websiteContent.substring(0, 3000)}\n\nGenerate: system_prompt_template, hero_subtitle_template, first_message_template, 4 problem_statements, 5 chatbot_nav_items, 2 floating_bubbles.` },
+    ],
+    tools: [{
+      type: "function",
+      function: {
+        name: "create_industry_template",
+        description: "Create a reusable industry template with all configuration",
+        parameters: {
+          type: "object",
+          properties: {
+            system_prompt_template: { type: "string", description: "Full system prompt using {business_name}, {main_service}, {industry} placeholders. Include: role definition, personality, conversation flow, sales behavior, error handling, do's and don'ts." },
+            hero_subtitle_template: { type: "string" },
+            first_message_template: { type: "string" },
+            problem_statements: { type: "array", items: { type: "object", properties: { title: { type: "string" }, desc: { type: "string" }, stat: { type: "string" }, statLabel: { type: "string" } }, required: ["title", "desc", "stat", "statLabel"] } },
+            chatbot_nav_items: { type: "array", items: { type: "object", properties: { label: { type: "string" }, value: { type: "string" } }, required: ["label", "value"] } },
+            floating_bubbles: { type: "array", items: { type: "string" } },
+          },
+          required: ["system_prompt_template", "hero_subtitle_template", "first_message_template", "problem_statements", "chatbot_nav_items", "floating_bubbles"],
+          additionalProperties: false,
+        },
+      },
+    }],
+    tool_choice: { type: "function", function: { name: "create_industry_template" } },
+  });
+
+  if (!result) return null;
+
+  // Save to database for future reuse
+  const displayName = industry.charAt(0).toUpperCase() + industry.slice(1).replace(/_/g, " ");
+  const { data: saved, error } = await supabase.from("industry_templates").insert({
+    industry_name: industry,
+    display_name: `${displayName} (Auto-generated)`,
+    system_prompt_template: result.system_prompt_template,
+    hero_subtitle_template: result.hero_subtitle_template,
+    first_message_template: result.first_message_template,
+    problem_statements: result.problem_statements || [],
+    chatbot_nav_items: result.chatbot_nav_items || [],
+    floating_bubbles: result.floating_bubbles || [],
+    status: "active",
+    priority: 5,
+  }).select().single();
+
+  if (error) {
+    console.error("[template] Failed to save template:", error);
+    // Still return the generated data even if save fails
+    return { ...result, industry_name: industry };
+  }
+
+  console.log(`[template] Saved new template for "${industry}" (id: ${saved.id})`);
+  return saved;
 }
 
 // ── Build knowledge base ──
@@ -221,6 +363,7 @@ function buildKnowledgeBase(businessName: string, structuredData: any, websiteCo
   const phone = structuredData?.phone || "";
   const services = structuredData?.services || [];
   const faqs = structuredData?.faq_topics || [];
+  const sellingPoints = structuredData?.key_selling_points || [];
 
   const itemsSection = menu.length > 0
     ? `\n### Menu\n${menu.map((item: any) => `- ${item.name}: ${item.price}${item.description ? ` — ${item.description}` : ""}`).join("\n")}`
@@ -234,6 +377,7 @@ ${address ? `- Address: ${address}` : ""}
 ${phone ? `- Phone: ${phone}` : ""}
 ${hours ? `- Hours: ${hours}` : ""}
 ${services.length > 0 ? `- Services: ${services.join(", ")}` : ""}
+${sellingPoints.length > 0 ? `\n### Key Selling Points\n${sellingPoints.map((s: string) => `- ${s}`).join("\n")}` : ""}
 ${itemsSection}
 ${faqs.length > 0 ? `\n### Common Questions\n${faqs.map((f: string) => `- ${f}`).join("\n")}` : ""}
 
@@ -304,7 +448,7 @@ Deno.serve(async (req) => {
     const calendarUrl = calendar_link || adminSettings.calendar_url || "";
     const siteUrl = (adminSettings.site_url || Deno.env.get("SITE_URL") || "").replace(/\/+$/, "");
 
-    // Step 1: Scrape (cache-first)
+    // Step 1: Scrape (cache-first, now with multi-page)
     let websiteContent = "";
     let logoUrl: string | undefined;
     let structuredData: any = null;
@@ -329,7 +473,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 2: LLM extraction
+    // Step 2: Enhanced LLM extraction (sends up to 15K chars from multi-page content)
     const extractionIndustry = userIndustry && userIndustry !== "default" ? userIndustry : "";
     if (!structuredData?.services?.length && !structuredData?.menu_items?.length) {
       const llmData = await extractStructuredData(supabase, business_name, websiteContent, extractionIndustry);
@@ -346,8 +490,24 @@ Deno.serve(async (req) => {
 
     console.log(`[industry] Resolved: ${resolvedIndustry}, main service: ${mainService}`);
 
-    // ── TEMPLATE ENGINE: Load template by priority ──
+    // ── TEMPLATE ENGINE: Smart detection + auto-generation ──
     let template = await loadTemplate(supabase, resolvedIndustry);
+
+    // If no industry-specific template, try to generate and save one
+    if (!template && resolvedIndustry !== "default" && resolvedIndustry !== "general") {
+      const { data: llmProviders } = await supabase.from("api_providers").select("*")
+        .eq("category", "llm").eq("is_enabled", true).order("priority", { ascending: true });
+      const providers = buildProviderList(llmProviders || []);
+      if (providers.length > 0) {
+        try {
+          template = await generateAndSaveTemplate(supabase, resolvedIndustry, business_name, mainService, websiteContent, providers);
+        } catch (err) {
+          console.error("[template] Auto-generation failed:", err);
+        }
+      }
+    }
+
+    // Fallback to default template
     if (!template) template = await loadDefaultTemplate(supabase);
 
     console.log(`[template] Using: ${template ? template.industry_name : "LLM-generated (no template)"}`);
@@ -371,11 +531,10 @@ Deno.serve(async (req) => {
 
     const knowledgeBase = buildKnowledgeBase(business_name, structuredData, websiteContent);
 
-    // Step 4: Build dynamic content from template OR LLM
+    // Step 4: Build dynamic content from template OR LLM (expanded)
     let dynamicContent: any = {};
 
     if (template) {
-      // Use template data
       const tProblems = template.problem_statements || [];
       const tNavItems = template.chatbot_nav_items || [];
       const tBubbles = template.floating_bubbles || [];
@@ -392,10 +551,10 @@ Deno.serve(async (req) => {
       };
     }
 
-    // If template didn't provide content (or no template), use LLM
-    if (!dynamicContent.problem_statements || !dynamicContent.chatbot_nav_items) {
+    // If template didn't provide full content, use LLM to fill gaps
+    if (!dynamicContent.problem_statements || !dynamicContent.chatbot_nav_items || !dynamicContent.voice_prompts) {
       try {
-        const llmContent = await generateDynamicContent(supabase, business_name, resolvedIndustry, mainService, websiteContent);
+        const llmContent = await generateDynamicContent(supabase, business_name, resolvedIndustry, mainService, websiteContent, structuredData);
         if (llmContent) {
           dynamicContent = {
             ...dynamicContent,
@@ -404,12 +563,20 @@ Deno.serve(async (req) => {
             chatbot_nav_items: dynamicContent.chatbot_nav_items || llmContent.chatbot_nav_items,
             floating_bubbles: dynamicContent.floating_bubbles || llmContent.floating_bubbles,
             first_message: dynamicContent.first_message || llmContent.first_message,
+            voice_prompts: llmContent.voice_prompts,
+            outcome_metrics: llmContent.outcome_metrics,
+            trust_lines: llmContent.trust_lines,
             source: dynamicContent.source || "llm_generated",
           };
         }
       } catch (err) {
         console.error("Dynamic content generation failed:", err);
       }
+    }
+
+    // Inject use_cases from extraction
+    if (structuredData?.use_cases) {
+      dynamicContent.use_case_scenarios = structuredData.use_cases;
     }
 
     const firstMessage = dynamicContent.first_message || injectVars(
@@ -508,6 +675,7 @@ Deno.serve(async (req) => {
     await log(supabase, "success", `Demo created for "${business_name}": ${demoUrl}`, {
       assistantId, demoSlug, chatbotSlug, hasLogo: !!logoUrl, industry: resolvedIndustry,
       templateUsed: template?.industry_name || "none",
+      templateAutoGenerated: !!(template && (template as any).display_name?.includes("Auto-generated")),
     });
 
     return new Response(JSON.stringify({ demo_url: demoUrl }),
