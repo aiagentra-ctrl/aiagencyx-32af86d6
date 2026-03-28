@@ -467,9 +467,10 @@ Deno.serve(async (req) => {
         logoUrl = result.logoUrl;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Scraping failed";
-        await log(supabase, "error", `Scrape failed: ${msg}`, { business_name });
-        return new Response(JSON.stringify({ error: `Website scraping failed: ${msg}` }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        console.warn(`[scrape] Fallback mode — scraping failed: ${msg}`);
+        await log(supabase, "warning", `Scrape failed, using fallback: ${msg}`, { business_name });
+        // BACKUP: continue without scraped content — LLM will generate from business name alone
+        websiteContent = `Business: ${business_name}\nWebsite: ${formattedUrl}\nNo website content available — generate based on business name and URL.`;
       }
     }
 
