@@ -257,6 +257,11 @@ const AdminDashboard = () => {
             <AnalyticsPanel />
           </TabsContent>
 
+          {/* Templates Tab */}
+          <TabsContent value="templates">
+            <TemplatesPanel />
+          </TabsContent>
+
           {/* Logs Tab */}
           <TabsContent value="logs">
             <ActivityLogViewer />
