@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MessageCircle, X, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ChatWindow from "./ChatWindow";
 import { type ActionButton } from "./ActionButtons";
+import { trackEvent } from "@/lib/tracking";
 
 interface ChatWidgetProps {
   chatbotId: string;
@@ -19,10 +20,16 @@ interface ChatWidgetProps {
 
 const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, quickActions, calendarUrl, externalOpen, onExternalOpenChange }: ChatWidgetProps) => {
   const [internalOpen, setInternalOpen] = useState(false);
+  const trackedOpen = useRef(false);
+  const trackedMessage = useRef(false);
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
   const setOpen = (v: boolean) => {
     setInternalOpen(v);
     onExternalOpenChange?.(v);
+    if (v && !trackedOpen.current) {
+      trackedOpen.current = true;
+      trackEvent(chatbotId, "chatbot_opened", { linkType: "chatbot", chatbotId, businessName: businessName || chatbotId });
+    }
   };
   const [showNav, setShowNav] = useState(false);
   const isMobile = useIsMobile();

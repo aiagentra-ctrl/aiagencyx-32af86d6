@@ -1,13 +1,19 @@
 import { ArrowRight, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { trackEvent } from "@/lib/tracking";
 
 interface CTASectionProps {
   companyName?: string;
   ctaText?: string;
+  slug?: string;
   onBookCall: () => void;
 }
 
-const CTASection = ({ companyName, ctaText, onBookCall }: CTASectionProps) => {
+const CTASection = ({ companyName, ctaText, slug, onBookCall }: CTASectionProps) => {
+  const handleBookCall = () => {
+    if (slug) trackEvent(slug, "cta_clicked", { businessName: companyName });
+    onBookCall();
+  };
   return (
     <section className="border-t bg-primary px-5 py-20 md:py-24">
       <div className="mx-auto max-w-3xl text-center">
@@ -24,7 +30,7 @@ const CTASection = ({ companyName, ctaText, onBookCall }: CTASectionProps) => {
           size="lg"
           variant="secondary"
           className="gap-2.5 px-8 text-base shadow-lg active:scale-[0.97] transition-transform"
-          onClick={onBookCall}
+          onClick={handleBookCall}
         >
           Book a 10-min Setup Call
           <ArrowRight className="h-5 w-5" />

@@ -5,6 +5,7 @@ export type CallStatus = "idle" | "calling" | "connected" | "ended";
 import { supabase } from "@/integrations/supabase/client";
 import HeroSection from "@/components/demo/HeroSection";
 import DemoNavbar from "@/components/demo/DemoNavbar";
+import { trackEvent } from "@/lib/tracking";
 
 const VoiceAgentSection = lazy(() => import("@/components/demo/VoiceAgentSection"));
 const PersonalizationProofSection = lazy(() => import("@/components/demo/PersonalizationProofSection"));
@@ -98,7 +99,8 @@ const DemoPage = () => {
       }
       if (chatbotRes.data) setLinkedChatbot(chatbotRes.data as unknown as LinkedChatbot);
 
-      await supabase.from("demo_pages").update({ views: (data.views ?? 0) + 1 }).eq("id", data.id);
+      // Track page view via analytics system
+      trackEvent(data.slug, "page_view", { demoPageId: data.id, businessName: data.business_name });
     };
 
     fetchPage();
@@ -120,6 +122,7 @@ const DemoPage = () => {
     try {
       setCallStatus("calling");
       setCallSeconds(0);
+      if (resolvedSlug) trackEvent(resolvedSlug, "voice_call_started", { demoPageId: page.id, businessName: page.business_name });
       const { default: Vapi } = await import("@vapi-ai/web");
       const vapi = new Vapi(page.vapi_key);
 
