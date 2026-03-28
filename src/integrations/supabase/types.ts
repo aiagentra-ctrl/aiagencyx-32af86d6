@@ -258,6 +258,75 @@ export type Database = {
         }
         Relationships: []
       }
+      link_events: {
+        Row: {
+          business_name: string
+          chatbot_id: string | null
+          city: string | null
+          country_code: string | null
+          created_at: string
+          demo_page_id: string | null
+          event_type: string
+          id: string
+          link_type: string
+          metadata: Json | null
+          referrer: string | null
+          session_id: string | null
+          slug: string
+          user_agent: string | null
+          visitor_ip: string | null
+        }
+        Insert: {
+          business_name: string
+          chatbot_id?: string | null
+          city?: string | null
+          country_code?: string | null
+          created_at?: string
+          demo_page_id?: string | null
+          event_type: string
+          id?: string
+          link_type?: string
+          metadata?: Json | null
+          referrer?: string | null
+          session_id?: string | null
+          slug: string
+          user_agent?: string | null
+          visitor_ip?: string | null
+        }
+        Update: {
+          business_name?: string
+          chatbot_id?: string | null
+          city?: string | null
+          country_code?: string | null
+          created_at?: string
+          demo_page_id?: string | null
+          event_type?: string
+          id?: string
+          link_type?: string
+          metadata?: Json | null
+          referrer?: string | null
+          session_id?: string | null
+          slug?: string
+          user_agent?: string | null
+          visitor_ip?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "link_events_chatbot_id_fkey"
+            columns: ["chatbot_id"]
+            isOneToOne: false
+            referencedRelation: "chatbots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "link_events_demo_page_id_fkey"
+            columns: ["demo_page_id"]
+            isOneToOne: false
+            referencedRelation: "demo_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scraped_data: {
         Row: {
           expires_at: string | null
