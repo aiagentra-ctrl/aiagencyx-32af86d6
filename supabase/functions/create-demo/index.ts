@@ -121,7 +121,78 @@ async function scrapeMultiplePages(apiKey: string, urls: string[]): Promise<stri
   return results.join("\n");
 }
 
-async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ content: string; logoUrl?: string }> {
+// ── LLM Web Search Fallback (OpenRouter :online) ──
+async function scrapeViaLlmWebSearch(supabase: any, websiteUrl: string, businessName: string): Promise<{ content: string; logoUrl?: string }> {
+  console.log("[fallback] Using LLM web search to gather business data...");
+
+  // Try OpenRouter providers from api_providers table
+  const { data: orProviders } = await supabase.from("api_providers").select("*")
+    .eq("provider_type", "openrouter").eq("is_enabled", true).order("priority", { ascending: true });
+
+  const keys: { key: string; url: string; model: string }[] = [];
+  if (orProviders) {
+    for (const p of orProviders) {
+      keys.push({
+        key: p.api_key,
+        url: p.endpoint_url || "https://openrouter.ai/api/v1/chat/completions",
+        model: (p.model || "openai/gpt-5-mini") + ":online",
+      });
+    }
+  }
+
+  // Also try Lovable AI as last resort (no :online but still useful)
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  if (lovableKey) {
+    keys.push({
+      key: lovableKey,
+      url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+      model: "google/gemini-3-flash-preview",
+    });
+  }
+
+  if (keys.length === 0) throw new Error("No LLM providers available for fallback");
+
+  for (const provider of keys) {
+    try {
+      console.log(`[fallback] Trying ${provider.model}`);
+      const isOpenRouter = provider.url.includes("openrouter.ai");
+
+      const body: any = {
+        model: provider.model,
+        messages: [
+          { role: "system", content: "You are a business research assistant. Extract comprehensive business information from the web. Return detailed markdown with: business description, services/products with prices, business hours, address, phone, email, key selling points, and any other relevant details." },
+          { role: "user", content: `Research this business thoroughly and extract all available information:\n\nBusiness: ${businessName}\nWebsite: ${websiteUrl}\n\nProvide detailed markdown with all services, products, pricing, contact info, hours, and key details.` },
+        ],
+      };
+
+      // Add web search plugin for OpenRouter
+      if (isOpenRouter) {
+        body.plugins = [{ id: "web", max_results: 5, include_domains: [new URL(websiteUrl).hostname] }];
+      }
+
+      const res = await fetchWithTimeout(provider.url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${provider.key}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }, 45000);
+
+      if (!res.ok) { await res.text(); continue; }
+
+      const data = await res.json();
+      const content = data.choices?.[0]?.message?.content;
+      if (content && content.length > 100) {
+        console.log(`[fallback] Got ${content.length} chars via LLM web search`);
+        return { content, logoUrl: undefined };
+      }
+    } catch (err) {
+      console.warn(`[fallback] Provider failed:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  throw new Error("LLM web search fallback also failed");
+}
+
+async function scrapeWebsite(supabase: any, websiteUrl: string, businessName: string = ""): Promise<{ content: string; logoUrl?: string }> {
   const { data: firecrawlProviders } = await supabase.from("api_providers").select("*")
     .eq("category", "firecrawl").eq("is_enabled", true).order("priority", { ascending: true });
 
@@ -129,7 +200,12 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ conte
   const envKey = Deno.env.get("FIRECRAWL_API_KEY");
   if (envKey) keys.push({ key: envKey, source: "env" });
   if (firecrawlProviders) for (const p of firecrawlProviders) keys.push({ key: p.api_key, source: p.name });
-  if (keys.length === 0) throw new Error("No Firecrawl API keys configured");
+
+  // If no Firecrawl keys at all, go straight to LLM fallback
+  if (keys.length === 0) {
+    console.log("[scrape] No Firecrawl keys — using LLM web search fallback");
+    return scrapeViaLlmWebSearch(supabase, websiteUrl, businessName);
+  }
 
   let lastError = "";
   for (const { key, source } of keys) {
@@ -171,7 +247,14 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ conte
       lastError = msg.includes("abort") ? `${source}: timeout` : msg;
     }
   }
-  throw new Error(`All Firecrawl keys failed. Last: ${lastError}`);
+
+  // ── FALLBACK: All Firecrawl keys failed → use LLM web search ──
+  console.warn(`[scrape] All Firecrawl keys failed (${lastError}). Trying LLM web search fallback...`);
+  try {
+    return await scrapeViaLlmWebSearch(supabase, websiteUrl, businessName);
+  } catch (fallbackErr) {
+    throw new Error(`Firecrawl failed (${lastError}) and LLM fallback also failed`);
+  }
 }
 
 // ── LLM helpers ──
@@ -462,7 +545,7 @@ Deno.serve(async (req) => {
 
     if (!websiteContent) {
       try {
-        const result = await scrapeWebsite(supabase, formattedUrl);
+        const result = await scrapeWebsite(supabase, formattedUrl, business_name);
         websiteContent = result.content;
         logoUrl = result.logoUrl;
       } catch (err) {
