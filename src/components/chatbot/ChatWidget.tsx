@@ -6,6 +6,11 @@ import ChatWindow from "./ChatWindow";
 import { type ActionButton } from "./ActionButtons";
 import { trackEvent } from "@/lib/tracking";
 
+interface NavItem {
+  label: string;
+  value: string;
+}
+
 interface ChatWidgetProps {
   chatbotId: string;
   greeting?: string;
@@ -16,12 +21,20 @@ interface ChatWidgetProps {
   calendarUrl?: string;
   externalOpen?: boolean;
   onExternalOpenChange?: (open: boolean) => void;
+  navItems?: NavItem[];
 }
 
-const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, quickActions, calendarUrl, externalOpen, onExternalOpenChange }: ChatWidgetProps) => {
+const defaultNavItems: NavItem[] = [
+  { label: "Menu", value: "Show me the full menu" },
+  { label: "Order", value: "I want to order food" },
+  { label: "Reserve", value: "I want to reserve a table" },
+  { label: "Location", value: "What's your location and hours?" },
+  { label: "FAQ", value: "What are your frequently asked questions?" },
+];
+
+const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, quickActions, calendarUrl, externalOpen, onExternalOpenChange, navItems }: ChatWidgetProps) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const trackedOpen = useRef(false);
-  const trackedMessage = useRef(false);
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
   const setOpen = (v: boolean) => {
     setInternalOpen(v);
@@ -34,22 +47,15 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
   const [showNav, setShowNav] = useState(false);
   const isMobile = useIsMobile();
 
-  // Sync external open state
   useEffect(() => {
     if (externalOpen !== undefined) setInternalOpen(externalOpen);
   }, [externalOpen]);
 
-  const navItems: ActionButton[] = [
-    { label: "Menu", value: "Show me the full menu" },
-    { label: "Order", value: "I want to order food" },
-    { label: "Reserve", value: "I want to reserve a table" },
-    { label: "Location", value: "What's your location and hours?" },
-    { label: "FAQ", value: "What are your frequently asked questions?" },
-  ];
+  const resolvedNavItems = navItems && navItems.length > 0 ? navItems : defaultNavItems;
 
   const [pendingMsg, setPendingMsg] = useState<string | null>(null);
 
-  const handleNavAction = (btn: ActionButton) => {
+  const handleNavAction = (btn: NavItem) => {
     setPendingMsg(btn.value);
     setShowNav(false);
   };
@@ -92,7 +98,7 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
           {showNav && (
             <div className="border-b bg-card p-2 animate-fade-in">
               <div className="grid grid-cols-3 gap-1.5">
-                {navItems.map((item, i) => (
+                {resolvedNavItems.map((item, i) => (
                   <button key={i} onClick={() => handleNavAction(item)} className="flex flex-col items-center gap-1 rounded-lg px-2 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors">
                     <span className="text-sm">{item.label}</span>
                   </button>
