@@ -241,6 +241,7 @@ const DemoPage = () => {
         <CTASection
           companyName={companyName}
           ctaText={page.cta_text || undefined}
+          slug={page.slug}
           onBookCall={handleBookCall}
         />
 
