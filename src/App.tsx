@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -17,23 +16,9 @@ const ChatbotLegacyRedirect = () => {
   return <Navigate to={`/chatbot/${slug}`} replace />;
 };
 
-/** Redirect bare base domain to aiagentra.cloud */
-const DomainRedirect = () => {
-  useEffect(() => {
-    if (
-      window.location.origin === "https://aiagentfor.lovable.app" &&
-      (window.location.pathname === "/" || window.location.pathname === "/admin")
-    ) {
-      window.location.href = "https://aiagentra.cloud/";
-    }
-  }, []);
-  return null;
-};
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <DomainRedirect />
       <Toaster />
       <Sonner />
       <BrowserRouter>
