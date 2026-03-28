@@ -220,27 +220,30 @@ const DemoPage = () => {
 
       <Suspense fallback={<SectionFallback />}>
         <div id="demo-section">
-          <VoiceAgentSection
+        <VoiceAgentSection
             companyName={companyName}
             callStatus={callStatus}
             callSeconds={callSeconds}
             onTryDemo={startVapi}
             onEndCall={endVapi}
             onOpenChat={openChatbot}
+            voicePrompts={dc.voice_prompts}
           />
         </div>
 
         <PersonalizationProofSection
           companyName={companyName}
           menuItems={research.menu_items}
+          products={research.products}
           categories={research.categories}
+          services={research.services}
           businessHours={research.business_hours}
           address={research.address}
           phone={research.phone}
         />
 
         <ProblemSection companyName={companyName} problems={dc.problem_statements} industry={page.industry || undefined} />
-        <OutcomeSection />
+        <OutcomeSection companyName={companyName} outcomes={dc.outcome_metrics} />
 
         <CTASection
           companyName={companyName}

@@ -4,6 +4,11 @@ import { type CallStatus } from "@/pages/DemoPage";
 
 const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
+interface VoicePrompt {
+  emoji: string;
+  text: string;
+}
+
 interface VoiceAgentSectionProps {
   companyName?: string;
   callStatus: CallStatus;
@@ -11,15 +16,18 @@ interface VoiceAgentSectionProps {
   onTryDemo: () => void;
   onEndCall: () => void;
   onOpenChat?: () => void;
+  voicePrompts?: VoicePrompt[];
 }
 
-const VoiceAgentSection = ({ companyName, callStatus, callSeconds, onTryDemo, onEndCall, onOpenChat }: VoiceAgentSectionProps) => {
-  const prompts = [
-    { emoji: "📅", text: "Book a table for tonight" },
-    { emoji: "🍕", text: "I'd like to place an order" },
-    { emoji: "⏰", text: "What are your hours?" },
-    { emoji: "📍", text: "Where are you located?" },
-  ];
+const defaultPrompts: VoicePrompt[] = [
+  { emoji: "📅", text: "Book a table for tonight" },
+  { emoji: "🍕", text: "I'd like to place an order" },
+  { emoji: "⏰", text: "What are your hours?" },
+  { emoji: "📍", text: "Where are you located?" },
+];
+
+const VoiceAgentSection = ({ companyName, callStatus, callSeconds, onTryDemo, onEndCall, onOpenChat, voicePrompts }: VoiceAgentSectionProps) => {
+  const prompts = voicePrompts && voicePrompts.length > 0 ? voicePrompts : defaultPrompts;
 
   const isActive = callStatus === "connected";
   const isCalling = callStatus === "calling";
@@ -37,7 +45,7 @@ const VoiceAgentSection = ({ companyName, callStatus, callSeconds, onTryDemo, on
           Call the AI for {companyName || "Your Business"}
         </h2>
         <p className="mx-auto mb-12 max-w-xl text-center text-muted-foreground">
-          Have a real conversation. Ask about the menu, book a table, or place an order — the AI handles it all.
+          Have a real conversation — the AI handles it all, trained on {companyName || "your"} data.
         </p>
 
         <div className="mx-auto grid max-w-4xl gap-8 md:grid-cols-2">
@@ -102,7 +110,7 @@ const VoiceAgentSection = ({ companyName, callStatus, callSeconds, onTryDemo, on
             <div>
               <p className="mb-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Try saying:</p>
               <div className="grid grid-cols-2 gap-2">
-                {prompts.map((p, i) => (
+                {prompts.slice(0, 4).map((p, i) => (
                   <div key={i} className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-foreground ring-1 ring-border/50">
                     <span className="mr-1.5">{p.emoji}</span>{p.text}
                   </div>
@@ -143,7 +151,7 @@ const VoiceAgentSection = ({ companyName, callStatus, callSeconds, onTryDemo, on
             <div>
               <p className="mb-3 text-xs font-medium text-muted-foreground uppercase tracking-wide">Try asking:</p>
               <div className="grid grid-cols-2 gap-2">
-                {prompts.map((p, i) => (
+                {prompts.slice(0, 4).map((p, i) => (
                   <div key={i} className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-foreground ring-1 ring-border/50">
                     <span className="mr-1.5">{p.emoji}</span>{p.text}
                   </div>

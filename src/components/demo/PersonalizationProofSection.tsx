@@ -1,6 +1,6 @@
-import { Utensils, Clock, MapPin, Phone as PhoneIcon, CheckCircle } from "lucide-react";
+import { Utensils, Clock, MapPin, Phone as PhoneIcon, CheckCircle, Package, Tag } from "lucide-react";
 
-interface MenuItem {
+interface DataItem {
   name: string;
   price?: string;
   category?: string;
@@ -9,26 +9,35 @@ interface MenuItem {
 
 interface PersonalizationProofSectionProps {
   companyName: string;
-  menuItems?: MenuItem[];
+  menuItems?: DataItem[];
+  products?: DataItem[];
   categories?: string[];
+  services?: string[];
   businessHours?: string;
   address?: string;
   phone?: string;
 }
 
 const PersonalizationProofSection = ({
-  companyName, menuItems = [], categories = [], businessHours, address, phone,
+  companyName, menuItems = [], products = [], categories = [], services = [], businessHours, address, phone,
 }: PersonalizationProofSectionProps) => {
-  const hasData = menuItems.length > 0 || businessHours || address || phone;
+  // Use menuItems for restaurants, products for other businesses
+  const displayItems = menuItems.length > 0 ? menuItems : products;
+  const isMenu = menuItems.length > 0;
+  const hasData = displayItems.length > 0 || services.length > 0 || businessHours || address || phone;
   if (!hasData) return null;
 
-  // Group menu items by category
-  const grouped: Record<string, MenuItem[]> = {};
-  for (const item of menuItems) {
-    const cat = item.category || "Menu";
+  // Group items by category
+  const grouped: Record<string, DataItem[]> = {};
+  for (const item of displayItems) {
+    const cat = item.category || (isMenu ? "Menu" : "Products");
     if (!grouped[cat]) grouped[cat] = [];
     grouped[cat].push(item);
   }
+
+  const ItemIcon = isMenu ? Utensils : Package;
+  const itemsLabel = isMenu ? "Menu" : "Products & Services";
+  const itemsCount = displayItems.length;
 
   return (
     <section className="border-t px-5 py-20 md:py-24">
@@ -43,8 +52,20 @@ const PersonalizationProofSection = ({
           This AI Already Knows {companyName}
         </h2>
         <p className="mx-auto mb-12 max-w-xl text-center text-muted-foreground">
-          We scraped your website and trained the AI on your real business data — menu, pricing, hours, and more.
+          Built using your website data — pricing, services, hours, and more. The AI knows your business inside out.
         </p>
+
+        {/* Services Tags */}
+        {services.length > 0 && (
+          <div className="mb-10 flex flex-wrap justify-center gap-2">
+            {services.map((s, i) => (
+              <span key={i} className="inline-flex items-center gap-1.5 rounded-full bg-primary/8 px-3.5 py-1.5 text-sm font-medium text-primary ring-1 ring-primary/15">
+                <Tag className="h-3 w-3" />
+                {s}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Business Info Row */}
         {(businessHours || address || phone) && (
@@ -85,12 +106,12 @@ const PersonalizationProofSection = ({
           </div>
         )}
 
-        {/* Menu by category */}
-        {menuItems.length > 0 && (
+        {/* Items by category */}
+        {displayItems.length > 0 && (
           <div>
             <div className="mb-8 flex items-center justify-center gap-2">
-              <Utensils className="h-5 w-5 text-primary" />
-              <h3 className="text-xl font-bold text-foreground">Your Menu ({menuItems.length} items)</h3>
+              <ItemIcon className="h-5 w-5 text-primary" />
+              <h3 className="text-xl font-bold text-foreground">Your {itemsLabel} ({itemsCount} items)</h3>
             </div>
 
             {Object.entries(grouped).slice(0, 4).map(([category, items]) => (
@@ -114,9 +135,9 @@ const PersonalizationProofSection = ({
               </div>
             ))}
 
-            {menuItems.length > 18 && (
+            {displayItems.length > 18 && (
               <p className="mt-4 text-center text-sm text-muted-foreground">
-                + {menuItems.length - 18} more items — the AI knows them all
+                + {displayItems.length - 18} more items — the AI knows them all
               </p>
             )}
           </div>
