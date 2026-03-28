@@ -40,9 +40,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Tag as owner traffic if from Nepal (owner's location)
+    const isOwnerTraffic = countryCode === "NP";
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Check if owner has blocked specific IPs via site_settings
+    let blockedIps: string[] = [];
+    try {
+      const { data: ipSetting } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "blocked_ips")
+        .maybeSingle();
+      if (ipSetting?.value) {
+        blockedIps = ipSetting.value.split(",").map((ip: string) => ip.trim());
+      }
+    } catch { /* ignore */ }
+
+    const isBlockedIp = blockedIps.includes(visitorIp);
 
     const { error } = await supabase.from("link_events").insert({
       slug,
@@ -54,7 +72,10 @@ Deno.serve(async (req) => {
       city,
       user_agent: userAgent,
       referrer,
-      metadata: metadata || {},
+      metadata: {
+        ...(metadata || {}),
+        is_owner: isOwnerTraffic || isBlockedIp,
+      },
       demo_page_id: demo_page_id || null,
       chatbot_id: chatbot_id || null,
       business_name: business_name || slug,
