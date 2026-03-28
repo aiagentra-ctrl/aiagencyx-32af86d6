@@ -7,8 +7,9 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code } from "lucide-react";
+import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3 } from "lucide-react";
 import EditPageDialog from "@/components/admin/EditPageDialog";
+import AnalyticsPanel from "@/components/admin/AnalyticsPanel";
 import EditChatbotDialog from "@/components/admin/EditChatbotDialog";
 import SiteSettingsPanel from "@/components/admin/SiteSettingsPanel";
 import ActivityLogViewer from "@/components/admin/ActivityLogViewer";
@@ -113,6 +114,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="settings">
               <Cog className="mr-1.5 h-3.5 w-3.5" />
               Settings
+            </TabsTrigger>
+            <TabsTrigger value="analytics">
+              <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
+              Analytics
             </TabsTrigger>
             <TabsTrigger value="logs">
               <Activity className="mr-1.5 h-3.5 w-3.5" />
@@ -239,6 +244,11 @@ const AdminDashboard = () => {
           {/* Settings Tab */}
           <TabsContent value="settings">
             <SiteSettingsPanel />
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <AnalyticsPanel />
           </TabsContent>
 
           {/* Logs Tab */}

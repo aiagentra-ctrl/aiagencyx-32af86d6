@@ -24,5 +24,8 @@ verify_jwt = false
 [functions.create-chatbot]
 verify_jwt = false
 
+[functions.track-event]
+verify_jwt = false
+
 [functions.generate-website]
 verify_jwt = false
