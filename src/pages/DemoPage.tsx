@@ -35,6 +35,7 @@ interface DemoPageData {
   features: string[] | null;
   benefits: string[] | null;
   social_proof: Array<{ name: string; role: string; quote: string }> | null;
+  dynamic_content: any | null;
 }
 
 interface LinkedChatbot {
