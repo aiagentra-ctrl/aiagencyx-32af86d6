@@ -1,102 +1,141 @@
 
 
-## Plan: Unified AI System API, Logo Scraping, and Conversion-Focused Demo Pages
+## Plan: Link Tracking & Engagement Analytics Dashboard
+
+### Summary
+Build a tracking system that logs every visit and interaction on API-generated links, filters out your own traffic (Nepal), and surfaces all engagement data in a new "Analytics" tab on the admin dashboard.
 
 ---
 
-### 1. Unified `create-ai-system` Edge Function
+### 1. Database: `link_events` Table
 
-**New file: `supabase/functions/create-ai-system/index.ts`**
+New table to store all tracking events per demo/chatbot link.
 
-A single endpoint that orchestrates everything:
+```sql
+CREATE TABLE public.link_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  demo_page_id uuid REFERENCES demo_pages(id) ON DELETE CASCADE,
+  chatbot_id uuid REFERENCES chatbots(id) ON DELETE SET NULL,
+  business_name text NOT NULL,
+  slug text NOT NULL,
+  link_type text NOT NULL DEFAULT 'demo',  -- 'demo' | 'chatbot'
+  event_type text NOT NULL,  -- 'page_view' | 'chatbot_opened' | 'chatbot_message' | 'voice_call_started' | 'cta_clicked' | 'booking_started'
+  session_id text,
+  visitor_ip text,
+  country_code text,
+  city text,
+  user_agent text,
+  referrer text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 
-1. Accept: `businessName`, `websiteUrl`, `category`, `calendarUrl`, `origin`, `clientName`, `forceRefresh`
-2. Scrape website (cache-first) with Firecrawl using `formats: ["markdown", "branding"]` to extract logo
-3. Run LLM analysis to extract structured data (menu, hours, address, FAQs)
-4. Build ONE shared system prompt (the existing restaurant prompt from `create-voice-agent`)
-5. Create VAPI voice assistant using shared prompt + knowledge base
-6. Create chatbot record using SAME prompt + SAME structured data
-7. Create demo page record linked to both
-8. Return all URLs + IDs in one response
+-- RLS: public insert (anon tracking), admin read
+ALTER TABLE public.link_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can insert events" ON public.link_events FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY "Anyone can read events" ON public.link_events FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "Service role full" ON public.link_events FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-Key principle: all three agents share identical `systemPrompt`, `knowledgeBase`, and `structuredData` — no mismatch.
-
-Also update `supabase/config.toml` to register the new function.
-
----
-
-### 2. Fix Logo Scraping in `create-voice-agent`
-
-Currently `create-voice-agent` scrapes with `formats: ["markdown"]` only — no branding/logo extraction.
-
-**Edit `supabase/functions/create-voice-agent/index.ts`:**
-- Change scrape formats to `["markdown", "branding"]`
-- Extract `logo_url` from branding response (same as `scrape-and-analyze` does)
-- Save logo to `scraped_data` cache
-- Return `logoUrl` in response
-
----
-
-### 3. Conversion-Focused Demo Page Redesign
-
-Completely restructure `DemoPage.tsx` section order to follow the psychological flow:
-
-```text
-1. Personalized Hook   → "Your AI receptionist for [Name] is ready"
-2. Try Voice Agent      → BIG call button (primary action)
-3. Try Chatbot          → Embedded chat widget (auto-open or prominent)
-4. Personalization Proof → "AI already knows your business" (menu, pricing, hours)
-5. Problem Reminder     → "How many customers hang up?" (emotional trigger)
-6. Outcome              → More orders, no missed calls, no extra staff
-7. CTA                  → "Want this running for [Name]?" + Book Call button
+-- Index for dashboard queries
+CREATE INDEX idx_link_events_slug ON public.link_events(slug);
+CREATE INDEX idx_link_events_created ON public.link_events(created_at DESC);
 ```
 
-**Files to edit:**
+---
 
-| File | Changes |
-|------|---------|
-| `src/pages/DemoPage.tsx` | Complete restructure: new section order, pass logo/research data, fetch linked chatbot's research_data |
-| `src/components/demo/HeroSection.tsx` | Accept `logoUrl`, show business logo in navbar + hero, personalized headline |
-| `src/components/demo/VoiceAgentSection.tsx` | Bigger CTA button, more prominent "Call your AI receptionist" |
-| `src/components/demo/BenefitsSection.tsx` | Rename to "Personalization Proof" — show actual menu, pricing, hours, location from research data |
-| `src/components/demo/FeaturesSection.tsx` | Repurpose as "Problem Reminder" — missed calls, lost orders, busy staff |
-| `src/components/demo/CTASection.tsx` | "Want this running for [Name]?" + "No commitment" line + Book Call |
-| `src/components/demo/FooterSection.tsx` | Add logo to footer |
+### 2. Edge Function: `track-event`
 
-**New component:** `src/components/demo/PersonalizationProofSection.tsx`
-- Shows actual scraped data: menu categories, pricing, hours, address
-- "Your AI already knows your business" headline
-- Pulls data from linked chatbot's `research_data` or from `scraped_data` table
+**New file: `supabase/functions/track-event/index.ts`**
 
-**New component:** `src/components/demo/ProblemSection.tsx`
-- "How many customers hang up when you don't answer?"
-- Missed calls = lost orders
-- Busy staff = missed bookings
-- Emotional, visual, short
-
-**New component:** `src/components/demo/OutcomeSection.tsx`
-- More orders, More reservations, No missed calls, No extra staff
-- Clean icon grid
+- Accepts: `{ slug, link_type, event_type, session_id, metadata }`
+- Extracts visitor IP from request headers
+- Uses a free IP geolocation API (e.g., `ip-api.com`) to get `country_code`
+- **Filters Nepal traffic**: If `country_code === 'NP'`, still stores the event but marks it with `country_code: 'NP'` so the dashboard can exclude it
+- Stores user-agent and referrer from headers
+- Returns `{ ok: true }`
 
 ---
 
-### 4. Demo Page Data Flow
+### 3. Frontend Tracking Integration
 
-`DemoPage.tsx` currently doesn't have access to research data. Fix:
-- After fetching `demo_pages` record, also fetch linked chatbot via `demo_page_id`
-- From the chatbot, get `research_data` (menu items, hours, address, etc.)
-- Also check `scraped_data` table as fallback
-- Pass this data to the new personalization proof section
-- Pass `logo_url` from chatbot/scraped_data to HeroSection and FooterSection
+**Edit `src/pages/DemoPage.tsx`:**
+- On page load, generate a `sessionId` (stored in sessionStorage)
+- Fire `page_view` event to `track-event` function
+- Remove the old `views` counter increment (replace with real tracking)
+
+**Edit `src/components/chatbot/ChatWidget.tsx`:**
+- When chatbot opens → fire `chatbot_opened` event
+- When first message sent → fire `chatbot_message` event
+
+**Edit `src/pages/DemoPage.tsx` (voice section):**
+- When call starts → fire `voice_call_started` event
+
+**Edit CTA buttons:**
+- When "Book Call" clicked → fire `cta_clicked` event
+- When booking flow starts → fire `booking_started` event
+
+**Shared tracking utility: `src/lib/tracking.ts`**
+```typescript
+export const trackEvent = async (slug: string, linkType: string, eventType: string, metadata?: any) => {
+  let sessionId = sessionStorage.getItem('tracking_sid');
+  if (!sessionId) { sessionId = crypto.randomUUID(); sessionStorage.setItem('tracking_sid', sessionId); }
+  
+  await supabase.functions.invoke('track-event', {
+    body: { slug, link_type: linkType, event_type: eventType, session_id: sessionId, metadata }
+  });
+};
+```
 
 ---
 
-### 5. API Docs Update
+### 4. Admin Dashboard: Analytics Tab
 
-**Edit `src/pages/ApiDocsPage.tsx`:**
-- Add documentation for `POST /create-ai-system` endpoint
-- Show all required/optional fields
-- Show example response with voice agent, chatbot, and demo page URLs
+**New component: `src/components/admin/AnalyticsPanel.tsx`**
+
+Add a new "Analytics" tab in `AdminDashboard.tsx` with:
+
+**Summary Cards (top):**
+- Total Links Generated
+- Total Unique Visitors (excl. Nepal/Asia)
+- Chatbot Engagements
+- Voice Call Starts
+- CTA Clicks
+
+**Filters:**
+- Date range (Last 24h, 7 days, 30 days, custom)
+- Business/slug filter dropdown
+- Country filter (with "Exclude Asia" toggle — ON by default)
+
+**Per-Link Table:**
+| Business | Slug | Views | Chatbot Opens | Voice Calls | CTA Clicks | Last Activity | Status |
+|----------|------|-------|---------------|-------------|------------|---------------|--------|
+
+Status logic:
+- 🟢 **Engaged** — chatbot or voice interaction
+- 🟡 **Viewed** — page opened but no interaction
+- 🔴 **No Activity** — link never opened
+- Each row expandable to show individual events timeline
+
+**Follow-up Helper Section:**
+A filtered view showing:
+- "Needs Follow-up" — opened link but didn't interact (→ send reminder)
+- "Hot Lead" — interacted with chatbot/voice (→ send booking nudge)
+- "Cold" — never opened (→ send initial follow-up)
+
+Each row shows the business name, link, country, and suggested action.
+
+---
+
+### 5. Country Filtering (Nepal/Asia Exclusion)
+
+The `track-event` edge function captures `country_code` via IP geolocation. The dashboard queries filter:
+
+```sql
+-- Default: exclude Asian countries
+WHERE country_code NOT IN ('NP', 'IN', 'BD', 'PK', 'LK', 'MM', 'TH', 'VN', 'PH', 'ID', 'MY', 'CN', 'JP', 'KR', ...)
+```
+
+Dashboard toggle: "Show only target markets (NZ, AU, CA)" — filters to those 3 countries only.
 
 ---
 
@@ -104,18 +143,13 @@ Completely restructure `DemoPage.tsx` section order to follow the psychological 
 
 | File | Action |
 |------|--------|
-| `supabase/functions/create-ai-system/index.ts` | Create — unified API |
-| `supabase/config.toml` | Edit — register new function |
-| `supabase/functions/create-voice-agent/index.ts` | Edit — add branding format to scrape |
-| `src/pages/DemoPage.tsx` | Edit — restructure sections, fetch research data + logo |
-| `src/components/demo/HeroSection.tsx` | Edit — accept logoUrl, personalized headline |
-| `src/components/demo/VoiceAgentSection.tsx` | Edit — bigger CTA, "Call your AI receptionist" |
-| `src/components/demo/BenefitsSection.tsx` | Edit — repurpose as outcome section |
-| `src/components/demo/FeaturesSection.tsx` | Edit — repurpose as problem reminder |
-| `src/components/demo/CTASection.tsx` | Edit — "Want this for [Name]?" + no commitment line |
-| `src/components/demo/FooterSection.tsx` | Edit — add logo |
-| `src/components/demo/PersonalizationProofSection.tsx` | Create — show scraped menu/hours/location |
-| `src/components/demo/ProblemSection.tsx` | Create — emotional missed calls section |
-| `src/components/demo/OutcomeSection.tsx` | Create — results grid |
-| `src/pages/ApiDocsPage.tsx` | Edit — document create-ai-system |
+| Migration SQL | Create `link_events` table |
+| `supabase/functions/track-event/index.ts` | Create — event ingestion + geo lookup |
+| `supabase/config.toml` | Edit — register track-event |
+| `src/lib/tracking.ts` | Create — shared tracking utility |
+| `src/pages/DemoPage.tsx` | Edit — fire page_view, voice events |
+| `src/components/chatbot/ChatWidget.tsx` | Edit — fire chatbot events |
+| `src/components/demo/CTASection.tsx` | Edit — fire cta_clicked |
+| `src/components/admin/AnalyticsPanel.tsx` | Create — full analytics dashboard |
+| `src/pages/AdminDashboard.tsx` | Edit — add Analytics tab |
 
