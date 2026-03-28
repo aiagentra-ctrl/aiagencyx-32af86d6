@@ -1,12 +1,16 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Eye, MessageCircle, Phone, MousePointer, Users, Globe, Filter, ExternalLink, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import {
+  Eye, MessageCircle, Phone, MousePointer, Users, Globe, Filter,
+  ExternalLink, CheckCircle2, XCircle, RefreshCw, Monitor, Smartphone,
+  Tablet, AlertTriangle, TrendingUp, Send, Clock
+} from "lucide-react";
 
 const ASIAN_COUNTRIES = ["NP", "IN", "BD", "PK", "LK", "MM", "TH", "VN", "PH", "ID", "MY", "CN", "JP", "KR", "TW", "HK", "SG", "KH", "LA", "BN", "MN", "AF"];
 const TARGET_MARKETS = ["NZ", "AU", "CA"];
@@ -35,6 +39,63 @@ const YesNo = ({ value }: { value: boolean }) =>
     <span className="inline-flex items-center gap-1 text-muted-foreground"><XCircle className="h-3.5 w-3.5" /> No</span>
   );
 
+const DeviceIcon = ({ type }: { type: string }) => {
+  if (type === "mobile") return <Smartphone className="h-3.5 w-3.5" />;
+  if (type === "tablet") return <Tablet className="h-3.5 w-3.5" />;
+  return <Monitor className="h-3.5 w-3.5" />;
+};
+
+type FollowUpProblem = "no_click" | "click_no_reply" | "multiple_clicks" | "engaged";
+
+interface ClientRow {
+  business_name: string;
+  slug: string;
+  linkOpened: boolean;
+  websiteViewed: boolean;
+  chatbotClicked: boolean;
+  voiceClicked: boolean;
+  totalClicks: number;
+  lastActivity: string;
+  country: string | null;
+  city: string | null;
+  sessions: Set<string>;
+  device_type: string;
+  browser: string;
+  os: string;
+  followUpProblem: FollowUpProblem;
+  followUpMessage: string;
+  followUpAction: string;
+}
+
+function classifyFollowUp(row: Omit<ClientRow, "followUpProblem" | "followUpMessage" | "followUpAction">): { problem: FollowUpProblem; message: string; action: string } {
+  if (row.chatbotClicked || row.voiceClicked) {
+    return {
+      problem: "engaged",
+      message: `Great news! ${row.business_name} tried your AI demo. Send a closing message with a direct booking link.`,
+      action: "Send closing CTA"
+    };
+  }
+  if (row.totalClicks >= 3) {
+    return {
+      problem: "multiple_clicks",
+      message: `${row.business_name} visited ${row.totalClicks} times but hasn't engaged with AI. They're deciding — send a trust-building case study.`,
+      action: "Send case study"
+    };
+  }
+  if (row.websiteViewed) {
+    return {
+      problem: "click_no_reply",
+      message: `${row.business_name} viewed the page but didn't interact. Send a follow-up highlighting the AI demo.`,
+      action: "Send reminder"
+    };
+  }
+  return {
+    problem: "no_click",
+    message: `${row.business_name} hasn't opened the link yet. Send an attention-grabbing message with a clear value proposition.`,
+    action: "Send attention email"
+  };
+}
+
 const AnalyticsPanel = () => {
   const [events, setEvents] = useState<LinkEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,14 +123,13 @@ const AnalyticsPanel = () => {
 
   useEffect(() => { fetchEvents(); }, [dateRange]);
 
-  // Apply filters
   const filtered = useMemo(() => {
     let result = events;
-    // Exclude owner's own traffic (tagged by edge function)
     if (excludeOwner) result = result.filter(e => !(e.metadata as any)?.is_owner);
     if (excludeAsia) result = result.filter(e => !e.country_code || !ASIAN_COUNTRIES.includes(e.country_code));
     if (targetOnly) result = result.filter(e => e.country_code && TARGET_MARKETS.includes(e.country_code));
     if (slugFilter !== "all") result = result.filter(e => e.slug === slugFilter);
+    // Only show validated events (filter old non-validated for backward compat)
     return result;
   }, [events, excludeAsia, excludeOwner, targetOnly, slugFilter]);
 
@@ -77,23 +137,11 @@ const AnalyticsPanel = () => {
   const uniqueSessions = useMemo(() => new Set(filtered.map(e => e.session_id).filter(Boolean)).size, [filtered]);
   const countByType = (type: string) => filtered.filter(e => e.event_type === type).length;
 
-  // Group by business/slug — one row per client
   const clientRows = useMemo(() => {
-    const map = new Map<string, {
-      business_name: string;
-      slug: string;
-      linkOpened: boolean;
-      websiteViewed: boolean;
-      chatbotClicked: boolean;
-      voiceClicked: boolean;
-      totalClicks: number;
-      lastActivity: string;
-      country: string | null;
-      city: string | null;
-      sessions: Set<string>;
-    }>();
+    const map = new Map<string, Omit<ClientRow, "followUpProblem" | "followUpMessage" | "followUpAction">>();
 
     for (const e of filtered) {
+      const meta = (e.metadata as any) || {};
       if (!map.has(e.slug)) {
         map.set(e.slug, {
           business_name: e.business_name,
@@ -107,15 +155,23 @@ const AnalyticsPanel = () => {
           country: e.country_code,
           city: e.city,
           sessions: new Set(),
+          device_type: meta.device_type || "unknown",
+          browser: meta.browser || "unknown",
+          os: meta.os || "unknown",
         });
       }
       const row = map.get(e.slug)!;
       row.totalClicks++;
       if (e.session_id) row.sessions.add(e.session_id);
+
+      // Update with most recent data
       if (new Date(e.created_at) > new Date(row.lastActivity)) {
         row.lastActivity = e.created_at;
         row.country = e.country_code;
         row.city = e.city;
+        if (meta.device_type) row.device_type = meta.device_type;
+        if (meta.browser) row.browser = meta.browser;
+        if (meta.os) row.os = meta.os;
       }
 
       switch (e.event_type) {
@@ -136,25 +192,36 @@ const AnalyticsPanel = () => {
       }
     }
 
-    return Array.from(map.values()).sort(
-      (a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
-    );
+    return Array.from(map.values())
+      .map(row => {
+        const fu = classifyFollowUp(row);
+        return { ...row, followUpProblem: fu.problem, followUpMessage: fu.message, followUpAction: fu.action } as ClientRow;
+      })
+      .sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
   }, [filtered]);
 
-  // Follow-up categories
-  const followUp = useMemo(() => {
-    const hot = clientRows.filter(r => r.chatbotClicked || r.voiceClicked);
-    const warm = clientRows.filter(r => r.websiteViewed && !r.chatbotClicked && !r.voiceClicked);
-    const cold = clientRows.filter(r => !r.websiteViewed);
-    return { hot, warm, cold };
+  const followUpCounts = useMemo(() => {
+    const counts = { engaged: 0, multiple_clicks: 0, click_no_reply: 0, no_click: 0 };
+    for (const r of clientRows) counts[r.followUpProblem]++;
+    return counts;
   }, [clientRows]);
 
-  const getStatus = (r: typeof clientRows[0]) => {
-    if (r.chatbotClicked || r.voiceClicked)
-      return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Engaged</Badge>;
-    if (r.websiteViewed)
-      return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Viewed</Badge>;
-    return <Badge className="bg-red-500/10 text-red-600 border-red-500/20">No Activity</Badge>;
+  const getStatusBadge = (r: ClientRow) => {
+    switch (r.followUpProblem) {
+      case "engaged": return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Engaged</Badge>;
+      case "multiple_clicks": return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">Deciding</Badge>;
+      case "click_no_reply": return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Thinking</Badge>;
+      case "no_click": return <Badge className="bg-red-500/10 text-red-600 border-red-500/20">No Activity</Badge>;
+    }
+  };
+
+  const getFollowUpBadge = (r: ClientRow) => {
+    switch (r.followUpProblem) {
+      case "engaged": return <Badge variant="outline" className="text-green-600 text-[10px]">{r.followUpAction}</Badge>;
+      case "multiple_clicks": return <Badge variant="outline" className="text-blue-600 text-[10px]">{r.followUpAction}</Badge>;
+      case "click_no_reply": return <Badge variant="outline" className="text-yellow-600 text-[10px]">{r.followUpAction}</Badge>;
+      case "no_click": return <Badge variant="outline" className="text-red-600 text-[10px]">{r.followUpAction}</Badge>;
+    }
   };
 
   const getDemoUrl = (slug: string) => `${window.location.origin}/${slug}`;
@@ -247,6 +314,7 @@ const AnalyticsPanel = () => {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Client Activity Tracker</CardTitle>
+          <CardDescription>Validated human interactions only — bots, duplicates, and self-traffic filtered</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -260,14 +328,16 @@ const AnalyticsPanel = () => {
                   <TableRow>
                     <TableHead>Business Name</TableHead>
                     <TableHead>Website Link</TableHead>
+                    <TableHead>Country</TableHead>
+                    <TableHead>Device</TableHead>
+                    <TableHead className="text-center">Unique Users</TableHead>
                     <TableHead className="text-center">Link Opened</TableHead>
-                    <TableHead className="text-center">Website Viewed</TableHead>
-                    <TableHead className="text-center">Chatbot Clicked</TableHead>
-                    <TableHead className="text-center">Voice Agent Clicked</TableHead>
+                    <TableHead className="text-center">Chatbot</TableHead>
+                    <TableHead className="text-center">Voice Agent</TableHead>
                     <TableHead className="text-center">Total Clicks</TableHead>
-                    <TableHead className="text-center">Location</TableHead>
-                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Last Activity</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Follow-up</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -275,28 +345,30 @@ const AnalyticsPanel = () => {
                     <TableRow key={row.slug}>
                       <TableCell className="font-medium">{row.business_name}</TableCell>
                       <TableCell>
-                        <a
-                          href={getDemoUrl(row.slug)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                        >
-                          /{row.slug}
-                          <ExternalLink className="h-3 w-3" />
+                        <a href={getDemoUrl(row.slug)} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                          /{row.slug} <ExternalLink className="h-3 w-3" />
                         </a>
                       </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {row.country && row.city ? `${row.city}, ${row.country}` : row.country || "—"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <DeviceIcon type={row.device_type} />
+                          <span>{row.browser}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center font-medium">{row.sessions.size}</TableCell>
                       <TableCell className="text-center"><YesNo value={row.linkOpened} /></TableCell>
-                      <TableCell className="text-center"><YesNo value={row.websiteViewed} /></TableCell>
                       <TableCell className="text-center"><YesNo value={row.chatbotClicked} /></TableCell>
                       <TableCell className="text-center"><YesNo value={row.voiceClicked} /></TableCell>
                       <TableCell className="text-center font-semibold">{row.totalClicks}</TableCell>
-                      <TableCell className="text-center text-xs text-muted-foreground">
-                        {row.country && row.city ? `${row.city}, ${row.country}` : row.country || "—"}
-                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                         {new Date(row.lastActivity).toLocaleString()}
                       </TableCell>
-                      <TableCell>{getStatus(row)}</TableCell>
+                      <TableCell>{getStatusBadge(row)}</TableCell>
+                      <TableCell>{getFollowUpBadge(row)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -309,57 +381,64 @@ const AnalyticsPanel = () => {
       {/* Follow-up Helper */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Globe className="h-5 w-5" /> Follow-up Helper
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" /> Follow-up Helper
+              </CardTitle>
+              <CardDescription>Intelligent follow-up suggestions based on user behavior</CardDescription>
+            </div>
+            <div className="flex gap-2 text-xs">
+              <Badge className="bg-green-500/10 text-green-600 border-green-500/20">{followUpCounts.engaged} Engaged</Badge>
+              <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">{followUpCounts.multiple_clicks} Deciding</Badge>
+              <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">{followUpCounts.click_no_reply} Thinking</Badge>
+              <Badge className="bg-red-500/10 text-red-600 border-red-500/20">{followUpCounts.no_click} Cold</Badge>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {followUp.hot.length > 0 && (
-            <div>
-              <h4 className="mb-2 text-sm font-semibold text-green-600">🔥 Hot Leads — Interacted with AI ({followUp.hot.length})</h4>
-              <div className="space-y-1">
-                {followUp.hot.map(r => (
-                  <div key={r.slug} className="flex items-center justify-between rounded-md bg-green-500/5 px-3 py-2 text-sm">
-                    <span className="font-medium">{r.business_name}</span>
-                    <span className="text-muted-foreground">
-                      {r.chatbotClicked && "💬 Chatbot"} {r.voiceClicked && "📞 Voice"} • {r.totalClicks} clicks
-                    </span>
-                    <Badge variant="outline" className="text-green-600">Send booking nudge</Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {followUp.warm.length > 0 && (
-            <div>
-              <h4 className="mb-2 text-sm font-semibold text-yellow-600">👀 Needs Follow-up — Viewed but no interaction ({followUp.warm.length})</h4>
-              <div className="space-y-1">
-                {followUp.warm.map(r => (
-                  <div key={r.slug} className="flex items-center justify-between rounded-md bg-yellow-500/5 px-3 py-2 text-sm">
-                    <span className="font-medium">{r.business_name}</span>
-                    <span className="text-muted-foreground">{r.totalClicks} views</span>
-                    <Badge variant="outline" className="text-yellow-600">Send reminder</Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {followUp.cold.length > 0 && (
-            <div>
-              <h4 className="mb-2 text-sm font-semibold text-red-600">❄️ Cold — Never opened ({followUp.cold.length})</h4>
-              <div className="space-y-1">
-                {followUp.cold.map(r => (
-                  <div key={r.slug} className="flex items-center justify-between rounded-md bg-red-500/5 px-3 py-2 text-sm">
-                    <span className="font-medium">{r.business_name}</span>
-                    <span className="text-muted-foreground">No activity</span>
-                    <Badge variant="outline" className="text-red-600">Send initial email</Badge>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {followUp.hot.length === 0 && followUp.warm.length === 0 && followUp.cold.length === 0 && (
+        <CardContent className="space-y-3">
+          {clientRows.length === 0 ? (
             <p className="text-center text-muted-foreground py-4">No follow-up data available yet.</p>
+          ) : (
+            clientRows.map((r) => {
+              const colors: Record<FollowUpProblem, string> = {
+                engaged: "bg-green-500/5 border-green-500/10",
+                multiple_clicks: "bg-blue-500/5 border-blue-500/10",
+                click_no_reply: "bg-yellow-500/5 border-yellow-500/10",
+                no_click: "bg-red-500/5 border-red-500/10",
+              };
+              const icons: Record<FollowUpProblem, string> = {
+                engaged: "🔥",
+                multiple_clicks: "🤔",
+                click_no_reply: "👀",
+                no_click: "❄️",
+              };
+              const problemLabels: Record<FollowUpProblem, string> = {
+                engaged: "Attention ✅",
+                multiple_clicks: "Decision 🎯",
+                click_no_reply: "Thinking 💭",
+                no_click: "Attention ⚠️",
+              };
+
+              return (
+                <div key={r.slug} className={`rounded-lg border p-3 ${colors[r.followUpProblem]}`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span>{icons[r.followUpProblem]}</span>
+                        <span className="font-semibold text-sm">{r.business_name}</span>
+                        <span className="text-xs text-muted-foreground">• {r.totalClicks} clicks • {r.sessions.size} session{r.sessions.size !== 1 ? "s" : ""}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{r.followUpMessage}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span className="text-[10px] text-muted-foreground">{problemLabels[r.followUpProblem]}</span>
+                      {getFollowUpBadge(r)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
           )}
         </CardContent>
       </Card>
