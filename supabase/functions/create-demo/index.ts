@@ -545,7 +545,7 @@ Deno.serve(async (req) => {
 
     if (!websiteContent) {
       try {
-        const result = await scrapeWebsite(supabase, formattedUrl);
+        const result = await scrapeWebsite(supabase, formattedUrl, business_name);
         websiteContent = result.content;
         logoUrl = result.logoUrl;
       } catch (err) {
