@@ -92,13 +92,14 @@ async function scrapeWebsite(supabase: any, websiteUrl: string): Promise<{ conte
   throw new Error(`All Firecrawl keys failed. Last: ${lastError}`);
 }
 
-// ── LLM extraction ──
-async function extractStructuredData(supabase: any, businessName: string, websiteContent: string): Promise<any> {
-  const { data: llmProviders } = await supabase.from("api_providers").select("*")
+// ── Get LLM provider list ──
+function getLlmProviders(supabase: any) {
+  return supabase.from("api_providers").select("*")
     .eq("category", "llm").eq("is_enabled", true).order("priority", { ascending: true });
+}
 
-  interface P { name: string; url: string; key: string; model: string }
-  const providers: P[] = [];
+function buildProviderList(llmProviders: any[]): { name: string; url: string; key: string; model: string }[] {
+  const providers: { name: string; url: string; key: string; model: string }[] = [];
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   if (lovableKey) providers.push({ name: "Lovable AI", url: "https://ai.gateway.lovable.dev/v1/chat/completions", key: lovableKey, model: "google/gemini-3-flash-preview" });
   if (llmProviders) for (const p of llmProviders) {
@@ -106,23 +107,33 @@ async function extractStructuredData(supabase: any, businessName: string, websit
     if (!url) { if (p.provider_type === "openai") url = "https://api.openai.com/v1/chat/completions"; else if (p.provider_type === "openrouter") url = "https://openrouter.ai/api/v1/chat/completions"; else continue; }
     providers.push({ name: p.name, url, key: p.api_key, model: p.model || "gpt-4" });
   }
+  return providers;
+}
+
+// ── LLM extraction (now industry-aware) ──
+async function extractStructuredData(supabase: any, businessName: string, websiteContent: string, industry: string): Promise<any> {
+  const { data: llmProviders } = await getLlmProviders(supabase);
+  const providers = buildProviderList(llmProviders || []);
   if (providers.length === 0) return null;
+
+  const industryHint = industry && industry !== "default" ? ` This is a ${industry} business.` : "";
 
   const body = (model: string) => ({
     model,
     messages: [
-      { role: "system", content: "Extract structured restaurant/business data. Call the tool with accurate data from the website content." },
+      { role: "system", content: `Extract structured business data from the website content.${industryHint} Call the tool with accurate data found on the website.` },
       { role: "user", content: `Extract structured data from this website.\n\nBusiness: ${businessName}\n\nContent:\n${websiteContent.substring(0, 10000)}` },
     ],
     tools: [{
       type: "function",
       function: {
         name: "extract_business_data",
-        description: "Return structured business data",
+        description: "Return structured business data extracted from the website",
         parameters: {
           type: "object",
           properties: {
-            menu_items: { type: "array", items: { type: "object", properties: { name: { type: "string" }, price: { type: "string" }, category: { type: "string" }, description: { type: "string" } } } },
+            menu_items: { type: "array", description: "Menu items for restaurants/food businesses", items: { type: "object", properties: { name: { type: "string" }, price: { type: "string" }, category: { type: "string" }, description: { type: "string" } } } },
+            products: { type: "array", description: "Products/services with pricing for non-food businesses", items: { type: "object", properties: { name: { type: "string" }, price: { type: "string" }, category: { type: "string" }, description: { type: "string" } } } },
             categories: { type: "array", items: { type: "string" } },
             business_hours: { type: "string" },
             address: { type: "string" },
@@ -130,10 +141,10 @@ async function extractStructuredData(supabase: any, businessName: string, websit
             email: { type: "string" },
             services: { type: "array", items: { type: "string" } },
             faq_topics: { type: "array", items: { type: "string" } },
-            industry: { type: "string" },
+            industry: { type: "string", description: "Detected industry: restaurant, clinic, real_estate, salon, gym, ecommerce, agency, law_firm, etc." },
             brand_tone: { type: "string" },
+            main_service: { type: "string", description: "The primary service or product this business offers" },
           },
-          required: ["menu_items"],
           additionalProperties: false,
         },
       },
@@ -159,17 +170,120 @@ async function extractStructuredData(supabase: any, businessName: string, websit
   return null;
 }
 
+// ── Generate dynamic content via LLM (industry-specific) ──
+async function generateDynamicContent(
+  supabase: any,
+  businessName: string,
+  industry: string,
+  mainService: string,
+  websiteContent: string,
+): Promise<any> {
+  const { data: llmProviders } = await getLlmProviders(supabase);
+  const providers = buildProviderList(llmProviders || []);
+  if (providers.length === 0) return null;
+
+  const body = (model: string) => ({
+    model,
+    messages: [
+      {
+        role: "system",
+        content: `You are an expert AI copywriter and business strategist. Generate high-converting, industry-specific content for a ${industry} business called "${businessName}". The main service is: ${mainService}. Make everything feel personalized and professional.`,
+      },
+      {
+        role: "user",
+        content: `Generate dynamic landing page content for "${businessName}" (${industry} industry, main service: ${mainService}).
+
+Website context:
+${websiteContent.substring(0, 4000)}
+
+Requirements:
+1. hero_subtitle: One compelling line about what the AI does for this business (max 100 chars)
+2. problem_statements: 4 industry-specific pain points with realistic stats
+3. chatbot_nav_items: 5 quick action buttons relevant to this industry
+4. first_message: Voice agent greeting
+5. floating_bubbles: 2 short example phrases a customer might say when calling`,
+      },
+    ],
+    tools: [{
+      type: "function",
+      function: {
+        name: "generate_dynamic_content",
+        description: "Return dynamic landing page content tailored to the business industry",
+        parameters: {
+          type: "object",
+          properties: {
+            hero_subtitle: { type: "string", description: "One compelling subtitle for the hero section" },
+            problem_statements: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  desc: { type: "string" },
+                  stat: { type: "string", description: "A short stat like 67% or $2.4K" },
+                  statLabel: { type: "string", description: "Short label for the stat" },
+                },
+                required: ["title", "desc", "stat", "statLabel"],
+              },
+            },
+            chatbot_nav_items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: "Short button label like Menu, Book, Pricing" },
+                  value: { type: "string", description: "The message sent when clicked, e.g. 'Show me the full menu'" },
+                },
+                required: ["label", "value"],
+              },
+            },
+            first_message: { type: "string", description: "Voice agent greeting" },
+            floating_bubbles: {
+              type: "array",
+              items: { type: "string" },
+              description: "2 short example customer phrases for the hero phone mockup",
+            },
+          },
+          required: ["hero_subtitle", "problem_statements", "chatbot_nav_items", "first_message", "floating_bubbles"],
+          additionalProperties: false,
+        },
+      },
+    }],
+    tool_choice: { type: "function", function: { name: "generate_dynamic_content" } },
+  });
+
+  for (const provider of providers) {
+    try {
+      console.log(`[llm-dynamic] Trying ${provider.name}`);
+      const res = await fetchWithTimeout(provider.url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${provider.key}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body(provider.model)),
+      }, 60000);
+      if (res.status === 429 || res.status === 402) { await res.text(); continue; }
+      if (!res.ok) { await res.text(); continue; }
+      const data = await res.json();
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      if (toolCall?.function?.arguments) return JSON.parse(toolCall.function.arguments);
+    } catch { /* continue */ }
+  }
+  return null;
+}
+
 // ── Build knowledge base from structured data ──
 function buildKnowledgeBase(businessName: string, structuredData: any, websiteContent: string): string {
   const menu = structuredData?.menu_items || [];
+  const products = structuredData?.products || [];
   const hours = structuredData?.business_hours || "";
   const address = structuredData?.address || "";
   const phone = structuredData?.phone || "";
   const services = structuredData?.services || [];
   const faqs = structuredData?.faq_topics || [];
 
-  const menuSection = menu.length > 0
+  const itemsSection = menu.length > 0
     ? `\n### Menu\n${menu.map((item: any) => `- ${item.name}: ${item.price}${item.description ? ` — ${item.description}` : ""}`).join("\n")}`
+    : products.length > 0
+    ? `\n### Products & Pricing\n${products.map((item: any) => `- ${item.name}: ${item.price}${item.description ? ` — ${item.description}` : ""}`).join("\n")}`
     : "";
 
   return `## Business Information
@@ -178,7 +292,7 @@ ${address ? `- Address: ${address}` : ""}
 ${phone ? `- Phone: ${phone}` : ""}
 ${hours ? `- Hours: ${hours}` : ""}
 ${services.length > 0 ? `- Services: ${services.join(", ")}` : ""}
-${menuSection}
+${itemsSection}
 ${faqs.length > 0 ? `\n### Common Questions\n${faqs.map((f: string) => `- ${f}`).join("\n")}` : ""}
 
 ### Additional Context
@@ -202,7 +316,6 @@ async function createVapiAssistant(
   knowledgeBase: string,
   businessName: string,
 ): Promise<string> {
-  // Use admin-configured VAPI private key, fall back to env
   const vapiKey = adminSettings.vapi_private_key || Deno.env.get("VAPI_API_KEY");
   if (!vapiKey) throw new Error("VAPI private key not configured. Set it in Admin → Settings.");
 
@@ -240,7 +353,7 @@ Deno.serve(async (req) => {
   const supabase = getSupabase();
 
   try {
-    const { business_name, website_url, calendar_link } = await req.json();
+    const { business_name, website_url, calendar_link, industry: userIndustry } = await req.json();
 
     if (!business_name || !website_url) {
       return new Response(JSON.stringify({ error: "business_name and website_url are required" }),
@@ -250,7 +363,7 @@ Deno.serve(async (req) => {
     let formattedUrl = website_url.trim();
     if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) formattedUrl = `https://${formattedUrl}`;
 
-    await log(supabase, "info", `Starting demo creation for "${business_name}"`, { business_name, website_url: formattedUrl });
+    await log(supabase, "info", `Starting demo creation for "${business_name}"`, { business_name, website_url: formattedUrl, industry: userIndustry });
 
     // Step 0: Load ALL admin settings
     const adminSettings = await loadAdminSettings(supabase);
@@ -282,15 +395,33 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 2: LLM extraction
-    if (!structuredData?.menu_items?.length) {
-      const llmData = await extractStructuredData(supabase, business_name, websiteContent);
+    // Step 2: LLM extraction (industry-aware)
+    const extractionIndustry = userIndustry && userIndustry !== "default" ? userIndustry : "";
+    if (!structuredData?.services?.length && !structuredData?.menu_items?.length) {
+      const llmData = await extractStructuredData(supabase, business_name, websiteContent, extractionIndustry);
       if (llmData) structuredData = llmData;
     }
 
     await saveScrapeCache(supabase, formattedUrl, websiteContent, logoUrl, structuredData);
 
-    // Step 3: Build prompt from admin template + inject variables
+    // Resolve industry: user input → LLM-detected → "general"
+    const resolvedIndustry = userIndustry && userIndustry !== "default"
+      ? userIndustry
+      : structuredData?.industry || "general";
+    const mainService = structuredData?.main_service || structuredData?.services?.[0] || resolvedIndustry;
+
+    console.log(`[industry] Resolved: ${resolvedIndustry}, main service: ${mainService}`);
+
+    // Step 3: Generate dynamic content via LLM
+    let dynamicContent: any = {};
+    try {
+      const dc = await generateDynamicContent(supabase, business_name, resolvedIndustry, mainService, websiteContent);
+      if (dc) dynamicContent = dc;
+    } catch (err) {
+      console.error("Dynamic content generation failed, using defaults:", err);
+    }
+
+    // Step 4: Build prompt from admin template + inject variables
     const templateVars = { business_name, calendar_url: calendarUrl };
     const promptTemplate = adminSettings.default_system_prompt || "";
     const systemPrompt = promptTemplate
@@ -298,12 +429,12 @@ Deno.serve(async (req) => {
       : `You are the AI assistant for ${business_name}. Be friendly, professional, and helpful.`;
 
     const knowledgeBase = buildKnowledgeBase(business_name, structuredData, websiteContent);
-    const firstMessage = injectVars(
+    const firstMessage = dynamicContent.first_message || injectVars(
       adminSettings.default_first_message || "Hi, thank you for calling {business_name}! How can I help you?",
       templateVars
     );
 
-    // Step 4: Create VAPI voice assistant
+    // Step 5: Create VAPI voice assistant
     let assistantId: string;
     try {
       assistantId = await createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name);
@@ -314,7 +445,7 @@ Deno.serve(async (req) => {
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Step 5: Create demo page
+    // Step 6: Create demo page with dynamic content
     const vapiPublicKey = adminSettings.vapi_public_key || "";
     let demoSlug = slugify(business_name);
     if (!demoSlug) demoSlug = "demo";
@@ -322,6 +453,7 @@ Deno.serve(async (req) => {
     if (existingDemo) demoSlug = `${demoSlug}-${randomSuffix()}`;
 
     const ctaText = adminSettings.default_cta_text || "Book a 10-min Setup Call";
+    const heroSubtitle = dynamicContent.hero_subtitle || `We built a live AI that answers calls and chats for ${business_name} — try it now.`;
 
     const { data: demoPage, error: demoErr } = await supabase.from("demo_pages").insert({
       slug: demoSlug,
@@ -329,14 +461,15 @@ Deno.serve(async (req) => {
       business_name: business_name,
       vapi_key: vapiPublicKey,
       company_name: business_name,
-      industry: structuredData?.industry || "Restaurant",
+      industry: resolvedIndustry,
       calendly_url: calendarUrl || null,
       hero_title: `Your AI Receptionist for ${business_name} is Ready`,
-      hero_subtitle: `We built a live AI that answers calls and chats for ${business_name} — try it now.`,
+      hero_subtitle: heroSubtitle,
       contact_phone: structuredData?.phone || null,
       contact_email: structuredData?.email || null,
       cta_text: ctaText,
       custom_subdomain: demoSlug,
+      dynamic_content: dynamicContent,
     }).select().single();
 
     if (demoErr) {
@@ -345,7 +478,7 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Step 6: Create chatbot (same prompt, same data)
+    // Step 7: Create chatbot (same prompt, same data)
     let chatbotSlug = slugify(business_name + "-chat");
     if (!chatbotSlug) chatbotSlug = "chatbot";
     const { data: existingChat } = await supabase.from("chatbots").select("id").eq("slug", chatbotSlug).maybeSingle();
@@ -360,6 +493,7 @@ Deno.serve(async (req) => {
       greeting: chatbotGreeting,
       position: adminSettings.chatbot_position || "bottom-right",
       logo: logoUrl || null,
+      navItems: dynamicContent.chatbot_nav_items || null,
     };
     if (calendarUrl) widgetConfig.calendarUrl = calendarUrl;
 
@@ -370,7 +504,7 @@ Deno.serve(async (req) => {
       website_url: formattedUrl,
       slug: chatbotSlug,
       system_prompt: chatbotSystemPrompt,
-      industry: structuredData?.industry || "Restaurant",
+      industry: resolvedIndustry,
       brand_tone: structuredData?.brand_tone || "Professional and friendly",
       services: structuredData?.services || [],
       faq_topics: structuredData?.faq_topics || [],
@@ -390,7 +524,7 @@ Deno.serve(async (req) => {
     const demoUrl = siteUrl ? `${siteUrl}/${demoSlug}` : `/${demoSlug}`;
 
     await log(supabase, "success", `Demo created for "${business_name}": ${demoUrl}`, {
-      assistantId, demoSlug, chatbotSlug, hasLogo: !!logoUrl,
+      assistantId, demoSlug, chatbotSlug, hasLogo: !!logoUrl, industry: resolvedIndustry,
     });
 
     // Return ONLY the demo URL

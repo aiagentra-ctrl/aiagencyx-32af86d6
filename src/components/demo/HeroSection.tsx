@@ -14,13 +14,18 @@ interface HeroSectionProps {
   onTryChat: () => void;
   callStatus: CallStatus;
   callSeconds: number;
+  floatingBubbles?: string[];
 }
 
 const HeroSection = ({
-  companyName, heroTitle, heroSubtitle, logoUrl, onTryCall, onEndCall, onTryChat, callStatus, callSeconds,
+  companyName, heroTitle, heroSubtitle, logoUrl, onTryCall, onEndCall, onTryChat, callStatus, callSeconds, floatingBubbles,
 }: HeroSectionProps) => {
   const title = heroTitle || `Your AI Receptionist for ${companyName} is Ready`;
   const subtitle = heroSubtitle || "Answers calls, takes orders, and handles bookings — 24/7";
+
+  const bubbles = floatingBubbles && floatingBubbles.length >= 2
+    ? floatingBubbles
+    : ['📞 "Book a table for 4"', '🍕 "I\'d like to order"'];
 
   const statusLabel: Record<CallStatus, string> = {
     idle: "Incoming call...",
@@ -145,10 +150,10 @@ const HeroSection = ({
             </div>
 
             <div className="absolute -left-12 top-16 rounded-xl bg-card px-3 py-2 shadow-lg ring-1 ring-border animate-float hidden lg:block">
-              <p className="text-xs font-semibold text-foreground">📞 "Book a table for 4"</p>
+              <p className="text-xs font-semibold text-foreground">{bubbles[0]}</p>
             </div>
             <div className="absolute -right-10 bottom-24 rounded-xl bg-card px-3 py-2 shadow-lg ring-1 ring-border animate-float hidden lg:block" style={{ animationDelay: "1.5s" }}>
-              <p className="text-xs font-semibold text-foreground">🍕 "I'd like to order"</p>
+              <p className="text-xs font-semibold text-foreground">{bubbles[1]}</p>
             </div>
           </div>
         </div>

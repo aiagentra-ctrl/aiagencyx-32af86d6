@@ -1,0 +1,1 @@
+ALTER TABLE public.demo_pages ADD COLUMN IF NOT EXISTS dynamic_content jsonb DEFAULT '{}'::jsonb;

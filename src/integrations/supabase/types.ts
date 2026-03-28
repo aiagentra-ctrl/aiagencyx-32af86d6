@@ -200,6 +200,7 @@ export type Database = {
           cta_text: string | null
           custom_subdomain: string | null
           description: string | null
+          dynamic_content: Json | null
           features: Json | null
           hero_subtitle: string | null
           hero_title: string | null
@@ -223,6 +224,7 @@ export type Database = {
           cta_text?: string | null
           custom_subdomain?: string | null
           description?: string | null
+          dynamic_content?: Json | null
           features?: Json | null
           hero_subtitle?: string | null
           hero_title?: string | null
@@ -246,6 +248,7 @@ export type Database = {
           cta_text?: string | null
           custom_subdomain?: string | null
           description?: string | null
+          dynamic_content?: Json | null
           features?: Json | null
           hero_subtitle?: string | null
           hero_title?: string | null

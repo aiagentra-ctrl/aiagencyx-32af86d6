@@ -35,6 +35,7 @@ interface DemoPageData {
   features: string[] | null;
   benefits: string[] | null;
   social_proof: Array<{ name: string; role: string; quote: string }> | null;
+  dynamic_content: any | null;
 }
 
 interface LinkedChatbot {
@@ -190,6 +191,8 @@ const DemoPage = () => {
   const research = (linkedChatbot?.research_data as any) || {};
   const logoUrl = linkedChatbot?.logo_url || linkedChatbot?.widget_config?.logo || undefined;
   const companyName = page.company_name || page.business_name;
+  const dc = (page.dynamic_content as any) || {};
+  const chatbotNavItems = linkedChatbot?.widget_config?.navItems || dc.chatbot_nav_items || undefined;
 
   return (
     <div className="min-h-screen bg-background">
@@ -211,6 +214,7 @@ const DemoPage = () => {
           onTryChat={openChatbot}
           callStatus={callStatus}
           callSeconds={callSeconds}
+          floatingBubbles={dc.floating_bubbles}
         />
       </div>
 
@@ -235,7 +239,7 @@ const DemoPage = () => {
           phone={research.phone}
         />
 
-        <ProblemSection companyName={companyName} />
+        <ProblemSection companyName={companyName} problems={dc.problem_statements} industry={page.industry || undefined} />
         <OutcomeSection />
 
         <CTASection
@@ -243,6 +247,7 @@ const DemoPage = () => {
           ctaText={page.cta_text || undefined}
           slug={page.slug}
           onBookCall={handleBookCall}
+          industry={page.industry || undefined}
         />
 
         <FooterSection
@@ -268,6 +273,7 @@ const DemoPage = () => {
             calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
             externalOpen={chatOpen}
             onExternalOpenChange={setChatOpen}
+            navItems={chatbotNavItems}
           />
         )}
       </Suspense>
