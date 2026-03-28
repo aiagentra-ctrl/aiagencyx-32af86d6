@@ -239,7 +239,7 @@ const DemoPage = () => {
           phone={research.phone}
         />
 
-        <ProblemSection companyName={companyName} />
+        <ProblemSection companyName={companyName} problems={dc.problem_statements} industry={page.industry || undefined} />
         <OutcomeSection />
 
         <CTASection
@@ -247,6 +247,7 @@ const DemoPage = () => {
           ctaText={page.cta_text || undefined}
           slug={page.slug}
           onBookCall={handleBookCall}
+          industry={page.industry || undefined}
         />
 
         <FooterSection
@@ -272,6 +273,7 @@ const DemoPage = () => {
             calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
             externalOpen={chatOpen}
             onExternalOpenChange={setChatOpen}
+            navItems={chatbotNavItems}
           />
         )}
       </Suspense>
