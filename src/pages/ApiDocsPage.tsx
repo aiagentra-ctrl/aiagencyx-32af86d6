@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Copy, Check, ArrowLeft, Zap, Phone, MessageCircle, Globe } from "lucide-react";
+import { Copy, Check, ArrowLeft, Zap, Phone, MessageCircle, Globe, Info, Layers } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -31,6 +32,21 @@ const CodeBlock = ({ code }: { code: string }) => {
   );
 };
 
+const ParamRow = ({ name, type, required, children }: { name: string; type: string; required?: boolean; children: React.ReactNode }) => (
+  <div className="flex gap-3 py-2.5 border-b last:border-b-0">
+    <div className="shrink-0 w-40">
+      <code className="text-xs font-mono font-semibold text-foreground">{name}</code>
+      <div className="flex items-center gap-1.5 mt-0.5">
+        <Badge variant={required ? "default" : "secondary"} className="text-[10px] px-1.5 py-0">
+          {required ? "required" : "optional"}
+        </Badge>
+        <span className="text-[10px] text-muted-foreground">{type}</span>
+      </div>
+    </div>
+    <div className="text-sm text-muted-foreground leading-relaxed">{children}</div>
+  </div>
+);
+
 const ApiDocsPage = () => {
   return (
     <div className="min-h-screen bg-background">
@@ -44,7 +60,7 @@ const ApiDocsPage = () => {
       </header>
 
       <main className="mx-auto max-w-4xl space-y-8 px-6 py-8">
-        {/* Full Automation API */}
+        {/* ── Full Automation API ── */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -52,7 +68,7 @@ const ApiDocsPage = () => {
               <CardTitle>Create Demo (Full Automation)</CardTitle>
             </div>
             <CardDescription>
-              One endpoint. Three inputs. Returns a live demo URL with voice agent + chatbot + personalized website.
+              One endpoint. Returns a live demo URL with voice agent + chatbot + personalized website.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -63,26 +79,102 @@ const ApiDocsPage = () => {
               </code>
             </div>
 
+            {/* Parameters */}
             <div>
-              <p className="text-sm font-medium text-foreground mb-2">Request</p>
+              <p className="text-sm font-medium text-foreground mb-3">Parameters</p>
+              <div className="rounded-lg border divide-y">
+                <ParamRow name="business_name" type="string" required>
+                  The name of the business (e.g. <code className="text-xs bg-muted px-1 rounded">"Mario's Pizza"</code>).
+                </ParamRow>
+                <ParamRow name="website_url" type="string" required>
+                  The business website URL. Used for scraping content, menu, services, and branding.
+                </ParamRow>
+                <ParamRow name="calendar_link" type="string">
+                  Calendar/booking URL (e.g. Calendly). Falls back to admin default if not provided.
+                </ParamRow>
+                <ParamRow name="industry" type="string">
+                  <div className="space-y-2">
+                    <p>
+                      Industry template to use. Controls system prompt, chatbot behavior, landing page content, and voice agent script.
+                    </p>
+                    <div className="rounded-md bg-muted/50 border p-3 space-y-1.5">
+                      <p className="text-xs font-semibold text-foreground">Supported values:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant="outline" className="text-xs"><code>"restaurant"</code></Badge>
+                        <Badge variant="outline" className="text-xs"><code>"default"</code></Badge>
+                        <Badge variant="secondary" className="text-[10px]">+ any custom template added in Admin → Templates</Badge>
+                      </div>
+                    </div>
+                    <div className="text-xs space-y-1 text-muted-foreground">
+                      <p>• <code className="bg-muted px-1 rounded">"restaurant"</code> → uses the predefined restaurant template (menu, orders, reservations)</p>
+                      <p>• <code className="bg-muted px-1 rounded">"default"</code> → uses AI to dynamically generate everything</p>
+                      <p>• <strong>Not provided</strong> → system auto-detects from website content, falls back to <code className="bg-muted px-1 rounded">"default"</code></p>
+                    </div>
+                  </div>
+                </ParamRow>
+              </div>
+            </div>
+
+            {/* Example: with industry */}
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Example — Restaurant (uses template)</p>
               <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-demo' \\
   -H 'Content-Type: application/json' \\
   -H 'Authorization: Bearer ${ANON_KEY}' \\
   -d '{
     "business_name": "Mario\\'s Pizza",
     "website_url": "https://mariospizza.com",
-    "calendar_link": "https://calendly.com/your-link"
+    "calendar_link": "https://calendly.com/your-link",
+    "industry": "restaurant"
   }'`} />
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Example — Auto-detect (dynamic AI generation)</p>
+              <CodeBlock code={`curl -X POST '${SUPABASE_URL}/functions/v1/create-demo' \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer ${ANON_KEY}' \\
+  -d '{
+    "business_name": "Sunrise Dental Clinic",
+    "website_url": "https://sunrisedental.com"
+  }'`} />
+              <p className="mt-2 text-xs text-muted-foreground">
+                No <code className="bg-muted px-1 rounded">industry</code> provided — system will analyze the website, detect the industry, and generate a tailored AI system automatically.
+              </p>
             </div>
 
             <div>
               <p className="text-sm font-medium text-foreground mb-2">Response</p>
               <CodeBlock code={`{ "demo_url": "https://yourdomain.com/marios-pizza" }`} />
             </div>
+
+            {/* Industry Selection Logic */}
+            <div className="rounded-lg border border-primary/20 bg-primary/[0.03] p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Layers className="h-4 w-4 text-primary" />
+                <p className="text-sm font-semibold text-foreground">Template Selection Logic</p>
+              </div>
+              <div className="text-xs text-muted-foreground space-y-2">
+                <p>The system selects the right template using this priority chain:</p>
+                <ol className="list-decimal pl-5 space-y-1">
+                  <li><strong>User-provided</strong> <code className="bg-muted px-1 rounded">industry</code> → loads matching template from database</li>
+                  <li><strong>Auto-detected</strong> from website content via LLM analysis</li>
+                  <li><strong>Fallback</strong> to <code className="bg-muted px-1 rounded">"default"</code> template</li>
+                </ol>
+                <div className="mt-2 pt-2 border-t border-primary/10">
+                  <p className="font-medium text-foreground">Advanced behavior:</p>
+                  <ul className="list-disc pl-5 mt-1 space-y-1">
+                    <li>If a matching template exists in the database → uses that template's pre-configured prompt, nav items, and problem statements</li>
+                    <li>If no template exists for the detected industry → AI dynamically generates all content (prompt, landing page, chatbot behavior)</li>
+                    <li>Templates can be created, edited, and toggled in <strong>Admin → Templates</strong> — no code changes required</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Modular: Create Voice Agent */}
+        {/* ── Modular: Create Voice Agent ── */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -115,7 +207,7 @@ const ApiDocsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Modular: Create Chatbot */}
+        {/* ── Modular: Create Chatbot ── */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -138,7 +230,7 @@ const ApiDocsPage = () => {
   "system_prompt": "Optional custom prompt",
   "knowledge_base": "Optional knowledge base",
   "logo_url": "https://...",
-  "industry": "Restaurant",
+  "industry": "restaurant",
   "demo_page_id": "optional-uuid"
 }`} />
             </div>
@@ -152,7 +244,7 @@ const ApiDocsPage = () => {
           </CardContent>
         </Card>
 
-        {/* Modular: Generate Website */}
+        {/* ── Modular: Generate Website ── */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -174,7 +266,7 @@ const ApiDocsPage = () => {
   "assistant_id": "vapi-assistant-uuid",
   "vapi_public_key": "optional (uses admin default)",
   "calendar_link": "https://calendly.com/...",
-  "industry": "Restaurant",
+  "industry": "restaurant",
   "logo_url": "https://...",
   "contact_phone": "+1234567890"
 }`} />
@@ -190,15 +282,37 @@ const ApiDocsPage = () => {
           </CardContent>
         </Card>
 
-        <div className="rounded-lg border p-4 text-sm space-y-2">
-          <p className="font-medium text-foreground">Prerequisites (one-time setup in Admin → Settings)</p>
-          <ul className="list-disc pl-5 text-muted-foreground space-y-1">
-            <li>VAPI Public Key + Private Key</li>
-            <li>Default system prompt (with {"{business_name}"} placeholder)</li>
-            <li>Voice settings (provider, voice ID)</li>
-            <li>Default calendar link (optional fallback)</li>
-          </ul>
-        </div>
+        {/* ── Notes ── */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base">Important Notes</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-muted-foreground">
+            <div className="rounded-lg border p-4 space-y-2">
+              <p className="font-medium text-foreground">Prerequisites (one-time setup in Admin → Settings)</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>VAPI Public Key + Private Key</li>
+                <li>Default system prompt (with {"{business_name}"} placeholder)</li>
+                <li>Voice settings (provider, voice ID)</li>
+                <li>Default calendar link (optional fallback)</li>
+              </ul>
+            </div>
+
+            <div className="rounded-lg border p-4 space-y-2">
+              <p className="font-medium text-foreground">About the <code className="bg-muted px-1 rounded">industry</code> Parameter</p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><code className="bg-muted px-1 rounded">industry</code> is <strong>always optional</strong> — the system works without it</li>
+                <li>Templates are managed in <strong>Admin → Templates</strong> tab — add new industries anytime</li>
+                <li>New industries are supported <strong>without any API code changes</strong></li>
+                <li>If no template matches, AI generates a fully dynamic, industry-specific system</li>
+                <li>Backward compatible — existing API calls without <code className="bg-muted px-1 rounded">industry</code> continue to work as before</li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );
