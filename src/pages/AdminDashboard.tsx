@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3, Layers } from "lucide-react";
+import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3, Layers, Lock } from "lucide-react";
 import EditPageDialog from "@/components/admin/EditPageDialog";
 import AnalyticsPanel from "@/components/admin/AnalyticsPanel";
 import EditChatbotDialog from "@/components/admin/EditChatbotDialog";
@@ -15,6 +15,10 @@ import SiteSettingsPanel from "@/components/admin/SiteSettingsPanel";
 import ActivityLogViewer from "@/components/admin/ActivityLogViewer";
 import { Link } from "react-router-dom";
 import TemplatesPanel from "@/components/admin/TemplatesPanel";
+import { Input } from "@/components/ui/input";
+
+const ADMIN_EMAIL = "aiagentron@gmail.com";
+const ADMIN_PASSWORD = "Abhiraj@123";
 
 interface DemoPage {
   id: string;

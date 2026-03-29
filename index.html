@@ -4,14 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
-      // Instant redirect BEFORE any rendering — runs before React/CSS/JS loads
-      (function(){
-        var h = location.hostname;
-        var p = location.pathname;
-        if (h === 'aiagentfor.lovable.app' && (p === '/' || p === '/admin' || p === '/admin/')) {
-          location.replace('https://aiagentra.cloud/');
-        }
-      })();
+      // Redirect root to admin (no external redirect needed)
     </script>
     <title>AI Voice Demo Pages</title>
     <meta name="description" content="Create and manage AI voice demo pages for your clients">
