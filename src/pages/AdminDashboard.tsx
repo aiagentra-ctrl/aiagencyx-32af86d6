@@ -59,6 +59,13 @@ interface Chatbot {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const AdminDashboard = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return sessionStorage.getItem("admin_auth") === "true";
+  });
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+
   const [pages, setPages] = useState<DemoPage[]>([]);
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [loading, setLoading] = useState(true);
