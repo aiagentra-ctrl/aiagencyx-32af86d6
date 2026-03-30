@@ -1,12 +1,27 @@
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import ActionButtons, { type ActionButton } from "./ActionButtons";
+import RecommendationCards, { type RecommendationItem } from "./RecommendationCards";
 
 interface ChatMessageProps {
   role: "user" | "assistant";
   content: string;
   onAction?: (btn: ActionButton) => void;
   isLatest?: boolean;
+}
+
+/** Parse <!--recommendations:[...]-->  from AI content */
+function parseRecommendations(content: string): { text: string; items: RecommendationItem[] } {
+  const match = content.match(/<!--recommendations:(\[[\s\S]*?\])-->/);
+  if (!match) return { text: content, items: [] };
+
+  try {
+    const items = JSON.parse(match[1]) as RecommendationItem[];
+    const text = content.slice(0, match.index) + content.slice(match.index! + match[0].length);
+    return { text: text.trim(), items };
+  } catch {
+    return { text: content, items: [] };
+  }
 }
 
 /** Parse <!--actions:[...]-->  from the end of AI content */
