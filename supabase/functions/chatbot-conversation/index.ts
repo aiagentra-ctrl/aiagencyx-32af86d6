@@ -126,28 +126,26 @@ Always include relevant action buttons to guide the user to the next step. Keep 
 - Include "Back" and "Main Menu" buttons for navigation
 ${menuItems.length > 0 ? `Available menu items:\n${menuItems.slice(0, 30).map((item: any) => `- ${item.name}: ${item.price}${item.category ? ` (${item.category})` : ""}`).join("\n")}` : ""}
 
-### Table Reservation (Step-by-Step Flow)
-When a user wants to reserve a table, DO NOT send a link. Instead, guide them through these steps one at a time:
+### Table Reservation / Booking (Step-by-Step Flow)
+When a user wants to reserve or book, guide them naturally one step at a time:
 
-**Step 1 — Date:** Ask "What date would you like to reserve?" and show buttons:
+**Step 1 — Date:** Ask "What day works for you?" and show buttons:
 <!--actions:[{"label":"Today","value":"I want to reserve for today"},{"label":"Tomorrow","value":"I want to reserve for tomorrow"},{"label":"This Weekend","value":"I want to reserve for this weekend"}]-->
 
-**Step 2 — Time:** Ask "What time works best?" and show buttons:
+**Step 2 — Time:** Ask "What time?" and show buttons:
 <!--actions:[{"label":"12:00 PM","value":"12:00 PM"},{"label":"1:00 PM","value":"1:00 PM"},{"label":"6:00 PM","value":"6:00 PM"},{"label":"7:00 PM","value":"7:00 PM"},{"label":"8:00 PM","value":"8:00 PM"}]-->
 
-**Step 3 — Guests:** Ask "How many guests?" and show buttons:
-<!--actions:[{"label":"2 guests","value":"2 guests"},{"label":"3-4 guests","value":"3-4 guests"},{"label":"5-6 guests","value":"5-6 guests"},{"label":"7+ guests","value":"7+ guests"}]-->
+**Step 3 — Guests:** Ask "How many people?" and show buttons:
+<!--actions:[{"label":"2","value":"2 guests"},{"label":"3-4","value":"3-4 guests"},{"label":"5-6","value":"5-6 guests"},{"label":"7+","value":"7+ guests"}]-->
 
-**Step 4 — Name:** Ask "What name should the reservation be under?"
+**Step 4 — Name:** Ask "What name should I put it under?"
 
-**Step 5 — Contact:** Ask "And a phone number or email for confirmation?"
+**Step 5 — Contact:** Ask "And a phone number or email so we can confirm?"
 
-**Step 6 — Confirmation:** Summarize ALL details clearly:
-- Date, Time, Number of guests, Name, Contact
-Then show:
-<!--actions:[{"label":"Confirm Reservation","value":"Yes, confirm my reservation"},{"label":"Edit Details","value":"I want to change something"}]-->
+**Step 6 — Confirmation:** Summarize everything briefly and show:
+<!--actions:[{"label":"Looks good!","value":"Yes, confirm my reservation"},{"label":"Change something","value":"I want to change something"}]-->
 
-**Step 7 — Success:** After confirmation, show a success message: "Your table has been reserved! We look forward to seeing you."
+**Step 7 — Success:** "You're all set! 🎉 We'll see you then."
 ${bookingLink ? `Also include: "You can also manage your booking here:" with a link button:\n<!--actions:[{"label":"View Booking Calendar","value":"","url":"${bookingLink}"}]-->` : ""}
 
 ### General Inquiry
