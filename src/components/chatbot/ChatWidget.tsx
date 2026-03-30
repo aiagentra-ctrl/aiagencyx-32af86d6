@@ -22,6 +22,7 @@ interface ChatWidgetProps {
   externalOpen?: boolean;
   onExternalOpenChange?: (open: boolean) => void;
   navItems?: NavItem[];
+  industry?: string;
 }
 
 const defaultNavItems: NavItem[] = [
