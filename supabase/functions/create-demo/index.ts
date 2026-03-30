@@ -596,11 +596,13 @@ Deno.serve(async (req) => {
 
     console.log(`[template] Using: ${template ? template.industry_name : "LLM-generated (no template)"}`);
 
+    const agentName = adminSettings.default_agent_name || "Alex";
     const templateVars: Record<string, string> = {
       business_name,
       calendar_url: calendarUrl,
       industry: resolvedIndustry,
       main_service: mainService,
+      agent_name: agentName,
     };
 
     // Step 3: Build system prompt
