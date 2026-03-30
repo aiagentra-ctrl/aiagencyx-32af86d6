@@ -38,7 +38,7 @@ const PersonalizationProofSection = ({
   }
 
   const ItemIcon = isMenu ? Utensils : Package;
-  const itemsLabel = isMenu ? "Menu" : "Products & Services";
+  const itemsLabel = isMenu ? "Menu" : isRestaurant ? "Menu" : "Products & Services";
   const itemsCount = displayItems.length;
 
   return (

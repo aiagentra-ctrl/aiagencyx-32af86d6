@@ -277,6 +277,7 @@ const DemoPage = () => {
             externalOpen={chatOpen}
             onExternalOpenChange={setChatOpen}
             navItems={chatbotNavItems}
+            industry={page.industry || undefined}
           />
         )}
       </Suspense>

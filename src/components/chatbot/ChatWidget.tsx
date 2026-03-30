@@ -82,7 +82,7 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
     if (externalOpen !== undefined) setInternalOpen(externalOpen);
   }, [externalOpen]);
 
-  const resolvedNavItems = navItems && navItems.length > 0 ? navItems : defaultNavItems;
+  const resolvedNavItems = navItems && navItems.length > 0 ? navItems : getDefaultNavItems(industry);
 
   const [pendingMsg, setPendingMsg] = useState<string | null>(null);
 

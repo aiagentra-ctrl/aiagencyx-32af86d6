@@ -173,12 +173,7 @@ const ChatWindow = ({
     if (!btn.url) sendMessage(btn.value);
   }, [sendMessage]);
 
-  const defaultQuickActions: ActionButton[] = quickActions || [
-    { label: "View Menu", value: "Show me the menu" },
-    { label: "Reserve Table", value: "I want to reserve a table" },
-    { label: "Location & Hours", value: "What are your hours and location?" },
-    { label: "Today's Offers", value: "What deals or offers do you have today?" },
-  ];
+  const defaultQuickActions: ActionButton[] = quickActions || getDefaultQuickActions(industry);
 
   return (
     <div className={`flex flex-col h-full ${className || ""}`}>
