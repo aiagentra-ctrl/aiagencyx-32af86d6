@@ -721,7 +721,7 @@ Deno.serve(async (req) => {
     if (existingChat) chatbotSlug = `${chatbotSlug}-${randomSuffix()}`;
 
     const chatbotGreeting = injectVars(
-      adminSettings.chatbot_greeting || "Welcome to {business_name}! How can I help you today?",
+      adminSettings.chatbot_greeting || "Hey! 👋 Welcome to {business_name}. What can I help you with?",
       templateVars
     );
 
