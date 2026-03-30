@@ -1,61 +1,49 @@
 
 
-## Plan: Human-Tone Voice Agent + Chatbot Prompt Upgrade
+## Plan: Fix Hardcoded Restaurant Defaults — Make Industry-Dynamic
 
 ### Problem
-Current system prompts sound robotic/API-like. The voice agent greeting and chatbot responses feel generic and mechanical.
+Three components have hardcoded restaurant-specific fallback buttons (View Menu, Reserve Table, etc.) that show for ALL industries when dynamic data is missing.
 
 ---
 
 ### Changes
 
-#### 1. Voice Agent — Natural First Message + System Prompt (`supabase/functions/create-demo/index.ts`)
+#### 1. `src/components/chatbot/ChatWidget.tsx` — Dynamic default nav items
 
-**First message** — Change from formal "Hi, thank you for calling..." to natural:
-```
-"Hey, this is {agent_name} from {business_name}. How can I help you today?"
-```
+Replace the hardcoded `defaultNavItems` (Menu, Order, Reserve, Location, FAQ) with a function that picks defaults based on an `industry` prop. If industry is "restaurant", keep current items. Otherwise, use universal defaults like "Our Services", "Book Appointment", "Contact Info", "FAQ".
 
-Add `agent_name` as a template variable (default: "Alex", configurable via admin setting `default_agent_name`).
+Add `industry?: string` prop, passed from `DemoPage`.
 
-**System prompt for VAPI** — Prepend conversational behavior instructions to the system prompt sent to `createVapiAssistant`:
-- Speak naturally like a real staff member
-- Keep responses short and clear
-- No long explanations, no robotic phrasing
-- Ask follow-up questions naturally
-- Confirm actions before finalizing
+#### 2. `src/components/chatbot/ChatWindow.tsx` — Dynamic default quick actions
 
-#### 2. Chatbot Conversation — Natural Tone (`supabase/functions/chatbot-conversation/index.ts`)
+Replace the hardcoded `defaultQuickActions` (View Menu, Reserve Table, etc.) with industry-aware defaults. Add `industry?: string` prop. For restaurant → current buttons. For others → "Our Services", "Book Now", "Hours & Location", "Special Offers".
 
-Rewrite the `ROLE & IDENTITY` and `RESPONSE GUIDELINES` sections in `buildSystemPrompt`:
+#### 3. `src/components/demo/PersonalizationProofSection.tsx` — Dynamic section label
 
-- Replace "You are the AI assistant for..." with: "You are {agent_name}, a friendly staff member at {business_name}. You talk like a real person — warm, casual, helpful."
-- Add explicit anti-robotic rules: "Do NOT sound robotic. Do NOT give long explanations. Keep it conversational."
-- Make reservation flow language more natural ("What day works for you?" instead of "What date would you like to reserve?")
-- Add personality guidelines: use casual language, contractions, brief responses
+Already partially handled (`isMenu` check), but the heading "Your Menu (X items)" should say "Your Services" or "Your Products" for non-restaurant businesses. Pass `industry` prop to improve label selection.
 
-#### 3. Chatbot Greeting — Warm Welcome (`supabase/functions/create-demo/index.ts`)
+#### 4. `src/pages/DemoPage.tsx` — Pass industry to ChatWidget and ChatWindow
 
-Change default greeting from:
-```
-"Welcome to {business_name}! How can I help you today?"
-```
-To:
-```
-"Hey! 👋 Welcome to {business_name}. What can I help you with?"
-```
-
-#### 4. Admin Setting: Agent Name (`supabase/functions/create-demo/index.ts`)
-
-Read `default_agent_name` from admin settings (fallback: "Alex"). Inject into all prompts as `{agent_name}`.
+Pass `page.industry` to the ChatWidget so it can select the right defaults.
 
 ---
+
+### Industry Default Mapping (built into ChatWidget/ChatWindow)
+
+```text
+restaurant/cafe/food  → View Menu, Reserve Table, Hours, Today's Offers
+dental/medical/clinic → Our Services, Book Appointment, Hours & Location, Insurance Info
+salon/spa/beauty      → Our Services, Book Appointment, Pricing, Hours
+default/other         → Our Services, Book Now, Contact Info, FAQ
+```
 
 ### Files Summary
 
 | File | Change |
 |------|--------|
-| `supabase/functions/create-demo/index.ts` | Add agent_name variable, update first message template, update default greeting, inject conversational tone into system prompt |
-| `supabase/functions/chatbot-conversation/index.ts` | Rewrite buildSystemPrompt — natural tone, anti-robotic rules, conversational reservation flow |
-| `supabase/functions/create-voice-agent/index.ts` | Same natural first message + tone rules |
+| `src/components/chatbot/ChatWidget.tsx` | Add `industry` prop, replace hardcoded `defaultNavItems` with industry-aware function |
+| `src/components/chatbot/ChatWindow.tsx` | Add `industry` prop, replace hardcoded `defaultQuickActions` with industry-aware function |
+| `src/components/demo/PersonalizationProofSection.tsx` | Add `industry` prop, fix "Your Menu" label for non-restaurant |
+| `src/pages/DemoPage.tsx` | Pass `industry` to ChatWidget |
 
