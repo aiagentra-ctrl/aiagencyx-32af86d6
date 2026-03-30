@@ -23,10 +23,44 @@ interface ChatWindowProps {
   industry?: string;
 }
 
+const getDefaultQuickActions = (industry?: string): ActionButton[] => {
+  const ind = (industry || "").toLowerCase();
+  if (["restaurant", "cafe", "food", "bakery", "pizzeria"].some(k => ind.includes(k))) {
+    return [
+      { label: "View Menu", value: "Show me the menu" },
+      { label: "Reserve Table", value: "I want to reserve a table" },
+      { label: "Location & Hours", value: "What are your hours and location?" },
+      { label: "Today's Offers", value: "What deals or offers do you have today?" },
+    ];
+  }
+  if (["dental", "medical", "clinic", "doctor", "health", "hospital"].some(k => ind.includes(k))) {
+    return [
+      { label: "Our Services", value: "What services do you offer?" },
+      { label: "Book Appointment", value: "I want to book an appointment" },
+      { label: "Hours & Location", value: "What are your hours and location?" },
+      { label: "Insurance Info", value: "What insurance plans do you accept?" },
+    ];
+  }
+  if (["salon", "spa", "beauty", "barber", "hair"].some(k => ind.includes(k))) {
+    return [
+      { label: "Our Services", value: "What services do you offer?" },
+      { label: "Book Appointment", value: "I want to book an appointment" },
+      { label: "Pricing", value: "What are your prices?" },
+      { label: "Hours & Location", value: "What are your hours and location?" },
+    ];
+  }
+  return [
+    { label: "Our Services", value: "What services do you offer?" },
+    { label: "Book Now", value: "I want to book an appointment" },
+    { label: "Contact Info", value: "How can I contact you?" },
+    { label: "FAQ", value: "What are your frequently asked questions?" },
+  ];
+};
+
 const ChatWindow = ({
   chatbotId, greeting, className, suggestions,
   pendingMessage, onPendingConsumed,
-  businessName, logoUrl, quickActions, calendarUrl,
+  businessName, logoUrl, quickActions, calendarUrl, industry,
 }: ChatWindowProps) => {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
