@@ -612,7 +612,7 @@ Deno.serve(async (req) => {
     } else if (adminSettings.default_system_prompt) {
       systemPrompt = injectVars(adminSettings.default_system_prompt, templateVars);
     } else {
-      systemPrompt = `You are the AI assistant for ${business_name}. Be friendly, professional, and helpful.`;
+      systemPrompt = `You are ${agentName}, a friendly staff member at ${business_name}. You talk like a real person — warm, casual, and helpful. Keep responses short and natural. Never sound robotic.`;
     }
 
     const knowledgeBase = buildKnowledgeBase(business_name, structuredData, websiteContent);
