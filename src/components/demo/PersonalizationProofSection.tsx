@@ -16,14 +16,16 @@ interface PersonalizationProofSectionProps {
   businessHours?: string;
   address?: string;
   phone?: string;
+  industry?: string;
 }
 
 const PersonalizationProofSection = ({
-  companyName, menuItems = [], products = [], categories = [], services = [], businessHours, address, phone,
+  companyName, menuItems = [], products = [], categories = [], services = [], businessHours, address, phone, industry,
 }: PersonalizationProofSectionProps) => {
-  // Use menuItems for restaurants, products for other businesses
+  const ind = (industry || "").toLowerCase();
+  const isRestaurant = ["restaurant", "cafe", "food", "bakery", "pizzeria"].some(k => ind.includes(k)) || menuItems.length > 0;
   const displayItems = menuItems.length > 0 ? menuItems : products;
-  const isMenu = menuItems.length > 0;
+  const isMenu = isRestaurant && menuItems.length > 0;
   const hasData = displayItems.length > 0 || services.length > 0 || businessHours || address || phone;
   if (!hasData) return null;
 
@@ -36,7 +38,7 @@ const PersonalizationProofSection = ({
   }
 
   const ItemIcon = isMenu ? Utensils : Package;
-  const itemsLabel = isMenu ? "Menu" : "Products & Services";
+  const itemsLabel = isMenu ? "Menu" : isRestaurant ? "Menu" : "Products & Services";
   const itemsCount = displayItems.length;
 
   return (
