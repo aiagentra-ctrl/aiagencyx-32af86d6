@@ -63,7 +63,7 @@ const getDefaultNavItems = (industry?: string): NavItem[] => {
   ];
 };
 
-const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, quickActions, calendarUrl, externalOpen, onExternalOpenChange, navItems }: ChatWidgetProps) => {
+const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, quickActions, calendarUrl, externalOpen, onExternalOpenChange, navItems, industry }: ChatWidgetProps) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const trackedOpen = useRef(false);
   const open = externalOpen !== undefined ? externalOpen : internalOpen;
