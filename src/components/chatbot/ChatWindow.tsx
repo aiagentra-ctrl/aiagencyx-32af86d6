@@ -20,6 +20,7 @@ interface ChatWindowProps {
   logoUrl?: string;
   quickActions?: ActionButton[];
   calendarUrl?: string;
+  industry?: string;
 }
 
 const ChatWindow = ({
