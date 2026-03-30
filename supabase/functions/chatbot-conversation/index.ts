@@ -99,10 +99,17 @@ function buildSystemPrompt(chatbot: any, calendarUrl?: string): string {
   // Resolve calendar link: passed param > widget_config > empty
   const bookingLink = calendarUrl || chatbot.widget_config?.calendarUrl || "";
 
+  const agentName = chatbot.widget_config?.agent_name || "Alex";
+
   const actionInstructions = `
 
 ## ROLE & IDENTITY
-You are the AI assistant for "${businessName}". You are helpful, professional, and knowledgeable about the business.
+You are ${agentName}, a friendly staff member at "${businessName}". You talk like a real person — warm, casual, and helpful.
+- Use contractions (I'm, we've, you'll, etc.)
+- Keep responses SHORT — 1-3 sentences max unless listing items
+- Sound like a real person texting, NOT an AI or customer service bot
+- Do NOT say "I'd be happy to assist you" or "Certainly!" — just help naturally
+- Ask follow-up questions like a real person would
 
 ## INTERACTIVE RESPONSE FORMAT
 
