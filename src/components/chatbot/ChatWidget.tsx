@@ -25,13 +25,43 @@ interface ChatWidgetProps {
   industry?: string;
 }
 
-const defaultNavItems: NavItem[] = [
-  { label: "Menu", value: "Show me the full menu" },
-  { label: "Order", value: "I want to order food" },
-  { label: "Reserve", value: "I want to reserve a table" },
-  { label: "Location", value: "What's your location and hours?" },
-  { label: "FAQ", value: "What are your frequently asked questions?" },
-];
+const getDefaultNavItems = (industry?: string): NavItem[] => {
+  const ind = (industry || "").toLowerCase();
+  if (["restaurant", "cafe", "food", "bakery", "pizzeria"].some(k => ind.includes(k))) {
+    return [
+      { label: "Menu", value: "Show me the full menu" },
+      { label: "Order", value: "I want to order food" },
+      { label: "Reserve", value: "I want to reserve a table" },
+      { label: "Location", value: "What's your location and hours?" },
+      { label: "FAQ", value: "What are your frequently asked questions?" },
+    ];
+  }
+  if (["dental", "medical", "clinic", "doctor", "health", "hospital"].some(k => ind.includes(k))) {
+    return [
+      { label: "Services", value: "What services do you offer?" },
+      { label: "Appointment", value: "I want to book an appointment" },
+      { label: "Hours", value: "What are your hours and location?" },
+      { label: "Insurance", value: "What insurance do you accept?" },
+      { label: "FAQ", value: "What are your frequently asked questions?" },
+    ];
+  }
+  if (["salon", "spa", "beauty", "barber", "hair"].some(k => ind.includes(k))) {
+    return [
+      { label: "Services", value: "What services do you offer?" },
+      { label: "Book", value: "I want to book an appointment" },
+      { label: "Pricing", value: "What are your prices?" },
+      { label: "Hours", value: "What are your hours and location?" },
+      { label: "FAQ", value: "What are your frequently asked questions?" },
+    ];
+  }
+  return [
+    { label: "Services", value: "What services do you offer?" },
+    { label: "Book", value: "I want to book an appointment" },
+    { label: "Contact", value: "How can I contact you?" },
+    { label: "Hours", value: "What are your hours and location?" },
+    { label: "FAQ", value: "What are your frequently asked questions?" },
+  ];
+};
 
 const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, quickActions, calendarUrl, externalOpen, onExternalOpenChange, navItems }: ChatWidgetProps) => {
   const [internalOpen, setInternalOpen] = useState(false);
