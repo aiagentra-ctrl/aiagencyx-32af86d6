@@ -81,7 +81,91 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
   return providers;
 }
 
-function buildSystemPrompt(chatbot: any, calendarUrl?: string): string {
+function buildKnowledgeBase(chatbot: any, scrapedData: any): string {
+  const items: any[] = [];
+
+  // Extract from research_data
+  const research = chatbot.research_data || {};
+  const menuItems: any[] = research.menu_items || [];
+  const products: any[] = research.products || [];
+  const services: any[] = research.services_list || [];
+
+  for (const item of menuItems) {
+    items.push({
+      name: item.name,
+      price: item.price || "",
+      description: item.description || "",
+      image_url: item.image_url || item.image || "",
+      category: item.category || "Menu",
+    });
+  }
+  for (const item of products) {
+    items.push({
+      name: item.name || item.title,
+      price: item.price || "",
+      description: item.description || "",
+      image_url: item.image_url || item.image || "",
+      category: item.category || "Products",
+    });
+  }
+  for (const item of services) {
+    items.push({
+      name: item.name || item.title,
+      price: item.price || "",
+      description: item.description || "",
+      image_url: item.image_url || item.image || "",
+      category: item.category || "Services",
+    });
+  }
+
+  // Extract from scraped_data structured content
+  if (scrapedData?.structured_data) {
+    const sd = scrapedData.structured_data;
+    for (const key of ["menu_items", "products", "services", "items", "offerings"]) {
+      const arr = sd[key];
+      if (Array.isArray(arr)) {
+        for (const item of arr) {
+          if (!items.find(i => i.name === (item.name || item.title))) {
+            items.push({
+              name: item.name || item.title || "",
+              price: item.price || "",
+              description: item.description || "",
+              image_url: item.image_url || item.image || "",
+              category: item.category || key.replace("_", " "),
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Limit to 50 items
+  const limited = items.slice(0, 50);
+  if (limited.length === 0) return "";
+
+  // Group by category
+  const grouped: Record<string, any[]> = {};
+  for (const item of limited) {
+    const cat = item.category || "Other";
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(item);
+  }
+
+  let kb = "\n\n## KNOWLEDGE BASE\n";
+  for (const [cat, catItems] of Object.entries(grouped)) {
+    kb += `\n### ${cat}\n`;
+    for (const item of catItems) {
+      kb += `- **${item.name}**`;
+      if (item.price) kb += ` | ${item.price}`;
+      if (item.description) kb += ` — ${item.description}`;
+      if (item.image_url) kb += ` [img: ${item.image_url}]`;
+      kb += "\n";
+    }
+  }
+  return kb;
+}
+
+function buildSystemPrompt(chatbot: any, calendarUrl?: string, scrapedData?: any): string {
   const base = chatbot.system_prompt || "";
   const businessName = chatbot.business_name || "the business";
   const services: string[] = Array.isArray(chatbot.services) ? chatbot.services : [];
@@ -101,6 +185,9 @@ function buildSystemPrompt(chatbot: any, calendarUrl?: string): string {
 
   const agentName = chatbot.widget_config?.agent_name || "Alex";
 
+  // Build knowledge base from research + scraped data
+  const knowledgeBase = buildKnowledgeBase(chatbot, scrapedData);
+
   const actionInstructions = `
 
 ## ROLE & IDENTITY
@@ -117,6 +204,26 @@ After your text response, you can include interactive buttons using this EXACT f
 <!--actions:[{"icon":"icon","label":"Button Text","value":"message to send"},...]-->
 
 Always include relevant action buttons to guide the user to the next step. Keep button labels clean and professional.
+
+## SMART RECOMMENDATIONS
+
+When the user asks about products, menu items, services, or anything you can match from the knowledge base, return rich recommendation cards using this EXACT format BEFORE the actions block:
+
+<!--recommendations:[{"name":"Item Name","price":"$10","description":"Short desc","image_url":"https://...","category":"Category","actions":[{"label":"Order","value":"I want to order Item Name"}]}]-->
+
+Recommendation rules:
+- Show 2-4 most relevant items from the knowledge base
+- Include image_url when available (leave empty string if not)
+- Personalize based on what the user asked or preferences they mentioned
+- For restaurants: suggest dishes, combos, popular items, dietary matches
+- For e-commerce: suggest products, related items, bestsellers
+- For services: suggest relevant packages, popular bookings
+- Always include at least one action button per recommendation
+- Industry-specific action labels:
+  - Restaurant/food: "Order", "Add to Order"
+  - E-commerce/store: "Buy Now", "View Details"
+  - Services/medical/salon: "Book Now", "Learn More"
+  - Default: "Select", "Learn More"
 
 ## CONVERSATION FLOWS
 
@@ -159,6 +266,7 @@ ${phone ? `Phone: ${phone}` : ""}
 ${businessHours ? `Hours: ${businessHours}` : ""}
 ${websiteUrl ? `Website: ${websiteUrl}` : ""}
 ${detectedPages.length > 0 ? `\nPages:\n${detectedPages.map((p: any) => `- ${p.title || p.name}: ${p.url}`).join("\n")}` : ""}
+${knowledgeBase}
 
 ## RESPONSE GUIDELINES
 - Keep it SHORT and conversational — like texting a friendly coworker
@@ -222,7 +330,18 @@ Deno.serve(async (req) => {
       { role: "user", content: message, timestamp: new Date().toISOString() },
     ];
 
-    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl);
+    // Fetch scraped data for RAG knowledge base
+    let scrapedData = null;
+    if (chatbot.website_url) {
+      const { data: sd } = await supabase
+        .from("scraped_data")
+        .select("structured_data, raw_content")
+        .eq("website_url", chatbot.website_url)
+        .maybeSingle();
+      scrapedData = sd;
+    }
+
+    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl, scrapedData);
 
     const aiMessages = [
       { role: "system", content: systemPrompt },
