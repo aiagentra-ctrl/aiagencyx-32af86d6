@@ -330,7 +330,18 @@ Deno.serve(async (req) => {
       { role: "user", content: message, timestamp: new Date().toISOString() },
     ];
 
-    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl);
+    // Fetch scraped data for RAG knowledge base
+    let scrapedData = null;
+    if (chatbot.website_url) {
+      const { data: sd } = await supabase
+        .from("scraped_data")
+        .select("structured_data, raw_content")
+        .eq("website_url", chatbot.website_url)
+        .maybeSingle();
+      scrapedData = sd;
+    }
+
+    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl, scrapedData);
 
     const aiMessages = [
       { role: "system", content: systemPrompt },

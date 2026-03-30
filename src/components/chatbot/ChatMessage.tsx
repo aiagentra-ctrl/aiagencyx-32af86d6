@@ -39,7 +39,19 @@ function parseActions(content: string): { text: string; buttons: ActionButton[] 
 }
 
 const ChatMessage = ({ role, content, onAction, isLatest }: ChatMessageProps) => {
-  const { text, buttons } = role === "assistant" ? parseActions(content) : { text: content, buttons: [] };
+  let text = content;
+  let buttons: ActionButton[] = [];
+  let recommendations: RecommendationItem[] = [];
+
+  if (role === "assistant") {
+    const recResult = parseRecommendations(text);
+    text = recResult.text;
+    recommendations = recResult.items;
+
+    const actResult = parseActions(text);
+    text = actResult.text;
+    buttons = actResult.buttons;
+  }
 
   return (
     <div className={cn("flex w-full", role === "user" ? "justify-end" : "justify-start")}>
@@ -60,6 +72,15 @@ const ChatMessage = ({ role, content, onAction, isLatest }: ChatMessageProps) =>
             <p className="whitespace-pre-wrap">{content}</p>
           )}
         </div>
+
+        {/* Recommendation cards */}
+        {recommendations.length > 0 && onAction && (
+          <RecommendationCards
+            items={recommendations}
+            onAction={onAction}
+            disabled={!isLatest}
+          />
+        )}
 
         {/* Action buttons rendered below the message bubble */}
         {buttons.length > 0 && onAction && (
