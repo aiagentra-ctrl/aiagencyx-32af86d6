@@ -240,6 +240,7 @@ const DemoPage = () => {
           businessHours={research.business_hours}
           address={research.address}
           phone={research.phone}
+          industry={page.industry || undefined}
         />
 
         <ProblemSection companyName={companyName} problems={dc.problem_statements} industry={page.industry || undefined} />
