@@ -148,6 +148,7 @@ const ChatWidget = ({ chatbotId, greeting, logoUrl, businessName, suggestions, q
             pendingMessage={pendingMsg}
             onPendingConsumed={() => setPendingMsg(null)}
             calendarUrl={calendarUrl}
+            industry={industry}
           />
         </div>
       )}
