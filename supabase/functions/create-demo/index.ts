@@ -596,11 +596,13 @@ Deno.serve(async (req) => {
 
     console.log(`[template] Using: ${template ? template.industry_name : "LLM-generated (no template)"}`);
 
+    const agentName = adminSettings.default_agent_name || "Alex";
     const templateVars: Record<string, string> = {
       business_name,
       calendar_url: calendarUrl,
       industry: resolvedIndustry,
       main_service: mainService,
+      agent_name: agentName,
     };
 
     // Step 3: Build system prompt
@@ -610,7 +612,7 @@ Deno.serve(async (req) => {
     } else if (adminSettings.default_system_prompt) {
       systemPrompt = injectVars(adminSettings.default_system_prompt, templateVars);
     } else {
-      systemPrompt = `You are the AI assistant for ${business_name}. Be friendly, professional, and helpful.`;
+      systemPrompt = `You are ${agentName}, a friendly staff member at ${business_name}. You talk like a real person — warm, casual, and helpful. Keep responses short and natural. Never sound robotic.`;
     }
 
     const knowledgeBase = buildKnowledgeBase(business_name, structuredData, websiteContent);
@@ -664,7 +666,7 @@ Deno.serve(async (req) => {
     }
 
     const firstMessage = dynamicContent.first_message || injectVars(
-      adminSettings.default_first_message || "Hi, thank you for calling {business_name}! How can I help you?",
+      adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
       templateVars
     );
 
@@ -719,7 +721,7 @@ Deno.serve(async (req) => {
     if (existingChat) chatbotSlug = `${chatbotSlug}-${randomSuffix()}`;
 
     const chatbotGreeting = injectVars(
-      adminSettings.chatbot_greeting || "Welcome to {business_name}! How can I help you today?",
+      adminSettings.chatbot_greeting || "Hey! 👋 Welcome to {business_name}. What can I help you with?",
       templateVars
     );
 

@@ -50,19 +50,32 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const templateVars = { business_name };
+    const agentName = adminSettings.default_agent_name || "Alex";
+    const templateVars = { business_name, agent_name: agentName };
+
+    const defaultPrompt = `You are ${agentName}, a friendly staff member at ${business_name}. You talk like a real person on the phone — warm, natural, and helpful.
+
+Guidelines:
+- Speak naturally like a real person, NOT a robot
+- Keep responses short and clear — no long explanations
+- Use casual, conversational language
+- Ask follow-up questions naturally
+- Confirm actions before finalizing
+- If unsure, say you'll check or suggest calling the business directly
+- Be warm, polite, and efficient`;
+
     const prompt = system_prompt || injectVars(
-      adminSettings.default_system_prompt || `You are the AI assistant for ${business_name}. Be friendly, professional, and helpful.`,
+      adminSettings.default_system_prompt || defaultPrompt,
       templateVars
     );
 
     const fullPrompt = knowledge_base ? `${prompt}\n\n## Knowledge Base\n${knowledge_base}` : prompt;
     const firstMessage = injectVars(
-      adminSettings.default_first_message || "Hi, thank you for calling {business_name}! How can I help you?",
+      adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
       templateVars
     );
     const endCallMessage = injectVars(
-      adminSettings.default_end_call_message || "Thank you for calling {business_name}. Have a great day!",
+      adminSettings.default_end_call_message || "Thanks for calling {business_name}! Have a great one. 👋",
       templateVars
     );
 
