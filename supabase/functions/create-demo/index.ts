@@ -666,7 +666,7 @@ Deno.serve(async (req) => {
     }
 
     const firstMessage = dynamicContent.first_message || injectVars(
-      adminSettings.default_first_message || "Hi, thank you for calling {business_name}! How can I help you?",
+      adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
       templateVars
     );
 
