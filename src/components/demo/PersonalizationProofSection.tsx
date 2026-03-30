@@ -16,6 +16,7 @@ interface PersonalizationProofSectionProps {
   businessHours?: string;
   address?: string;
   phone?: string;
+  industry?: string;
 }
 
 const PersonalizationProofSection = ({
