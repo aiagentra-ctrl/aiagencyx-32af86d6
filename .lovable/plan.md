@@ -1,100 +1,61 @@
 
 
-## Plan: Intelligent Default Industry System + Advanced Landing Page
+## Plan: Human-Tone Voice Agent + Chatbot Prompt Upgrade
 
-### Summary
-Two workstreams: (1) Upgrade the "default" industry flow in `create-demo` to deeply analyze websites, auto-detect industry, match/generate/store templates, and inject real business data. (2) Rebuild all landing page sections to be fully dynamic and industry-agnostic using the P.I.E.C.E conversion framework.
-
----
-
-### 1. Edge Function: `create-demo/index.ts` — Deep Default Logic
-
-**Current problem:** When `industry=default`, the system uses a generic one-liner prompt and basic single-page scraping.
-
-**Changes:**
-
-**A. Multi-page scraping (Firecrawl Map + Scrape)**
-- Before scraping, call Firecrawl `/v1/map` to discover all pages on the site
-- Scrape up to 5 key pages (about, services/menu, pricing, contact, FAQ) using URL pattern matching
-- Concatenate content for richer extraction
-- Fall back to single-page scrape if map fails
-
-**B. Enhanced structured extraction**
-- Expand the LLM extraction tool to also return: `key_selling_points`, `customer_flow` (how customers interact), `use_cases` (3 real scenarios), `brand_personality`, `target_audience`
-- Send more content to extraction (up to 15K chars from multi-page scrape)
-
-**C. Smart industry detection + template matching**
-- After extraction, use `structuredData.industry` (LLM-detected)
-- Query `industry_templates` for a matching template
-- If found: use it with variable injection
-- If NOT found: generate a full template via LLM and **save it** to `industry_templates` for future reuse
-
-**D. Advanced system prompt generation**
-- When no template exists, generate a production-level system prompt via LLM that includes: role definition, personality, conversation flow, sales behavior, error handling, do's and don'ts
-- Store generated prompt as a new `industry_templates` row
-
-**E. Expanded dynamic content generation**
-- Add to the LLM generation call: `use_case_scenarios` (3 visual flow scenarios), `outcome_metrics` (4 before/after items), `trust_lines` (3 personalization trust statements)
-- These power the new landing page sections
-
-**F. Template variable injection**
-- All generated/stored templates use `{business_name}`, `{main_service}`, `{industry}` placeholders
-- Real data from scraping replaces these at generation time
+### Problem
+Current system prompts sound robotic/API-like. The voice agent greeting and chatbot responses feel generic and mechanical.
 
 ---
 
-### 2. Database: Expand `dynamic_content` Schema
+### Changes
 
-No migration needed — `dynamic_content` is already JSONB. We just store more fields:
-- `use_case_scenarios`, `outcome_metrics`, `trust_lines`, `voice_prompts` (try-saying suggestions)
+#### 1. Voice Agent — Natural First Message + System Prompt (`supabase/functions/create-demo/index.ts`)
 
----
+**First message** — Change from formal "Hi, thank you for calling..." to natural:
+```
+"Hey, this is {agent_name} from {business_name}. How can I help you today?"
+```
 
-### 3. Frontend: Rebuild Landing Page Sections
+Add `agent_name` as a template variable (default: "Alex", configurable via admin setting `default_agent_name`).
 
-All sections become dynamic, reading from `dynamic_content` with smart fallbacks.
+**System prompt for VAPI** — Prepend conversational behavior instructions to the system prompt sent to `createVapiAssistant`:
+- Speak naturally like a real staff member
+- Keep responses short and clear
+- No long explanations, no robotic phrasing
+- Ask follow-up questions naturally
+- Confirm actions before finalizing
 
-**A. `HeroSection.tsx`** — Already dynamic. Minor: add `{main_service}` to subtitle fallback.
+#### 2. Chatbot Conversation — Natural Tone (`supabase/functions/chatbot-conversation/index.ts`)
 
-**B. `VoiceAgentSection.tsx`** — Make dynamic
-- Accept `voicePrompts` prop from `dynamic_content.voice_prompts`
-- Replace hardcoded restaurant prompts ("Book a table", "Place an order") with industry-relevant ones
-- Accept `companyName` in section copy (already does)
+Rewrite the `ROLE & IDENTITY` and `RESPONSE GUIDELINES` sections in `buildSystemPrompt`:
 
-**C. `PersonalizationProofSection.tsx`** — Make universal
-- Rename "Menu" section header to "Products & Services" when not restaurant
-- Accept `products` array alongside `menuItems`
-- Show whichever has data (menu_items for restaurants, products for others)
-- Add `services` display as tag chips when available
-- Update copy: "We scraped your website" → "Built using your website data"
+- Replace "You are the AI assistant for..." with: "You are {agent_name}, a friendly staff member at {business_name}. You talk like a real person — warm, casual, helpful."
+- Add explicit anti-robotic rules: "Do NOT sound robotic. Do NOT give long explanations. Keep it conversational."
+- Make reservation flow language more natural ("What day works for you?" instead of "What date would you like to reserve?")
+- Add personality guidelines: use casual language, contractions, brief responses
 
-**D. `ProblemSection.tsx`** — Already dynamic. No changes needed (accepts `problems` prop).
+#### 3. Chatbot Greeting — Warm Welcome (`supabase/functions/create-demo/index.ts`)
 
-**E. `OutcomeSection.tsx`** — Make dynamic
-- Accept optional `outcomes` prop from `dynamic_content.outcome_metrics`
-- If provided, use those instead of hardcoded restaurant outcomes
-- Keep current outcomes as fallback
-- Update headline to use `{companyName}`
+Change default greeting from:
+```
+"Welcome to {business_name}! How can I help you today?"
+```
+To:
+```
+"Hey! 👋 Welcome to {business_name}. What can I help you with?"
+```
 
-**F. `VoiceAgentSection.tsx` chatbot prompts** — Use same `voicePrompts` for chatbot "Try asking" suggestions
+#### 4. Admin Setting: Agent Name (`supabase/functions/create-demo/index.ts`)
 
----
-
-### 4. Frontend: `DemoPage.tsx` — Pass New Props
-
-- Extract `voice_prompts`, `outcome_metrics`, `use_case_scenarios` from `dynamic_content`
-- Pass to `VoiceAgentSection`, `OutcomeSection`
-- Pass `products` from research_data to `PersonalizationProofSection`
+Read `default_agent_name` from admin settings (fallback: "Alex"). Inject into all prompts as `{agent_name}`.
 
 ---
 
 ### Files Summary
 
-| File | Action |
+| File | Change |
 |------|--------|
-| `supabase/functions/create-demo/index.ts` | Edit — multi-page scrape, smart detection, template auto-save, expanded LLM generation |
-| `src/pages/DemoPage.tsx` | Edit — pass new dynamic props |
-| `src/components/demo/VoiceAgentSection.tsx` | Edit — dynamic prompts |
-| `src/components/demo/PersonalizationProofSection.tsx` | Edit — universal products/services display |
-| `src/components/demo/OutcomeSection.tsx` | Edit — accept dynamic outcomes |
+| `supabase/functions/create-demo/index.ts` | Add agent_name variable, update first message template, update default greeting, inject conversational tone into system prompt |
+| `supabase/functions/chatbot-conversation/index.ts` | Rewrite buildSystemPrompt — natural tone, anti-robotic rules, conversational reservation flow |
+| `supabase/functions/create-voice-agent/index.ts` | Same natural first message + tone rules |
 
