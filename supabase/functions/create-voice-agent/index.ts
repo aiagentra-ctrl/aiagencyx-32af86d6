@@ -269,7 +269,7 @@ Deno.serve(async (req) => {
       templateVars
     );
 
-    const fullPrompt = buildVoiceAgentPrompt(
+    const fullPrompt = getVoicePrompt(
       agentName,
       business_name,
       resolvedIndustry,

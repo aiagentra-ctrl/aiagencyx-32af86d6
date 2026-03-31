@@ -716,7 +716,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
   if (!vapiKey) throw new Error("VAPI private key not configured. Set it in Admin → Settings.");
 
   const agentName = adminSettings.default_agent_name || "Alex";
-  const fullPrompt = buildVoiceAgentPrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
+  const fullPrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
   const voiceProvider = adminSettings.voice_provider || "azure";
   const voiceId = adminSettings.voice_id || "andrew";
   const modelProvider = adminSettings.ai_model_provider || "openai";
