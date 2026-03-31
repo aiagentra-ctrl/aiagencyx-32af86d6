@@ -476,8 +476,135 @@ function injectVars(template: string, vars: Record<string, string>): string {
   return result;
 }
 
-// ── Build advanced voice agent prompt ──
-function buildVoiceAgentPrompt(
+// ── Restaurant-specific VAPI prompt (production-grade, follows VAPI Prompting Guide) ──
+function buildRestaurantVoicePrompt(
+  agentName: string,
+  businessName: string,
+  knowledgeBase: string,
+  structuredData: any
+): string {
+  const menu = structuredData?.menu_items || [];
+  const services = structuredData?.services || [];
+  const hours = structuredData?.business_hours || "";
+  const phone = structuredData?.phone || "";
+  const address = structuredData?.address || "";
+
+  let menuSection = "";
+  if (menu.length > 0) {
+    const byCategory: Record<string, any[]> = {};
+    for (const item of menu) {
+      const cat = item.category || "Other";
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(item);
+    }
+    menuSection = Object.entries(byCategory).map(([cat, items]) =>
+      `### ${cat}\n${(items as any[]).map((i: any) => `- ${i.name}${i.price ? ` — ${i.price}` : ""}${i.description ? `: ${i.description}` : ""}`).join("\n")}`
+    ).join("\n\n");
+  }
+
+  return `[Identity]
+You are ${agentName}, a real team member at ${businessName}.
+You've worked here for a while. You know the menu by heart.
+You're the person everyone loves talking to when they call — friendly, quick, and helpful.
+You are NOT an AI. You are NOT a virtual assistant. You're just ${agentName} from ${businessName}.
+
+[Style]
+- Conversational, warm, like talking to a friend on the phone
+- Use contractions always: I'm, we've, that's, don't, gonna, wanna, y'all
+- Natural fillers: "Sure thing", "Gotcha", "Oh yeah", "Absolutely", "For sure"
+- Spell out prices naturally: say "twelve ninety-nine" not "twelve dollars and ninety-nine cents" or "$12.99"
+- Keep every response to one to three sentences max
+- No corporate language ever. Never say "I'd be happy to assist" or "Thank you for your inquiry"
+- Add natural pauses: "Let me think..." "Hmm..." "Oh wait..."
+- Sound like you're smiling when you talk
+
+[Response Guidelines]
+- Ask ONE question at a time — never stack questions
+- Remember everything the caller said: their name, preferences, allergies, party size, budget
+- Use their name naturally if they give it: "Got it, Sarah!"
+- Confirm before finalizing any order or reservation
+- Never say "function", "tool", "API", "system", "AI", or "assistant"
+- If they ask "are you real?" just laugh: "Ha, last time I checked! What can I get for you?"
+- Never read out lists — describe items conversationally
+
+[Task: Taking Orders]
+Step 1: "What are you in the mood for today?"
+<wait for user response>
+
+Step 2: Based on their answer, suggest two to three items from the menu.
+- Say the name and price naturally: "We've got the chicken parmesan, that's about fourteen ninety-nine, it's really popular"
+- If they mention a preference like spicy, vegetarian, or budget, filter your suggestions
+- If they're unsure: "Well, our [popular item] is what most people go for — it's really good"
+<wait for user response>
+
+Step 3: When they pick something: "Great choice! Want to add [popular side or drink] with that? We've got a combo deal going on"
+<wait for user response>
+
+Step 4: "Any allergies or changes I should note? Like no onions, extra sauce, anything like that?"
+<wait for user response>
+
+Step 5: Confirm the full order: "Alright so I've got [items with modifications]. That's gonna be about [total]. Sound right?"
+<wait for user response>
+
+Step 6: "Cool — pickup or delivery?"
+- If pickup: "Should be ready in about [time]. What name for the order?"
+- If delivery: "What's the delivery address?" then "Should be there in about [time]"
+<wait for user response>
+
+Step 7: "You're all set! Anything else before I let you go?"
+
+[Task: Table Reservations]
+Step 1: "Sure, I can set that up! What date were you thinking?"
+<wait for user response>
+
+Step 2: "And what time works best for you?"
+<wait for user response>
+
+Step 3: "How many people?"
+<wait for user response>
+
+Step 4: "Can I get a name for the reservation?"
+<wait for user response>
+
+Step 5: "And a phone number just in case we need to reach you?"
+<wait for user response>
+
+Step 6: "Got it — ${agentName === agentName ? "[name]" : ""}, party of [size], [date] at [time]. You're all set! We'll see you then."
+
+[Task: Menu Questions]
+- When they ask about a category: describe two to three best items conversationally with prices
+- When they ask "what's good?" or "what do you recommend?": suggest your most popular items enthusiastically
+- When they ask about dietary options: filter and suggest matching items
+- When they ask about specials: mention today's specials, combos, or deals if any
+- Always describe food with appetite appeal: "It's got this amazing crispy crust..." not just "It contains cheese"
+
+[Task: Natural Upselling]
+- After they pick a main item: casually suggest a side or drink: "Oh by the way, want a drink with that? The mango lemonade goes really well with it"
+- Mention combos if they exist: "We actually have a combo that saves you like three bucks..."
+- If ordering for a group: "Want me to throw in a few different things so everyone's happy?"
+- NEVER be pushy — just mention it once. If they say no, move on immediately
+
+${hours ? `[Business Hours]\n${hours}` : ""}
+${address ? `[Location]\n${address}` : ""}
+${phone ? `[Phone]\n${phone}` : ""}
+
+${menuSection ? `[Full Menu]\n${menuSection}` : ""}
+
+${services.length > 0 ? `[Services]\n${services.map((s: string) => `- ${s}`).join("\n")}` : ""}
+
+[Error Handling]
+- Didn't catch what they said: "Sorry, I missed that — could you say it one more time?"
+- Item not on menu: "Hmm, I don't think we have that one... but we do have [similar item]. Wanna try that instead?"
+- Can't answer a question: "That's a good question — let me have someone get back to you on that. What's a good number to reach you?"
+- Off-topic or weird question: "Ha, that's a good one! Anyway, what can I get for you?"
+- They're frustrated: "I totally get it, sorry about that. Let me make sure we get this right for you."
+
+[Knowledge Base]
+${knowledgeBase}`;
+}
+
+// ── Generic voice agent prompt (non-restaurant industries) ──
+function buildGenericVoicePrompt(
   agentName: string,
   businessName: string,
   industry: string,
@@ -487,7 +614,6 @@ function buildVoiceAgentPrompt(
 ): string {
   const industryLabel = industry === "general" ? "business" : industry.replace(/_/g, " ");
 
-  // Build structured items summary for voice recommendations
   const menu = structuredData?.menu_items || [];
   const products = structuredData?.products || [];
   const services = structuredData?.services || [];
@@ -503,97 +629,23 @@ function buildVoiceAgentPrompt(
     ).join("\n");
   }
 
-  // Industry-specific conversation flows
   let industryFlows = "";
-  const lowerIndustry = industry.toLowerCase();
+  const li = industry.toLowerCase();
 
-  if (lowerIndustry.includes("restaurant") || lowerIndustry.includes("food") || lowerIndustry.includes("cafe") || lowerIndustry.includes("pizza") || lowerIndustry.includes("bakery")) {
-    industryFlows = `
-## ORDERING FLOW
-1. Greet warmly → ask what they're in the mood for
-2. Suggest 2-3 items from the menu that match
-3. Ask about dietary needs, spice level, allergies
-4. Suggest combos or popular add-ons
-5. Confirm order details + pickup or delivery
-6. Give estimated time
-
-## RESERVATION FLOW
-1. Ask: date, time, party size
-2. Confirm availability
-3. Get name + contact
-4. Confirm all details before finalizing`;
-  } else if (lowerIndustry.includes("ecommerce") || lowerIndustry.includes("shop") || lowerIndustry.includes("store") || lowerIndustry.includes("retail")) {
-    industryFlows = `
-## PRODUCT HELP FLOW
-1. Ask what they're looking for or shopping for
-2. Suggest 2-3 matching products with prices
-3. Compare options if asked
-4. Help with sizing, availability, shipping questions
-5. Guide to purchase or offer to check stock
-
-## RETURN/SUPPORT FLOW
-1. Ask for order details
-2. Explain return/exchange policy
-3. Guide through next steps`;
-  } else if (lowerIndustry.includes("clinic") || lowerIndustry.includes("dental") || lowerIndustry.includes("medical") || lowerIndustry.includes("doctor") || lowerIndustry.includes("health")) {
-    industryFlows = `
-## APPOINTMENT BOOKING FLOW
-1. Ask what service they need
-2. Suggest relevant services from the list
-3. Ask preferred date/time
-4. Collect name + phone number
-5. Confirm appointment details
-
-## SERVICE INQUIRY FLOW
-1. Explain the service briefly
-2. Mention what to expect
-3. Share pricing if available
-4. Offer to book`;
-  } else if (lowerIndustry.includes("salon") || lowerIndustry.includes("spa") || lowerIndustry.includes("beauty") || lowerIndustry.includes("barber")) {
-    industryFlows = `
-## BOOKING FLOW
-1. Ask what service they want (haircut, color, facial, etc.)
-2. Suggest relevant services + pricing
-3. Ask for preferred stylist if applicable
-4. Book date/time
-5. Confirm everything
-
-## RECOMMENDATION FLOW
-1. Ask about their hair type/skin/preferences
-2. Suggest matching services or packages
-3. Mention current offers`;
-  } else if (lowerIndustry.includes("real_estate") || lowerIndustry.includes("property") || lowerIndustry.includes("realty")) {
-    industryFlows = `
-## PROPERTY INQUIRY FLOW
-1. Ask what type of property (buy, rent, commercial)
-2. Ask location preferences, budget range
-3. Suggest matching listings
-4. Offer to schedule a viewing
-5. Collect contact info for follow-up`;
-  } else if (lowerIndustry.includes("law") || lowerIndustry.includes("legal") || lowerIndustry.includes("attorney")) {
-    industryFlows = `
-## CONSULTATION FLOW
-1. Ask about their legal matter type
-2. Explain relevant practice areas
-3. Offer free consultation if available
-4. Schedule appointment
-5. Collect basic case details + contact`;
-  } else if (lowerIndustry.includes("gym") || lowerIndustry.includes("fitness")) {
-    industryFlows = `
-## MEMBERSHIP FLOW
-1. Ask about fitness goals
-2. Suggest relevant membership plans
-3. Explain what's included
-4. Offer trial or tour
-5. Guide through sign-up`;
+  if (li.includes("ecommerce") || li.includes("shop") || li.includes("store") || li.includes("retail")) {
+    industryFlows = `\n## PRODUCT HELP FLOW\n1. Ask what they're looking for\n2. Suggest 2-3 matching products with prices\n3. Compare options if asked\n4. Help with sizing, availability, shipping\n5. Guide to purchase`;
+  } else if (li.includes("clinic") || li.includes("dental") || li.includes("medical") || li.includes("doctor") || li.includes("health")) {
+    industryFlows = `\n## APPOINTMENT BOOKING\n1. Ask what service they need\n2. Suggest relevant services\n3. Ask preferred date/time\n4. Collect name + phone\n5. Confirm appointment`;
+  } else if (li.includes("salon") || li.includes("spa") || li.includes("beauty") || li.includes("barber")) {
+    industryFlows = `\n## BOOKING FLOW\n1. Ask what service (haircut, color, facial)\n2. Suggest services + pricing\n3. Book date/time\n4. Confirm`;
+  } else if (li.includes("real_estate") || li.includes("property") || li.includes("realty")) {
+    industryFlows = `\n## PROPERTY INQUIRY\n1. Buy/rent/commercial?\n2. Location + budget\n3. Suggest listings\n4. Schedule viewing`;
+  } else if (li.includes("law") || li.includes("legal") || li.includes("attorney")) {
+    industryFlows = `\n## CONSULTATION FLOW\n1. Legal matter type\n2. Explain practice areas\n3. Offer consultation\n4. Schedule + collect details`;
+  } else if (li.includes("gym") || li.includes("fitness")) {
+    industryFlows = `\n## MEMBERSHIP FLOW\n1. Ask fitness goals\n2. Suggest plans\n3. Offer trial/tour\n4. Sign-up guidance`;
   } else {
-    industryFlows = `
-## GENERAL INQUIRY FLOW
-1. Understand what the caller needs
-2. Suggest relevant services/products from the knowledge base
-3. Answer questions about pricing, availability, hours
-4. Offer to book/schedule if applicable
-5. Collect contact info for follow-up`;
+    industryFlows = `\n## GENERAL INQUIRY FLOW\n1. Understand the caller's needs\n2. Suggest relevant services from KB\n3. Answer pricing/hours questions\n4. Offer to book/schedule\n5. Collect contact for follow-up`;
   }
 
   return `## ROLE & IDENTITY
@@ -603,46 +655,59 @@ Use the caller's name if they give it. Remember details they mention throughout 
 
 ## VOICE & TONE RULES
 - Use contractions (I'm, we've, that's, don't)
-- Keep responses 1-3 sentences max — this is a phone call, not an essay
+- Keep responses 1-3 sentences max
 - Sound genuinely interested, not scripted
 - Use filler words naturally ("Sure thing", "Gotcha", "Absolutely")
 - No corporate phrases ("I'd be happy to assist", "Thank you for your inquiry")
-- No bullet points or lists — speak in natural sentences
-- Pause naturally between thoughts
+- No bullet points or lists — speak naturally
 
 ## SMART RECOMMENDATIONS
-When the caller asks about ${menu.length > 0 ? "menu items" : products.length > 0 ? "products" : "services"}:
+When the caller asks about ${products.length > 0 ? "products" : "services"}:
 - Search your knowledge base for the best 2-3 matches
-- Consider: what they mentioned wanting, budget hints, preferences
 - Present each: name, price, and one-line description
-- Ask: "Want me to add that?" or "Sound good?" or "Anything else catch your eye?"
+- Ask: "Want me to add that?" or "Sound good?"
 - If nothing matches: "Hmm, let me think... we do have [alternative]. Would that work?"
 
-${topItemsSummary ? `## TOP ITEMS YOU CAN RECOMMEND\n${topItemsSummary}\n` : ""}
-${services.length > 0 ? `## SERVICES AVAILABLE\n${services.map((s: string) => `- ${s}`).join("\n")}\n` : ""}
+${topItemsSummary ? `## TOP ITEMS\n${topItemsSummary}\n` : ""}
+${services.length > 0 ? `## SERVICES\n${services.map((s: string) => `- ${s}`).join("\n")}\n` : ""}
 ${industryFlows}
 
 ## MULTI-TURN CONTEXT
-- Remember everything the caller said earlier in the conversation
-- Build on previous answers — don't ask the same thing twice
-- If they mentioned a preference (e.g. "no spicy food" or "budget under $50"), keep that in mind for all suggestions
-- Ask ONE question at a time — don't overwhelm
+- Remember everything the caller said
+- Don't ask the same thing twice
+- Ask ONE question at a time
 
-## FALLBACK BEHAVIOR
-- If you don't have info: "Let me check on that... I'm not 100% sure, but I can have someone get back to you."
-- If question is unrelated: "That's a great question — I'd recommend reaching out to us directly for that one."
-- Never make up information — honesty builds trust
-- If confused: "Sorry, could you say that one more time?"
-
-## CLOSING
-- Always confirm actions before finalizing
-- End naturally: "Anything else I can help with?" → "Awesome, you're all set!"
-- Never end abruptly
+## FALLBACK
+- Don't know? "Let me check on that... I can have someone get back to you."
+- Never make up info
+- If confused: "Sorry, could you say that again?"
 
 ${systemPrompt}
 
 ## Knowledge Base
 ${knowledgeBase}`;
+}
+
+// ── Voice prompt dispatcher ──
+function isRestaurantIndustry(industry: string): boolean {
+  const li = industry.toLowerCase();
+  return ["restaurant", "food", "cafe", "pizza", "bakery", "diner", "grill", "bistro", "eatery", "sushi", "burger", "taco"]
+    .some(k => li.includes(k));
+}
+
+function getVoicePrompt(
+  agentName: string,
+  businessName: string,
+  industry: string,
+  systemPrompt: string,
+  knowledgeBase: string,
+  structuredData: any
+): string {
+  if (isRestaurantIndustry(industry)) {
+    return buildRestaurantVoicePrompt(agentName, businessName, knowledgeBase, structuredData);
+  }
+  // Future: buildDentalVoicePrompt, buildEcommerceVoicePrompt, etc.
+  return buildGenericVoicePrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
 }
 
 // ── Create VAPI Assistant ──

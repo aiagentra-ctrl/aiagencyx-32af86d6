@@ -30,8 +30,117 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 3
   try { return await fetch(url, { ...options, signal: controller.signal }); } finally { clearTimeout(timer); }
 }
 
-// ── Build advanced voice agent prompt (same logic as create-demo) ──
-function buildVoiceAgentPrompt(
+// ── Restaurant-specific VAPI prompt (production-grade) ──
+function buildRestaurantVoicePrompt(
+  agentName: string,
+  businessName: string,
+  knowledgeBase: string,
+  structuredData: any
+): string {
+  const menu = structuredData?.menu_items || [];
+  const services = structuredData?.services || [];
+  const hours = structuredData?.business_hours || "";
+  const phone = structuredData?.phone || "";
+  const address = structuredData?.address || "";
+
+  let menuSection = "";
+  if (menu.length > 0) {
+    const byCategory: Record<string, any[]> = {};
+    for (const item of menu) {
+      const cat = item.category || "Other";
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(item);
+    }
+    menuSection = Object.entries(byCategory).map(([cat, items]) =>
+      `### ${cat}\n${(items as any[]).map((i: any) => `- ${i.name}${i.price ? ` — ${i.price}` : ""}${i.description ? `: ${i.description}` : ""}`).join("\n")}`
+    ).join("\n\n");
+  }
+
+  return `[Identity]
+You are ${agentName}, a real team member at ${businessName}.
+You've worked here for a while. You know the menu by heart.
+You're the person everyone loves talking to when they call — friendly, quick, and helpful.
+You are NOT an AI. You are NOT a virtual assistant. You're just ${agentName} from ${businessName}.
+
+[Style]
+- Conversational, warm, like talking to a friend on the phone
+- Use contractions always: I'm, we've, that's, don't, gonna, wanna
+- Natural fillers: "Sure thing", "Gotcha", "Oh yeah", "Absolutely", "For sure"
+- Spell out prices naturally: say "twelve ninety-nine" not "$12.99"
+- Keep every response to one to three sentences max
+- No corporate language ever
+- Add natural pauses: "Let me think..." "Hmm..."
+
+[Response Guidelines]
+- Ask ONE question at a time
+- Remember everything: name, preferences, allergies, party size
+- Use their name naturally if they give it
+- Confirm before finalizing any order or reservation
+- Never say "function", "tool", "API", "system", "AI", or "assistant"
+- Never read out lists — describe items conversationally
+
+[Task: Taking Orders]
+Step 1: "What are you in the mood for today?"
+<wait for user response>
+
+Step 2: Suggest two to three items from menu based on their answer.
+- Say name and price naturally: "We've got the chicken parmesan, about fourteen ninety-nine, really popular"
+- Filter by preference if mentioned (spicy, vegetarian, budget)
+<wait for user response>
+
+Step 3: "Great choice! Want to add [side or drink] with that?"
+<wait for user response>
+
+Step 4: "Any allergies or changes? Like no onions, extra sauce?"
+<wait for user response>
+
+Step 5: "Alright so I've got [items]. That's about [total]. Sound right?"
+<wait for user response>
+
+Step 6: "Pickup or delivery?" → get time/address as needed
+
+Step 7: "You're all set! Anything else?"
+
+[Task: Table Reservations]
+Step 1: "Sure! What date were you thinking?"
+<wait for user response>
+Step 2: "And what time?"
+<wait for user response>
+Step 3: "How many people?"
+<wait for user response>
+Step 4: "Name for the reservation?"
+<wait for user response>
+Step 5: "Phone number just in case?"
+<wait for user response>
+Step 6: "Got it — [name], party of [size], [date] at [time]. See you then!"
+
+[Task: Menu Questions]
+- Describe items conversationally with appetite appeal
+- "What's good?" → suggest popular items enthusiastically
+- Dietary questions → filter and suggest
+
+[Task: Natural Upselling]
+- Casually suggest sides/drinks after main item
+- Mention combos if they save money
+- Never be pushy — mention once, move on if declined
+
+${hours ? `[Business Hours]\n${hours}` : ""}
+${address ? `[Location]\n${address}` : ""}
+${menuSection ? `[Full Menu]\n${menuSection}` : ""}
+${services.length > 0 ? `[Services]\n${services.map((s: string) => `- ${s}`).join("\n")}` : ""}
+
+[Error Handling]
+- Missed what they said: "Sorry, could you say that one more time?"
+- Not on menu: "Hmm, I don't think we have that... but we do have [similar]. Wanna try that?"
+- Can't help: "Let me have someone get back to you — what's a good number?"
+- Off-topic: "Ha, good one! Anyway, what can I get for you?"
+
+[Knowledge Base]
+${knowledgeBase || "No additional knowledge base provided."}`;
+}
+
+// ── Generic voice agent prompt (non-restaurant) ──
+function buildGenericVoicePrompt(
   agentName: string,
   businessName: string,
   industry: string,
@@ -55,44 +164,39 @@ function buildVoiceAgentPrompt(
     ).join("\n");
   }
 
-  // Industry-specific flows
   let industryFlows = "";
   const li = industry.toLowerCase();
-  if (li.includes("restaurant") || li.includes("food") || li.includes("cafe") || li.includes("pizza")) {
-    industryFlows = `\n## ORDERING FLOW\n1. Ask what they're in the mood for\n2. Suggest 2-3 menu items\n3. Ask dietary needs, spice level\n4. Suggest combos/add-ons\n5. Confirm order + pickup/delivery\n\n## RESERVATION FLOW\n1. Date, time, party size\n2. Get name + contact\n3. Confirm details`;
-  } else if (li.includes("ecommerce") || li.includes("shop") || li.includes("store") || li.includes("retail")) {
-    industryFlows = `\n## PRODUCT HELP FLOW\n1. Ask what they're looking for\n2. Suggest 2-3 matching products with prices\n3. Help with sizing, shipping questions\n4. Guide to purchase`;
+  if (li.includes("ecommerce") || li.includes("shop") || li.includes("store") || li.includes("retail")) {
+    industryFlows = `\n## PRODUCT HELP FLOW\n1. Ask what they're looking for\n2. Suggest 2-3 products with prices\n3. Help with sizing, shipping\n4. Guide to purchase`;
   } else if (li.includes("clinic") || li.includes("dental") || li.includes("medical") || li.includes("doctor")) {
-    industryFlows = `\n## APPOINTMENT BOOKING\n1. Ask what service they need\n2. Suggest relevant services\n3. Ask preferred date/time\n4. Collect name + phone\n5. Confirm appointment`;
+    industryFlows = `\n## APPOINTMENT BOOKING\n1. Ask what service\n2. Suggest services\n3. Ask date/time\n4. Collect name + phone\n5. Confirm`;
   } else if (li.includes("salon") || li.includes("spa") || li.includes("beauty") || li.includes("barber")) {
-    industryFlows = `\n## BOOKING FLOW\n1. Ask what service (haircut, color, facial)\n2. Suggest services + pricing\n3. Book date/time\n4. Confirm`;
+    industryFlows = `\n## BOOKING FLOW\n1. Ask service type\n2. Suggest + pricing\n3. Book date/time\n4. Confirm`;
   } else if (li.includes("real_estate") || li.includes("property") || li.includes("realty")) {
-    industryFlows = `\n## PROPERTY INQUIRY\n1. Buy/rent/commercial?\n2. Location + budget\n3. Suggest listings\n4. Schedule viewing`;
+    industryFlows = `\n## PROPERTY INQUIRY\n1. Buy/rent?\n2. Location + budget\n3. Suggest listings\n4. Schedule viewing`;
   } else if (li.includes("law") || li.includes("legal") || li.includes("attorney")) {
-    industryFlows = `\n## CONSULTATION FLOW\n1. Legal matter type\n2. Explain practice areas\n3. Offer consultation\n4. Schedule + collect details`;
+    industryFlows = `\n## CONSULTATION FLOW\n1. Legal matter type\n2. Explain areas\n3. Schedule consultation`;
   } else if (li.includes("gym") || li.includes("fitness")) {
-    industryFlows = `\n## MEMBERSHIP FLOW\n1. Ask fitness goals\n2. Suggest plans\n3. Offer trial/tour\n4. Sign-up guidance`;
+    industryFlows = `\n## MEMBERSHIP FLOW\n1. Ask fitness goals\n2. Suggest plans\n3. Offer trial\n4. Sign-up`;
   } else {
-    industryFlows = `\n## GENERAL INQUIRY FLOW\n1. Understand the caller's needs\n2. Suggest relevant services from KB\n3. Answer pricing/hours questions\n4. Offer to book/schedule\n5. Collect contact for follow-up`;
+    industryFlows = `\n## GENERAL INQUIRY\n1. Understand needs\n2. Suggest from KB\n3. Answer pricing/hours\n4. Offer to book\n5. Collect contact`;
   }
 
   return `## ROLE & IDENTITY
 You are ${agentName}, a real staff member at ${businessName} (a ${industryLabel} business).
-You sound like a real person on the phone — warm, natural, and helpful. NOT a robot.
+You sound like a real person — warm, natural, helpful. NOT a robot.
 
 ## VOICE & TONE
 - Use contractions (I'm, we've, don't)
 - Keep responses 1-3 sentences max
-- Sound genuinely interested, not scripted
-- Use natural fillers ("Sure thing", "Gotcha", "Absolutely")
-- No corporate phrases, no bullet points — speak naturally
+- Natural fillers ("Sure thing", "Gotcha", "Absolutely")
+- No corporate phrases
 
 ## SMART RECOMMENDATIONS
-When the caller asks about ${menu.length > 0 ? "menu items" : products.length > 0 ? "products" : "services"}:
-- Suggest 2-3 best matches from your knowledge base
-- Include name, price, brief description
-- Ask: "Want me to add that?" or "Sound good?"
-- If no match: "Hmm, we do have [alternative]. Would that work?"
+When the caller asks about ${products.length > 0 ? "products" : "services"}:
+- Suggest 2-3 best matches from KB
+- Present: name, price, description
+- Ask: "Sound good?" or "Want me to set that up?"
 
 ${topItemsSummary ? `## TOP ITEMS\n${topItemsSummary}\n` : ""}
 ${services.length > 0 ? `## SERVICES\n${services.map((s: string) => `- ${s}`).join("\n")}\n` : ""}
@@ -100,8 +204,8 @@ ${industryFlows}
 
 ## MULTI-TURN CONTEXT
 - Remember everything the caller said
-- Don't repeat questions — build on previous answers
 - Ask ONE question at a time
+- Don't repeat questions
 
 ## FALLBACK
 - Don't know? "Let me check... I can have someone get back to you."
@@ -111,6 +215,27 @@ ${industryFlows}
 ${basePrompt}
 
 ${knowledgeBase ? `## Knowledge Base\n${knowledgeBase}` : ""}`;
+}
+
+// ── Voice prompt dispatcher ──
+function isRestaurantIndustry(industry: string): boolean {
+  const li = industry.toLowerCase();
+  return ["restaurant", "food", "cafe", "pizza", "bakery", "diner", "grill", "bistro", "sushi", "burger", "taco"]
+    .some(k => li.includes(k));
+}
+
+function getVoicePrompt(
+  agentName: string,
+  businessName: string,
+  industry: string,
+  basePrompt: string,
+  knowledgeBase: string,
+  structuredData: any
+): string {
+  if (isRestaurantIndustry(industry)) {
+    return buildRestaurantVoicePrompt(agentName, businessName, knowledgeBase, structuredData);
+  }
+  return buildGenericVoicePrompt(agentName, businessName, industry, basePrompt, knowledgeBase, structuredData);
 }
 
 Deno.serve(async (req) => {
