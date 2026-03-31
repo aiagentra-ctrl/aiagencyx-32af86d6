@@ -476,17 +476,187 @@ function injectVars(template: string, vars: Record<string, string>): string {
   return result;
 }
 
+// ── Build advanced voice agent prompt ──
+function buildVoiceAgentPrompt(
+  agentName: string,
+  businessName: string,
+  industry: string,
+  systemPrompt: string,
+  knowledgeBase: string,
+  structuredData: any
+): string {
+  const industryLabel = industry === "general" ? "business" : industry.replace(/_/g, " ");
+
+  // Build structured items summary for voice recommendations
+  const menu = structuredData?.menu_items || [];
+  const products = structuredData?.products || [];
+  const services = structuredData?.services || [];
+  const allItems = [
+    ...menu.map((i: any) => ({ ...i, type: "menu" })),
+    ...products.map((i: any) => ({ ...i, type: "product" })),
+  ];
+
+  let topItemsSummary = "";
+  if (allItems.length > 0) {
+    topItemsSummary = allItems.slice(0, 15).map((i: any) =>
+      `- ${i.name}${i.price ? ` (${i.price})` : ""}${i.description ? ` — ${i.description}` : ""} [${i.category || i.type}]`
+    ).join("\n");
+  }
+
+  // Industry-specific conversation flows
+  let industryFlows = "";
+  const lowerIndustry = industry.toLowerCase();
+
+  if (lowerIndustry.includes("restaurant") || lowerIndustry.includes("food") || lowerIndustry.includes("cafe") || lowerIndustry.includes("pizza") || lowerIndustry.includes("bakery")) {
+    industryFlows = `
+## ORDERING FLOW
+1. Greet warmly → ask what they're in the mood for
+2. Suggest 2-3 items from the menu that match
+3. Ask about dietary needs, spice level, allergies
+4. Suggest combos or popular add-ons
+5. Confirm order details + pickup or delivery
+6. Give estimated time
+
+## RESERVATION FLOW
+1. Ask: date, time, party size
+2. Confirm availability
+3. Get name + contact
+4. Confirm all details before finalizing`;
+  } else if (lowerIndustry.includes("ecommerce") || lowerIndustry.includes("shop") || lowerIndustry.includes("store") || lowerIndustry.includes("retail")) {
+    industryFlows = `
+## PRODUCT HELP FLOW
+1. Ask what they're looking for or shopping for
+2. Suggest 2-3 matching products with prices
+3. Compare options if asked
+4. Help with sizing, availability, shipping questions
+5. Guide to purchase or offer to check stock
+
+## RETURN/SUPPORT FLOW
+1. Ask for order details
+2. Explain return/exchange policy
+3. Guide through next steps`;
+  } else if (lowerIndustry.includes("clinic") || lowerIndustry.includes("dental") || lowerIndustry.includes("medical") || lowerIndustry.includes("doctor") || lowerIndustry.includes("health")) {
+    industryFlows = `
+## APPOINTMENT BOOKING FLOW
+1. Ask what service they need
+2. Suggest relevant services from the list
+3. Ask preferred date/time
+4. Collect name + phone number
+5. Confirm appointment details
+
+## SERVICE INQUIRY FLOW
+1. Explain the service briefly
+2. Mention what to expect
+3. Share pricing if available
+4. Offer to book`;
+  } else if (lowerIndustry.includes("salon") || lowerIndustry.includes("spa") || lowerIndustry.includes("beauty") || lowerIndustry.includes("barber")) {
+    industryFlows = `
+## BOOKING FLOW
+1. Ask what service they want (haircut, color, facial, etc.)
+2. Suggest relevant services + pricing
+3. Ask for preferred stylist if applicable
+4. Book date/time
+5. Confirm everything
+
+## RECOMMENDATION FLOW
+1. Ask about their hair type/skin/preferences
+2. Suggest matching services or packages
+3. Mention current offers`;
+  } else if (lowerIndustry.includes("real_estate") || lowerIndustry.includes("property") || lowerIndustry.includes("realty")) {
+    industryFlows = `
+## PROPERTY INQUIRY FLOW
+1. Ask what type of property (buy, rent, commercial)
+2. Ask location preferences, budget range
+3. Suggest matching listings
+4. Offer to schedule a viewing
+5. Collect contact info for follow-up`;
+  } else if (lowerIndustry.includes("law") || lowerIndustry.includes("legal") || lowerIndustry.includes("attorney")) {
+    industryFlows = `
+## CONSULTATION FLOW
+1. Ask about their legal matter type
+2. Explain relevant practice areas
+3. Offer free consultation if available
+4. Schedule appointment
+5. Collect basic case details + contact`;
+  } else if (lowerIndustry.includes("gym") || lowerIndustry.includes("fitness")) {
+    industryFlows = `
+## MEMBERSHIP FLOW
+1. Ask about fitness goals
+2. Suggest relevant membership plans
+3. Explain what's included
+4. Offer trial or tour
+5. Guide through sign-up`;
+  } else {
+    industryFlows = `
+## GENERAL INQUIRY FLOW
+1. Understand what the caller needs
+2. Suggest relevant services/products from the knowledge base
+3. Answer questions about pricing, availability, hours
+4. Offer to book/schedule if applicable
+5. Collect contact info for follow-up`;
+  }
+
+  return `## ROLE & IDENTITY
+You are ${agentName}, a real staff member at ${businessName} (a ${industryLabel} business).
+You sound like a real person on the phone — warm, natural, and helpful. NOT a robot, NOT an AI assistant.
+Use the caller's name if they give it. Remember details they mention throughout the call.
+
+## VOICE & TONE RULES
+- Use contractions (I'm, we've, that's, don't)
+- Keep responses 1-3 sentences max — this is a phone call, not an essay
+- Sound genuinely interested, not scripted
+- Use filler words naturally ("Sure thing", "Gotcha", "Absolutely")
+- No corporate phrases ("I'd be happy to assist", "Thank you for your inquiry")
+- No bullet points or lists — speak in natural sentences
+- Pause naturally between thoughts
+
+## SMART RECOMMENDATIONS
+When the caller asks about ${menu.length > 0 ? "menu items" : products.length > 0 ? "products" : "services"}:
+- Search your knowledge base for the best 2-3 matches
+- Consider: what they mentioned wanting, budget hints, preferences
+- Present each: name, price, and one-line description
+- Ask: "Want me to add that?" or "Sound good?" or "Anything else catch your eye?"
+- If nothing matches: "Hmm, let me think... we do have [alternative]. Would that work?"
+
+${topItemsSummary ? `## TOP ITEMS YOU CAN RECOMMEND\n${topItemsSummary}\n` : ""}
+${services.length > 0 ? `## SERVICES AVAILABLE\n${services.map((s: string) => `- ${s}`).join("\n")}\n` : ""}
+${industryFlows}
+
+## MULTI-TURN CONTEXT
+- Remember everything the caller said earlier in the conversation
+- Build on previous answers — don't ask the same thing twice
+- If they mentioned a preference (e.g. "no spicy food" or "budget under $50"), keep that in mind for all suggestions
+- Ask ONE question at a time — don't overwhelm
+
+## FALLBACK BEHAVIOR
+- If you don't have info: "Let me check on that... I'm not 100% sure, but I can have someone get back to you."
+- If question is unrelated: "That's a great question — I'd recommend reaching out to us directly for that one."
+- Never make up information — honesty builds trust
+- If confused: "Sorry, could you say that one more time?"
+
+## CLOSING
+- Always confirm actions before finalizing
+- End naturally: "Anything else I can help with?" → "Awesome, you're all set!"
+- Never end abruptly
+
+${systemPrompt}
+
+## Knowledge Base
+${knowledgeBase}`;
+}
+
 // ── Create VAPI Assistant ──
-async function createVapiAssistant(adminSettings: Record<string, string>, systemPrompt: string, firstMessage: string, knowledgeBase: string, businessName: string): Promise<string> {
+async function createVapiAssistant(adminSettings: Record<string, string>, systemPrompt: string, firstMessage: string, knowledgeBase: string, businessName: string, industry: string, structuredData: any): Promise<string> {
   const vapiKey = adminSettings.vapi_private_key || Deno.env.get("VAPI_API_KEY");
   if (!vapiKey) throw new Error("VAPI private key not configured. Set it in Admin → Settings.");
 
-  const fullPrompt = `${systemPrompt}\n\n## Knowledge Base\n${knowledgeBase}`;
+  const agentName = adminSettings.default_agent_name || "Alex";
+  const fullPrompt = buildVoiceAgentPrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
   const voiceProvider = adminSettings.voice_provider || "azure";
   const voiceId = adminSettings.voice_id || "andrew";
   const modelProvider = adminSettings.ai_model_provider || "openai";
   const model = adminSettings.ai_model || "gpt-4o";
-  const endCallMessage = injectVars(adminSettings.default_end_call_message || "Thank you for calling {business_name}. Have a great day!", { business_name: businessName });
+  const endCallMessage = injectVars(adminSettings.default_end_call_message || "Thanks for calling {business_name}! Have a great one. 👋", { business_name: businessName });
 
   const res = await fetchWithTimeout("https://api.vapi.ai/assistant", {
     method: "POST",
@@ -673,7 +843,7 @@ Deno.serve(async (req) => {
     // Step 5: Create VAPI voice assistant
     let assistantId: string;
     try {
-      assistantId = await createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name);
+      assistantId = await createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "VAPI creation failed";
       await log(supabase, "error", `VAPI failed: ${msg}`, { business_name });
