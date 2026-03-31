@@ -843,7 +843,7 @@ Deno.serve(async (req) => {
     // Step 5: Create VAPI voice assistant
     let assistantId: string;
     try {
-      assistantId = await createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name);
+      assistantId = await createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "VAPI creation failed";
       await log(supabase, "error", `VAPI failed: ${msg}`, { business_name });
