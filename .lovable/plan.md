@@ -1,84 +1,129 @@
 
 
-## Plan: Advanced Voice Agent with RAG Knowledge Base + Industry-Dynamic Behavior
+## Plan: Production-Grade Restaurant Voice Agent (VAPI Best Practices)
 
 ### Summary
-Upgrade the VAPI voice agent system prompt (injected at creation time) to include the full RAG knowledge base, industry-aware conversation rules, smart recommendation logic, natural tone enforcement, and graceful fallback behavior. The voice agent already gets its prompt at creation via `create-demo` and `create-voice-agent` — the upgrade focuses on making that prompt dramatically smarter.
+Build a dedicated, advanced restaurant voice agent prompt system following the VAPI Prompting Guide's structured format ([Identity], [Style], [Task], [Response Guidelines], etc.). Replace the current generic `buildVoiceAgentPrompt` restaurant branch with a purpose-built, restaurant-specific prompt factory. Also create a reusable prompt architecture pattern for future industries.
 
 ---
 
-### Problem
-Currently the voice agent gets a basic system prompt + raw knowledge base text. It lacks:
-- Structured recommendation instructions
-- Industry-specific conversation flows (it uses restaurant flows for all niches)
-- Natural multi-turn conversation handling rules
-- Fallback behavior when data is missing
+### Key Learnings from VAPI Prompting Guide (Applied)
+
+- **Organize into labeled sections**: `[Identity]`, `[Style]`, `[Response Guidelines]`, `[Task]`, `[Error Handling]`
+- **Break complex tasks into step-by-step flows** with conditional branching
+- **Use `<wait for user response>`** markers for multi-turn control
+- **Spell out numbers** for natural speech (e.g., "twelve ninety-nine" not "$12.99")
+- **Add voice realism**: hesitations ("um", "uh"), fillers ("sure thing", "gotcha"), natural pauses ("...")
+- **Silent tool triggers**: no "I'm transferring you" — just do it
+- **Fallback/error handling** section mandatory
+
+---
 
 ### Changes
 
-#### 1. `supabase/functions/create-demo/index.ts` — Enhanced Voice Agent Prompt
+#### 1. `supabase/functions/create-demo/index.ts` — Restaurant-Specific Prompt Builder
 
-Update `createVapiAssistant` to build a rich, industry-aware system prompt instead of just appending raw KB text.
-
-New prompt structure:
-- **Role & Identity**: Natural persona with industry context (not just generic "staff member")
-- **Knowledge Base**: Structured items grouped by category with prices, descriptions
-- **Recommendation Rules**: When user asks about products/services, suggest 2-3 best matches from KB based on intent, preferences, budget
-- **Industry-Specific Flows**: Dynamic conversation paths based on `resolvedIndustry`:
-  - Restaurant: ordering flow, dietary preferences, combos
-  - E-commerce: product search, comparison, purchase guidance
-  - Services (dental/salon/etc.): appointment booking, service explanation
-  - Default: general inquiry + booking
-- **Multi-Turn Context Rules**: Remember preferences mentioned earlier, build on previous answers
-- **Fallback Behavior**: If no matching data, ask clarifying questions or suggest alternatives gracefully
-- **Anti-Robotic Rules**: Contractions, short replies, casual tone, no corporate phrases
-
-The `buildKnowledgeBase` function in create-demo already structures data well — enhance it to also produce a "top recommendations" summary for voice.
-
-#### 2. `supabase/functions/create-voice-agent/index.ts` — Same Prompt Upgrade
-
-Apply the same enhanced prompt logic for standalone voice agent creation (used outside of create-demo flow). Add industry-aware prompt building with the same structured KB format and recommendation instructions.
-
-Accept new optional parameters: `industry`, `structured_data` — so the caller can pass extracted business data for richer prompts.
-
-#### 3. `src/components/demo/VoiceAgentSection.tsx` — Dynamic Voice Prompts
-
-Already accepts `voicePrompts` prop from `DemoPage`. No structural change needed, but ensure the prompts displayed match the industry (this is already handled by `dynamic_content.voice_prompts` from the LLM).
-
----
-
-### Enhanced Voice Agent Prompt Template (injected at creation)
+Add a new function `buildRestaurantVoicePrompt()` that generates a VAPI-optimized prompt following the guide's structure:
 
 ```text
-## ROLE
-You are {agent_name}, a real staff member at {business_name} ({industry}).
-Talk naturally — warm, casual, brief. Use contractions. No corporate phrases.
+[Identity]
+You are {agent_name}, a real team member at {business_name}.
+You've worked here for years. You know the menu by heart.
+You're the person everyone loves talking to when they call.
 
-## KNOWLEDGE BASE
-[structured items: name, price, description, category]
+[Style]
+- Conversational, warm, like talking to a friend
+- Use contractions: I'm, we've, that's, don't, gonna
+- Natural fillers: "Sure thing", "Gotcha", "Oh yeah", "Absolutely"
+- Spell out prices naturally: "twelve ninety-nine" not "$12.99"
+- Keep it to one to three sentences max
+- No corporate language. No "I'd be happy to assist"
+- Add natural pauses: "Let me think..." "Hmm..."
 
-## SMART RECOMMENDATIONS
-When user asks about products/services/menu:
-- Search KB for best 2-3 matches
-- Consider: user preferences, budget, dietary needs, occasion
-- Present: name, price, brief description
-- Ask follow-up: "Want me to add that?" or "Anything else?"
+[Response Guidelines]
+- Ask ONE question at a time
+- Remember everything the caller said (preferences, allergies, party size)
+- Confirm before finalizing any order or reservation
+- Never say "function", "tool", "AI", or "assistant"
+- If caller says their name, use it throughout the call
 
-## INDUSTRY FLOWS
-[Dynamic based on industry — booking, ordering, service inquiry]
+[Task: Ordering Flow]
+1. "What are you in the mood for today?"
+<wait for user response>
+2. Based on their answer, suggest two to three items from the menu.
+   - Include name and price spoken naturally
+   - If they mention a preference (spicy, vegetarian, budget), filter suggestions
+<wait for user response>
+3. If they pick something: "Great choice! Want to add [popular side/drink] with that?"
+<wait for user response>
+4. Ask about any modifications: "Any allergies or changes I should note?"
+<wait for user response>
+5. Confirm the full order: "So I've got [items]. That comes to about [total]. Sound right?"
+<wait for user response>
+6. Ask: "Pickup or delivery?" → get time/address as needed
+7. "You're all set! Should be ready in about [time]. Anything else?"
 
-## CONVERSATION RULES
-- Keep responses 1-3 sentences
-- Remember what user said earlier
-- Ask one question at a time
-- If no match found: "Let me check... we have [alternatives]"
-- Confirm before finalizing any action
+[Task: Reservation Flow]
+1. "Sure, I can help with that! What date were you thinking?"
+<wait for user response>
+2. "And what time works best?"
+<wait for user response>
+3. "How many people?"
+<wait for user response>
+4. "Can I get a name for the reservation?"
+<wait for user response>
+5. "And a phone number just in case?"
+<wait for user response>
+6. Confirm: "Got it — [name], party of [size], [date] at [time]. All set!"
+
+[Task: Menu Questions]
+- When asked about a category: describe two to three items with prices naturally
+- When asked "what's good?": recommend the most popular items
+- When asked about dietary options: filter menu by preference
+- When asked about specials: mention today's specials or combos
+
+[Task: Upselling (Natural)]
+- After main item: suggest a complementary side or drink
+- Mention combos if they exist: "We actually have a combo with that..."
+- If ordering for a group: "Want me to suggest a few different things?"
+- Never push — just suggest casually
+
+[Error Handling]
+- Unclear response: "Sorry, I didn't catch that — could you say it again?"
+- Unknown item: "Hmm, I don't think we have that... but we do have [similar]. Want to try that?"
+- Can't help: "Let me check on that — I'll have someone get back to you, what's a good number?"
+- Off-topic: "Ha, that's a good one! But let me help you with your order first"
+
+[Knowledge Base]
+{structured_kb_with_menu_items}
 ```
+
+**Selection logic**: When `resolvedIndustry` matches restaurant/food/cafe/pizza/bakery, use `buildRestaurantVoicePrompt()` instead of the generic `buildVoiceAgentPrompt()`.
+
+#### 2. `supabase/functions/create-voice-agent/index.ts` — Same Restaurant Prompt
+
+Apply the same restaurant-specific prompt builder. When `industry` matches restaurant keywords, use the dedicated function.
+
+#### 3. Prompt Architecture Pattern (for future industries)
+
+Structure both functions so adding a new industry prompt is just adding a new `buildXxxVoicePrompt()` function and a condition check. Pattern:
+
+```typescript
+function getVoicePromptBuilder(industry: string) {
+  const li = industry.toLowerCase();
+  if (["restaurant","food","cafe","pizza","bakery"].some(k => li.includes(k)))
+    return buildRestaurantVoicePrompt;
+  // Future: buildDentalVoicePrompt, buildEcommerceVoicePrompt, etc.
+  return buildGenericVoicePrompt; // current buildVoiceAgentPrompt renamed
+}
+```
+
+---
 
 ### Files Summary
 
 | File | Change |
 |------|--------|
-| `supabase/functions/create-demo/index.ts` | Edit — build industry-aware voice prompt with structured KB, recommendation rules, dynamic conversation flows |
-| `supabase/functions/create-voice-agent/index.ts` | Edit — accept `industry` + `structured_data` params, build same enhanced prompt |
+| `supabase/functions/create-demo/index.ts` | Add `buildRestaurantVoicePrompt()`, add dispatcher `getVoicePromptBuilder()`, use in `createVapiAssistant` |
+| `supabase/functions/create-voice-agent/index.ts` | Same restaurant prompt builder + dispatcher |
 
