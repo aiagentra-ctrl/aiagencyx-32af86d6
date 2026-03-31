@@ -1,77 +1,84 @@
 
 
-## Plan: RAG-Based Smart Recommendation System
+## Plan: Advanced Voice Agent with RAG Knowledge Base + Industry-Dynamic Behavior
 
 ### Summary
-Upgrade the chatbot to use stored knowledge base data (from `research_data` and `scraped_data`) as a RAG source, enabling contextual product/service recommendations with rich UI cards (images, prices, descriptions, action buttons) that adapt per industry.
+Upgrade the VAPI voice agent system prompt (injected at creation time) to include the full RAG knowledge base, industry-aware conversation rules, smart recommendation logic, natural tone enforcement, and graceful fallback behavior. The voice agent already gets its prompt at creation via `create-demo` and `create-voice-agent` — the upgrade focuses on making that prompt dramatically smarter.
 
 ---
 
-### 1. Edge Function: `chatbot-conversation/index.ts` — RAG Context Injection
+### Problem
+Currently the voice agent gets a basic system prompt + raw knowledge base text. It lacks:
+- Structured recommendation instructions
+- Industry-specific conversation flows (it uses restaurant flows for all niches)
+- Natural multi-turn conversation handling rules
+- Fallback behavior when data is missing
 
-**Before calling the LLM**, fetch relevant knowledge base data and inject it into the system prompt:
+### Changes
 
-- Query `scraped_data` table by the chatbot's `website_url` to get cached structured data
-- Extract products/menu items/services from `research_data` (already on the chatbot record) and `scraped_data.structured_data`
-- Build a **knowledge base context block** with all items (name, price, description, image_url, category) and inject into the system prompt
-- Add new LLM instructions for **recommendation behavior**:
-  - When user asks about products/food/services, search the KB and recommend top matches
-  - Return recommendations using a new structured format: `<!--recommendations:[{...}]-->`
-  - Each recommendation includes: `name`, `price`, `description`, `image_url`, `category`, `actions[]`
-  - Industry-aware: e-commerce shows "Buy Now" / "Add to Cart"; restaurant shows "Order" / "View Full Menu"; services show "Book Now"
+#### 1. `supabase/functions/create-demo/index.ts` — Enhanced Voice Agent Prompt
 
-**New system prompt additions:**
-```
+Update `createVapiAssistant` to build a rich, industry-aware system prompt instead of just appending raw KB text.
+
+New prompt structure:
+- **Role & Identity**: Natural persona with industry context (not just generic "staff member")
+- **Knowledge Base**: Structured items grouped by category with prices, descriptions
+- **Recommendation Rules**: When user asks about products/services, suggest 2-3 best matches from KB based on intent, preferences, budget
+- **Industry-Specific Flows**: Dynamic conversation paths based on `resolvedIndustry`:
+  - Restaurant: ordering flow, dietary preferences, combos
+  - E-commerce: product search, comparison, purchase guidance
+  - Services (dental/salon/etc.): appointment booking, service explanation
+  - Default: general inquiry + booking
+- **Multi-Turn Context Rules**: Remember preferences mentioned earlier, build on previous answers
+- **Fallback Behavior**: If no matching data, ask clarifying questions or suggest alternatives gracefully
+- **Anti-Robotic Rules**: Contractions, short replies, casual tone, no corporate phrases
+
+The `buildKnowledgeBase` function in create-demo already structures data well — enhance it to also produce a "top recommendations" summary for voice.
+
+#### 2. `supabase/functions/create-voice-agent/index.ts` — Same Prompt Upgrade
+
+Apply the same enhanced prompt logic for standalone voice agent creation (used outside of create-demo flow). Add industry-aware prompt building with the same structured KB format and recommendation instructions.
+
+Accept new optional parameters: `industry`, `structured_data` — so the caller can pass extracted business data for richer prompts.
+
+#### 3. `src/components/demo/VoiceAgentSection.tsx` — Dynamic Voice Prompts
+
+Already accepts `voicePrompts` prop from `DemoPage`. No structural change needed, but ensure the prompts displayed match the industry (this is already handled by `dynamic_content.voice_prompts` from the LLM).
+
+---
+
+### Enhanced Voice Agent Prompt Template (injected at creation)
+
+```text
+## ROLE
+You are {agent_name}, a real staff member at {business_name} ({industry}).
+Talk naturally — warm, casual, brief. Use contractions. No corporate phrases.
+
+## KNOWLEDGE BASE
+[structured items: name, price, description, category]
+
 ## SMART RECOMMENDATIONS
-When the user asks about products, menu items, or services, search the knowledge base below and recommend the most relevant items.
+When user asks about products/services/menu:
+- Search KB for best 2-3 matches
+- Consider: user preferences, budget, dietary needs, occasion
+- Present: name, price, brief description
+- Ask follow-up: "Want me to add that?" or "Anything else?"
 
-Format recommendations as:
-<!--recommendations:[{"name":"...","price":"...","description":"...","image_url":"...","category":"...","actions":[{"label":"Order","value":"I want to order ..."}]}]-->
+## INDUSTRY FLOWS
+[Dynamic based on industry — booking, ordering, service inquiry]
 
-Rules:
-- Show 2-4 most relevant items
-- Include images when available
-- Personalize based on user preferences mentioned in conversation
-- For restaurants: suggest combos, popular items, dietary options
-- For e-commerce: suggest related products, bestsellers
-- For services: suggest relevant packages, popular bookings
+## CONVERSATION RULES
+- Keep responses 1-3 sentences
+- Remember what user said earlier
+- Ask one question at a time
+- If no match found: "Let me check... we have [alternatives]"
+- Confirm before finalizing any action
 ```
-
-### 2. Frontend: `ChatMessage.tsx` — Parse & Render Recommendation Cards
-
-Add a new parser alongside `parseActions` to detect `<!--recommendations:[...]-->` blocks and render them as rich product/service cards.
-
-**Card UI per item:**
-- Image (if available, with fallback)
-- Name + price badge
-- Short description (1-2 lines)
-- Action buttons (industry-specific: "Order", "Buy Now", "Book", etc.)
-
-Cards displayed in a horizontal scrollable row or 2-column grid below the message text.
-
-### 3. Frontend: New Component `RecommendationCards.tsx`
-
-Renders an array of recommendation items as visually rich cards:
-- Responsive: 2-col grid on desktop, scrollable row on mobile
-- Each card: rounded, shadowed, with image, title, price, description, action buttons
-- Action buttons trigger the same `onAction` handler (sends value as user message)
-
-### 4. Edge Function: Knowledge Base Preparation
-
-In `buildSystemPrompt`, structure the KB data clearly:
-- Group items by category
-- Include all available fields (name, price, description, image URL)
-- Limit to ~50 items to stay within context window
-- Add "popular" or "featured" flags if available from scraped data
-
----
 
 ### Files Summary
 
 | File | Change |
 |------|--------|
-| `supabase/functions/chatbot-conversation/index.ts` | Edit — fetch scraped_data, build KB context, add recommendation instructions to system prompt |
-| `src/components/chatbot/ChatMessage.tsx` | Edit — parse `<!--recommendations:-->` blocks, render RecommendationCards |
-| `src/components/chatbot/RecommendationCards.tsx` | Create — rich product/service card grid component |
-| `src/components/chatbot/ActionButtons.tsx` | No change (reused for card actions) |
+| `supabase/functions/create-demo/index.ts` | Edit — build industry-aware voice prompt with structured KB, recommendation rules, dynamic conversation flows |
+| `supabase/functions/create-voice-agent/index.ts` | Edit — accept `industry` + `structured_data` params, build same enhanced prompt |
 
