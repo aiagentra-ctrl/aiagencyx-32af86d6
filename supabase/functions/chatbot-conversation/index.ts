@@ -291,7 +291,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabase = getSupabase();
+  const supabase = supabaseClient;
 
   try {
     const { chatbotId, sessionId, message, calendarUrl } = await req.json();
@@ -303,12 +303,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: chatbot, error: chatbotError } = await supabase
-      .from("chatbots")
-      .select("*")
-      .eq("id", chatbotId)
-      .single();
+    // ── Parallel fetch: chatbot + conversation in one go ──
+    const [chatbotResult, conversationResult] = await Promise.all([
+      supabase.from("chatbots").select("*").eq("id", chatbotId).single(),
+      supabase.from("chatbot_conversations").select("*").eq("chatbot_id", chatbotId).eq("session_id", sessionId).maybeSingle(),
+    ]);
 
+    const { data: chatbot, error: chatbotError } = chatbotResult;
     if (chatbotError || !chatbot) {
       return new Response(
         JSON.stringify({ error: "Chatbot not found" }),
@@ -316,29 +317,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    let { data: conversation } = await supabase
-      .from("chatbot_conversations")
-      .select("*")
-      .eq("chatbot_id", chatbotId)
-      .eq("session_id", sessionId)
-      .maybeSingle();
-
+    const conversation = conversationResult.data;
     const existingMessages = (conversation?.messages as any[]) || [];
     const updatedMessages = [
       ...existingMessages,
       { role: "user", content: message, timestamp: new Date().toISOString() },
     ];
 
-    // Fetch scraped data for RAG knowledge base
-    let scrapedData = null;
-    if (chatbot.website_url) {
-      const { data: sd } = await supabase
-        .from("scraped_data")
-        .select("structured_data, raw_content")
-        .eq("website_url", chatbot.website_url)
-        .maybeSingle();
-      scrapedData = sd;
-    }
+    // Fetch scraped data + providers in parallel
+    const [scrapedResult, providers] = await Promise.all([
+      chatbot.website_url
+        ? supabase.from("scraped_data").select("structured_data, raw_content").eq("website_url", chatbot.website_url).maybeSingle()
+        : Promise.resolve({ data: null }),
+      getProviders(supabase, chatbot),
+    ]);
+    const scrapedData = scrapedResult.data;
 
     const systemPrompt = buildSystemPrompt(chatbot, calendarUrl, scrapedData);
 
