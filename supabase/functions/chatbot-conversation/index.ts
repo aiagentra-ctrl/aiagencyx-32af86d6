@@ -340,7 +340,6 @@ Deno.serve(async (req) => {
       ...updatedMessages.map((m: any) => ({ role: m.role, content: m.content })),
     ];
 
-    const providers = await getProviders(supabase, chatbot);
     if (providers.length === 0) {
       return new Response(
         JSON.stringify({ error: "No AI providers configured." }),
