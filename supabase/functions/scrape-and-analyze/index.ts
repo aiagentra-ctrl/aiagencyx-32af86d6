@@ -285,7 +285,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabase = getSupabase();
+  const supabase = supabaseClient;
 
   try {
     const { businessName, websiteUrl, forceRefresh, calendarUrl, origin } = await req.json();
