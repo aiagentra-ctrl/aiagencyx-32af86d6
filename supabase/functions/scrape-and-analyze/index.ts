@@ -14,9 +14,8 @@ function randomSuffix(): string {
   return Math.random().toString(36).substring(2, 6);
 }
 
-function getSupabase() {
-  return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-}
+// Module-level client reuse
+const supabaseClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
 async function log(supabase: any, eventType: string, status: string, message: string, metadata: any = {}) {
   try {
