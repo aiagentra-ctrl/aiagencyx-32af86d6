@@ -102,8 +102,8 @@ function pickKeyPages(allUrls: string[], baseUrl: string): string[] {
 }
 
 async function scrapeMultiplePages(apiKey: string, urls: string[]): Promise<string> {
-  const results: string[] = [];
-  for (const url of urls) {
+  // Parallel scraping — all pages at once instead of sequential
+  const promises = urls.map(async (url) => {
     try {
       const res = await fetchWithTimeout("https://api.firecrawl.dev/v1/scrape", {
         method: "POST",
@@ -113,11 +113,16 @@ async function scrapeMultiplePages(apiKey: string, urls: string[]): Promise<stri
       if (res.ok) {
         const data = await res.json();
         const md = data.data?.markdown || data.markdown || "";
-        if (md) results.push(`\n--- PAGE: ${url} ---\n${md}`);
+        if (md) return `\n--- PAGE: ${url} ---\n${md}`;
       } else { await res.text(); }
     } catch { /* skip */ }
-  }
-  return results.join("\n");
+    return "";
+  });
+  const results = await Promise.allSettled(promises);
+  return results
+    .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled" && !!r.value)
+    .map(r => r.value)
+    .join("\n");
 }
 
 // ── LLM Web Search Fallback (OpenRouter :online) ──
