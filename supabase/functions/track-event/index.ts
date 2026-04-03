@@ -53,6 +53,9 @@ function parseDevice(ua: string): { device_type: string; browser: string; os: st
   return { device_type, browser, os };
 }
 
+// Module-level client reuse
+const supabaseClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -68,39 +71,42 @@ Deno.serve(async (req) => {
 
     const userAgent = req.headers.get("user-agent") || "";
 
-    // 1. Bot detection — reject non-human traffic
+    // 1. Bot detection — reject non-human traffic (fast, no I/O)
     if (isBot(userAgent)) {
       return new Response(JSON.stringify({ ok: true, filtered: "bot" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Extract visitor info
     const visitorIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
                       req.headers.get("cf-connecting-ip") ||
                       req.headers.get("x-real-ip") || "unknown";
     const referrer = req.headers.get("referer") || "";
-
-    // 2. Device parsing
     const deviceInfo = parseDevice(userAgent);
 
-    // 3. Geo lookup
+    const supabase = supabaseClient;
+
+    // 2. Run geo lookup, blocked IPs check, and duplicate check ALL in parallel
+    const needsGeo = visitorIp && visitorIp !== "unknown" && visitorIp !== "127.0.0.1";
+    const [geoResult, ipSettingResult, duplicateResult] = await Promise.all([
+      // Geo lookup with short timeout
+      needsGeo
+        ? fetch(`http://ip-api.com/json/${visitorIp}?fields=countryCode,city,status`, { signal: AbortSignal.timeout(3000) })
+            .then(r => r.ok ? r.json() : null).catch(() => null)
+        : Promise.resolve(null),
+      // Blocked IPs
+      supabase.from("site_settings").select("value").eq("key", "blocked_ips").maybeSingle(),
+      // Duplicate check
+      session_id
+        ? supabase.from("link_events").select("id").eq("session_id", session_id).eq("event_type", event_type).eq("slug", slug).gte("created_at", new Date(Date.now() - 5000).toISOString()).limit(1)
+        : Promise.resolve({ data: null }),
+    ]);
+
+    // Parse geo
     let countryCode = null;
     let city = null;
-    if (visitorIp && visitorIp !== "unknown" && visitorIp !== "127.0.0.1") {
-      try {
-        const geoRes = await fetch(`http://ip-api.com/json/${visitorIp}?fields=countryCode,city,status`);
-        if (geoRes.ok) {
-          const geo = await geoRes.json();
-          if (geo.status === "success") {
-            countryCode = geo.countryCode || null;
-            city = geo.city || null;
-          }
-        }
-      } catch { /* continue without geo */ }
+    if (geoResult?.status === "success") {
+      countryCode = geoResult.countryCode || null;
+      city = geoResult.city || null;
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 4. Self-filter: blocked IPs + owner country (NP)
     const isOwnerCountry = countryCode === "NP";
