@@ -751,7 +751,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const supabase = getSupabase();
+  const supabase = supabaseClient;
 
   try {
     const { business_name, website_url, calendar_link, industry: userIndustry } = await req.json();
