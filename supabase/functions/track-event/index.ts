@@ -108,39 +108,19 @@ Deno.serve(async (req) => {
       city = geoResult.city || null;
     }
 
-    // 4. Self-filter: blocked IPs + owner country (NP)
-    const isOwnerCountry = countryCode === "NP";
+    // Check blocked IPs
     let blockedIps: string[] = [];
-    try {
-      const { data: ipSetting } = await supabase
-        .from("site_settings")
-        .select("value")
-        .eq("key", "blocked_ips")
-        .maybeSingle();
-      if (ipSetting?.value) {
-        blockedIps = ipSetting.value.split(",").map((ip: string) => ip.trim());
-      }
-    } catch { /* ignore */ }
+    if (ipSettingResult.data?.value) {
+      blockedIps = ipSettingResult.data.value.split(",").map((ip: string) => ip.trim());
+    }
 
+    const isOwnerCountry = countryCode === "NP";
     const isBlockedIp = blockedIps.includes(visitorIp);
     const isOwnerTraffic = isOwnerCountry || isBlockedIp;
 
-    // 5. Duplicate detection — same session + same event within 5s
-    if (session_id) {
-      try {
-        const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
-        const { data: recent } = await supabase
-          .from("link_events")
-          .select("id")
-          .eq("session_id", session_id)
-          .eq("event_type", event_type)
-          .eq("slug", slug)
-          .gte("created_at", fiveSecondsAgo)
-          .limit(1);
-        if (recent && recent.length > 0) {
-          return new Response(JSON.stringify({ ok: true, filtered: "duplicate" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        }
-      } catch { /* proceed anyway */ }
+    // Check duplicate
+    if (duplicateResult.data && duplicateResult.data.length > 0) {
+      return new Response(JSON.stringify({ ok: true, filtered: "duplicate" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // 6. Insert validated event with device info
