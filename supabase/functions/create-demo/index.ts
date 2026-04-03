@@ -6,9 +6,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function getSupabase() {
-  return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-}
+// Module-level client reuse
+const supabaseClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
 function slugify(text: string): string {
   return text.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/[\s_]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
@@ -103,8 +102,8 @@ function pickKeyPages(allUrls: string[], baseUrl: string): string[] {
 }
 
 async function scrapeMultiplePages(apiKey: string, urls: string[]): Promise<string> {
-  const results: string[] = [];
-  for (const url of urls) {
+  // Parallel scraping — all pages at once instead of sequential
+  const promises = urls.map(async (url) => {
     try {
       const res = await fetchWithTimeout("https://api.firecrawl.dev/v1/scrape", {
         method: "POST",
@@ -114,11 +113,16 @@ async function scrapeMultiplePages(apiKey: string, urls: string[]): Promise<stri
       if (res.ok) {
         const data = await res.json();
         const md = data.data?.markdown || data.markdown || "";
-        if (md) results.push(`\n--- PAGE: ${url} ---\n${md}`);
+        if (md) return `\n--- PAGE: ${url} ---\n${md}`;
       } else { await res.text(); }
     } catch { /* skip */ }
-  }
-  return results.join("\n");
+    return "";
+  });
+  const results = await Promise.allSettled(promises);
+  return results
+    .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled" && !!r.value)
+    .map(r => r.value)
+    .join("\n");
 }
 
 // ── LLM Web Search Fallback (OpenRouter :online) ──
@@ -747,7 +751,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const supabase = getSupabase();
+  const supabase = supabaseClient;
 
   try {
     const { business_name, website_url, calendar_link, industry: userIndustry } = await req.json();

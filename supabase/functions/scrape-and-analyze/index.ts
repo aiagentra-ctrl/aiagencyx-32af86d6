@@ -14,9 +14,8 @@ function randomSuffix(): string {
   return Math.random().toString(36).substring(2, 6);
 }
 
-function getSupabase() {
-  return createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-}
+// Module-level client reuse
+const supabaseClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
 async function log(supabase: any, eventType: string, status: string, message: string, metadata: any = {}) {
   try {
@@ -286,7 +285,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const supabase = getSupabase();
+  const supabase = supabaseClient;
 
   try {
     const { businessName, websiteUrl, forceRefresh, calendarUrl, origin } = await req.json();
