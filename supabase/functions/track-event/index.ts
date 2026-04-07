@@ -123,6 +123,16 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, filtered: "duplicate" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Validate duration metadata if present
+    const meta = metadata || {};
+    if (meta.duration_seconds !== undefined) {
+      const dur = Number(meta.duration_seconds);
+      if (isNaN(dur) || dur < 0 || dur > 86400) {
+        delete meta.duration_seconds;
+        delete meta.active_time_seconds;
+      }
+    }
+
     // 6. Insert validated event with device info
     const { error } = await supabase.from("link_events").insert({
       slug,
