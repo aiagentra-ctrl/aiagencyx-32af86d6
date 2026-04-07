@@ -12,6 +12,7 @@ import {
   Tablet, AlertTriangle, TrendingUp, Send, Clock, Copy
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import ClientDetailCard from "./ClientDetailCard";
 
 const ASIAN_COUNTRIES = ["NP", "IN", "BD", "PK", "LK", "MM", "TH", "VN", "PH", "ID", "MY", "CN", "JP", "KR", "TW", "HK", "SG", "KH", "LA", "BN", "MN", "AF"];
 const TARGET_MARKETS = ["NZ", "AU", "CA"];
@@ -139,6 +140,8 @@ const AnalyticsPanel = () => {
   const [excludeOwner, setExcludeOwner] = useState(true);
   const [targetOnly, setTargetOnly] = useState(false);
   const [slugFilter, setSlugFilter] = useState<string>("all");
+  const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -373,14 +376,14 @@ const AnalyticsPanel = () => {
                 </TableHeader>
                 <TableBody>
                   {clientRows.map((row) => (
-                    <TableRow key={row.slug} className={
+                    <TableRow key={row.slug} onClick={() => { setSelectedClient(row); setDetailOpen(true); }} className={`cursor-pointer hover:opacity-80 ${
                       row.followUp.problem === "multiple_clicks" ? "bg-blue-500/5" :
                       row.followUp.problem === "clicked_no_action" ? "bg-yellow-500/5" :
                       "bg-red-500/5"
-                    }>
+                    }`}>
                       <TableCell className="font-medium">{row.business_name}</TableCell>
                       <TableCell>
-                        <a href={getDemoUrl(row.slug)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                        <a href={getDemoUrl(row.slug)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline" onClick={e => e.stopPropagation()}>
                           /{row.slug} <ExternalLink className="h-3 w-3" />
                         </a>
                       </TableCell>
@@ -429,7 +432,7 @@ const AnalyticsPanel = () => {
                       </TableCell>
                       <TableCell>{getStatusBadge(row)}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-[10px] cursor-pointer" onClick={() => copyMessage(row.followUp.message)}>
+                        <Badge variant="outline" className="text-[10px] cursor-pointer" onClick={(e) => { e.stopPropagation(); copyMessage(row.followUp.message); }}>
                           {row.followUp.action}
                         </Badge>
                       </TableCell>
@@ -515,6 +518,7 @@ const AnalyticsPanel = () => {
           )}
         </CardContent>
       </Card>
+      <ClientDetailCard client={selectedClient} open={detailOpen} onOpenChange={setDetailOpen} />
     </div>
   );
 };
