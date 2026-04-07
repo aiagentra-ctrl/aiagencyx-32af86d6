@@ -436,8 +436,7 @@ const AnalyticsPanel = () => {
                         </Badge>
                       </TableCell>
                     </TableRow>
-                  ))}
-              </Table>
+                </TableBody>
               </Table>
             </div>
           )}
