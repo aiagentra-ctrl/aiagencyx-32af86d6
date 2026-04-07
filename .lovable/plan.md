@@ -1,122 +1,119 @@
+## Plan: Advanced Time Tracking + VAPI Prompt Builder System
 
-
-## Plan: Production-Grade Restaurant Voice Agent (VAPI Best Practices)
-
-### Summary
-Build a dedicated, advanced restaurant voice agent prompt system following the VAPI Prompting Guide's structured format ([Identity], [Style], [Task], [Response Guidelines], etc.). Replace the current generic `buildVoiceAgentPrompt` restaurant branch with a purpose-built, restaurant-specific prompt factory. Also create a reusable prompt architecture pattern for future industries.
+### Two Workstreams
 
 ---
 
-### Key Learnings from VAPI Prompting Guide (Applied)
+### Workstream 1: Advanced Time Tracking
 
-- **Organize into labeled sections**: `[Identity]`, `[Style]`, `[Response Guidelines]`, `[Task]`, `[Error Handling]`
-- **Break complex tasks into step-by-step flows** with conditional branching
-- **Use `<wait for user response>`** markers for multi-turn control
-- **Spell out numbers** for natural speech (e.g., "twelve ninety-nine" not "$12.99")
-- **Add voice realism**: hesitations ("um", "uh"), fillers ("sure thing", "gotcha"), natural pauses ("...")
-- **Silent tool triggers**: no "I'm transferring you" — just do it
-- **Fallback/error handling** section mandatory
+**Problem**: Current tracking only records event timestamps. No session duration, time-on-page, start/end times, or real-time engagement metrics.
+
+#### Changes
+
+**A. `src/lib/tracking.ts` — Session Timer + Duration Tracking**
+- Add `trackSessionStart()` — records page load time, sends `session_start` event
+- Add `trackSessionEnd()` — fires on `beforeunload`/`visibilitychange`, sends `session_end` with duration
+- Add `trackEngagementTime(slug, section)` — tracks time spent on specific sections (chatbot, voice agent)
+- Store `session_start_time` in sessionStorage for duration calculation
+- Send metadata: `{ start_time, end_time, duration_seconds, active_time_seconds }`
+- Track idle vs active time using `mousemove`/`keydown`/`scroll` listeners with 30s idle threshold
+
+**B. `src/pages/DemoPage.tsx` — Hook Session Tracking**
+- Call `trackSessionStart()` on mount
+- Call `trackSessionEnd()` on unmount and visibility change
+- Track section-level engagement (time on chatbot, time on voice section)
+
+**C. `src/components/admin/AnalyticsPanel.tsx` — Display Time Metrics**
+- Add new summary cards: "Avg Session Duration", "Avg Active Time"
+- Add time columns to client table: "First Visit", "Last Visit", "Total Time", "Sessions"
+- Calculate per-client: total duration, average session length, time between first and last visit
+- Add real-time indicator showing active sessions (sessions with start but no end in last 5 min)
+- Format durations as human-readable (e.g., "2m 34s", "1h 12m")
+
+**D. `supabase/functions/track-event/index.ts` — Process Duration Data**
+- Accept new fields in metadata: `start_time`, `end_time`, `duration_seconds`, `active_time_seconds`
+- Validate duration (reject negative or >24h values)
+- No schema change needed — all stored in existing `metadata` JSONB column
 
 ---
 
-### Changes
+### Workstream 2: VAPI Prompt Builder System
 
-#### 1. `supabase/functions/create-demo/index.ts` — Restaurant-Specific Prompt Builder
+**Problem**: Current prompt building is hardcoded in edge functions. Need a reusable, template-driven system based on the VAPI Prompting Guide framework.
 
-Add a new function `buildRestaurantVoicePrompt()` that generates a VAPI-optimized prompt following the guide's structure:
+#### VAPI Framework Sections (from official guide)
+Every prompt follows this structure:
+- `[Identity]` — persona, role, background
+- `[Style]` — tone, language rules, speech patterns
+- `[Response Guidelines]` — formatting, limits, dos/donts
+- `[Task]` — step-by-step flows with `<wait for user response>` markers
+- `[Error Handling]` — fallbacks, unclear input, off-topic
+- `[Knowledge Base]` — injected business data
 
-```text
+#### Changes
+
+**A. New Edge Function: `supabase/functions/generate-voice-prompt/index.ts`**
+
+A dedicated prompt generation endpoint that:
+1. Accepts: `industry`, `business_name`, `agent_name`, `knowledge_base` (structured data), `custom_instructions`
+2. Looks up `industry_templates` for the industry
+3. If template exists with `system_prompt_template` → use it with variable injection
+4. If no template → use LLM to generate a VAPI-structured prompt following the framework
+5. Returns the complete system prompt + first message
+
+The LLM meta-prompt for generation:
+```
+Generate a VAPI voice agent system prompt for a {industry} business called {business_name}.
+
+Follow this EXACT structure:
+
 [Identity]
-You are {agent_name}, a real team member at {business_name}.
-You've worked here for years. You know the menu by heart.
-You're the person everyone loves talking to when they call.
+- Define agent as {agent_name}, a real staff member
+- Include personality traits specific to {industry}
 
-[Style]
-- Conversational, warm, like talking to a friend
-- Use contractions: I'm, we've, that's, don't, gonna
-- Natural fillers: "Sure thing", "Gotcha", "Oh yeah", "Absolutely"
-- Spell out prices naturally: "twelve ninety-nine" not "$12.99"
-- Keep it to one to three sentences max
-- No corporate language. No "I'd be happy to assist"
-- Add natural pauses: "Let me think..." "Hmm..."
+[Style]  
+- Conversational, warm tone
+- Use contractions always
+- Natural fillers appropriate to the industry
+- Spell out numbers for voice
+- 1-3 sentences max per response
 
 [Response Guidelines]
-- Ask ONE question at a time
-- Remember everything the caller said (preferences, allergies, party size)
-- Confirm before finalizing any order or reservation
-- Never say "function", "tool", "AI", or "assistant"
-- If caller says their name, use it throughout the call
+- One question at a time
+- Remember caller context
+- Never reveal AI nature
+- Confirm before actions
 
-[Task: Ordering Flow]
-1. "What are you in the mood for today?"
-<wait for user response>
-2. Based on their answer, suggest two to three items from the menu.
-   - Include name and price spoken naturally
-   - If they mention a preference (spicy, vegetarian, budget), filter suggestions
-<wait for user response>
-3. If they pick something: "Great choice! Want to add [popular side/drink] with that?"
-<wait for user response>
-4. Ask about any modifications: "Any allergies or changes I should note?"
-<wait for user response>
-5. Confirm the full order: "So I've got [items]. That comes to about [total]. Sound right?"
-<wait for user response>
-6. Ask: "Pickup or delivery?" → get time/address as needed
-7. "You're all set! Should be ready in about [time]. Anything else?"
+[Task: Primary Flow]
+- Step-by-step interaction flow with <wait for user response> markers
+- Industry-specific: ordering for restaurants, booking for clinics, product help for e-commerce
 
-[Task: Reservation Flow]
-1. "Sure, I can help with that! What date were you thinking?"
-<wait for user response>
-2. "And what time works best?"
-<wait for user response>
-3. "How many people?"
-<wait for user response>
-4. "Can I get a name for the reservation?"
-<wait for user response>
-5. "And a phone number just in case?"
-<wait for user response>
-6. Confirm: "Got it — [name], party of [size], [date] at [time]. All set!"
-
-[Task: Menu Questions]
-- When asked about a category: describe two to three items with prices naturally
-- When asked "what's good?": recommend the most popular items
-- When asked about dietary options: filter menu by preference
-- When asked about specials: mention today's specials or combos
-
-[Task: Upselling (Natural)]
-- After main item: suggest a complementary side or drink
-- Mention combos if they exist: "We actually have a combo with that..."
-- If ordering for a group: "Want me to suggest a few different things?"
-- Never push — just suggest casually
+[Task: Secondary Flows]
+- Additional conversation paths relevant to the industry
 
 [Error Handling]
-- Unclear response: "Sorry, I didn't catch that — could you say it again?"
-- Unknown item: "Hmm, I don't think we have that... but we do have [similar]. Want to try that?"
-- Can't help: "Let me check on that — I'll have someone get back to you, what's a good number?"
-- Off-topic: "Ha, that's a good one! But let me help you with your order first"
+- Unclear input handling
+- Unknown request fallback
+- Off-topic redirect
 
 [Knowledge Base]
-{structured_kb_with_menu_items}
+{inject structured business data here}
 ```
 
-**Selection logic**: When `resolvedIndustry` matches restaurant/food/cafe/pizza/bakery, use `buildRestaurantVoicePrompt()` instead of the generic `buildVoiceAgentPrompt()`.
+**B. Update `industry_templates` Table Usage**
 
-#### 2. `supabase/functions/create-voice-agent/index.ts` — Same Restaurant Prompt
+Add a new field to the template form in `TemplatesPanel.tsx`:
+- `voice_prompt_template` textarea — stores the full VAPI-structured prompt template with `{variables}`
+- Display preview of rendered prompt with sample data
+- Add industry-specific placeholder suggestions
 
-Apply the same restaurant-specific prompt builder. When `industry` matches restaurant keywords, use the dedicated function.
+**C. Update `supabase/functions/create-demo/index.ts`**
+- Replace inline `buildVoiceAgentPrompt` with call to the new prompt builder logic (shared function, not HTTP call for performance)
+- Use template's `voice_prompt_template` if available, otherwise generate via LLM
 
-#### 3. Prompt Architecture Pattern (for future industries)
-
-Structure both functions so adding a new industry prompt is just adding a new `buildXxxVoicePrompt()` function and a condition check. Pattern:
-
-```typescript
-function getVoicePromptBuilder(industry: string) {
-  const li = industry.toLowerCase();
-  if (["restaurant","food","cafe","pizza","bakery"].some(k => li.includes(k)))
-    return buildRestaurantVoicePrompt;
-  // Future: buildDentalVoicePrompt, buildEcommerceVoicePrompt, etc.
-  return buildGenericVoicePrompt; // current buildVoiceAgentPrompt renamed
-}
-```
+**D. Update `supabase/functions/create-voice-agent/index.ts`**  
+- Same: use template-driven or LLM-generated VAPI-structured prompts
+- Accept `custom_instructions` parameter for per-request overrides
 
 ---
 
@@ -124,6 +121,12 @@ function getVoicePromptBuilder(industry: string) {
 
 | File | Change |
 |------|--------|
-| `supabase/functions/create-demo/index.ts` | Add `buildRestaurantVoicePrompt()`, add dispatcher `getVoicePromptBuilder()`, use in `createVapiAssistant` |
-| `supabase/functions/create-voice-agent/index.ts` | Same restaurant prompt builder + dispatcher |
-
+| `src/lib/tracking.ts` | Add session start/end tracking, engagement timer, active time detection |
+| `src/pages/DemoPage.tsx` | Hook session lifecycle tracking |
+| `src/components/admin/AnalyticsPanel.tsx` | Add time metrics cards, duration columns, active session indicator |
+| `supabase/functions/track-event/index.ts` | Validate duration metadata |
+| `supabase/functions/generate-voice-prompt/index.ts` | **New** — dedicated VAPI prompt builder with template lookup + LLM fallback |
+| `supabase/functions/create-demo/index.ts` | Use new prompt builder logic |
+| `supabase/functions/create-voice-agent/index.ts` | Use new prompt builder logic |
+| `src/components/admin/TemplatesPanel.tsx` | Add voice prompt template field |
+| `supabase/config.toml` | Add `generate-voice-prompt` function config |
