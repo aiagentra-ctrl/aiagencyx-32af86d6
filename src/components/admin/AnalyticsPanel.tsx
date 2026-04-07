@@ -305,12 +305,15 @@ const AnalyticsPanel = () => {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8">
         <Card><CardContent className="pt-6 text-center"><Users className="mx-auto mb-2 h-5 w-5 text-primary" /><div className="text-2xl font-bold">{uniqueSessions}</div><div className="text-xs text-muted-foreground">Unique Visitors</div></CardContent></Card>
         <Card><CardContent className="pt-6 text-center"><Eye className="mx-auto mb-2 h-5 w-5 text-blue-500" /><div className="text-2xl font-bold">{countByType("page_view")}</div><div className="text-xs text-muted-foreground">Page Views</div></CardContent></Card>
         <Card><CardContent className="pt-6 text-center"><MessageCircle className="mx-auto mb-2 h-5 w-5 text-green-500" /><div className="text-2xl font-bold">{countByType("chatbot_opened") + countByType("chatbot_message")}</div><div className="text-xs text-muted-foreground">Chatbot Engagements</div></CardContent></Card>
         <Card><CardContent className="pt-6 text-center"><Phone className="mx-auto mb-2 h-5 w-5 text-orange-500" /><div className="text-2xl font-bold">{countByType("voice_call_started")}</div><div className="text-xs text-muted-foreground">Voice Calls</div></CardContent></Card>
         <Card><CardContent className="pt-6 text-center"><MousePointer className="mx-auto mb-2 h-5 w-5 text-purple-500" /><div className="text-2xl font-bold">{countByType("cta_clicked")}</div><div className="text-xs text-muted-foreground">CTA Clicks</div></CardContent></Card>
+        <Card><CardContent className="pt-6 text-center"><Clock className="mx-auto mb-2 h-5 w-5 text-teal-500" /><div className="text-2xl font-bold">{formatDuration(avgSessionDuration)}</div><div className="text-xs text-muted-foreground">Avg Session</div></CardContent></Card>
+        <Card><CardContent className="pt-6 text-center"><TrendingUp className="mx-auto mb-2 h-5 w-5 text-emerald-500" /><div className="text-2xl font-bold">{formatDuration(avgActiveTime)}</div><div className="text-xs text-muted-foreground">Avg Active Time</div></CardContent></Card>
+        <Card><CardContent className="pt-6 text-center"><Globe className="mx-auto mb-2 h-5 w-5 text-rose-500" /><div className="text-2xl font-bold">{activeSessions}</div><div className="text-xs text-muted-foreground flex items-center justify-center gap-1">{activeSessions > 0 && <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />}Active Now</div></CardContent></Card>
       </div>
 
       {/* Client Activity Table */}
