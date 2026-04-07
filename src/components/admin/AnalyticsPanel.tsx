@@ -368,6 +368,15 @@ const AnalyticsPanel = () => {
                       <TableCell className="text-center"><YesNo value={row.chatbotClicked} /></TableCell>
                       <TableCell className="text-center"><YesNo value={row.voiceClicked} /></TableCell>
                       <TableCell className="text-center font-semibold">{row.totalClicks}</TableCell>
+                      <TableCell>
+                        <div className="text-xs">
+                          {row.totalDuration > 0 ? (
+                            <><span className="font-medium">{formatDuration(row.totalDuration)}</span><br/><span className="text-muted-foreground">{formatDuration(row.totalActiveTime)} active</span></>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{getStatusBadge(row)}</TableCell>
                       <TableCell><span className="text-xs font-medium">{row.followUp.problemLabel}</span></TableCell>
                       <TableCell>
