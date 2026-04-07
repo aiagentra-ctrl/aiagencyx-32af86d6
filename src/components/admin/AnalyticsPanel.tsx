@@ -68,6 +68,7 @@ interface ClientRow {
   voiceClicked: boolean;
   totalClicks: number;
   lastActivity: string;
+  firstActivity: string;
   country: string | null;
   city: string | null;
   sessions: Set<string>;
@@ -75,6 +76,9 @@ interface ClientRow {
   browser: string;
   os: string;
   followUp: FollowUpResult;
+  totalDuration: number;
+  totalActiveTime: number;
+  sessionCount: number;
 }
 
 function getEngagementDetail(row: { linkOpened: boolean; chatbotClicked: boolean; voiceClicked: boolean }): EngagementDetail {
