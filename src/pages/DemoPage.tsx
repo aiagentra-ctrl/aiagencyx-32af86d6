@@ -5,7 +5,7 @@ export type CallStatus = "idle" | "calling" | "connected" | "ended";
 import { supabase } from "@/integrations/supabase/client";
 import HeroSection from "@/components/demo/HeroSection";
 import DemoNavbar from "@/components/demo/DemoNavbar";
-import { trackEvent } from "@/lib/tracking";
+import { trackEvent, trackSessionStart, trackSessionEnd, trackSectionEnter, trackSectionLeave } from "@/lib/tracking";
 
 const VoiceAgentSection = lazy(() => import("@/components/demo/VoiceAgentSection"));
 const PersonalizationProofSection = lazy(() => import("@/components/demo/PersonalizationProofSection"));
