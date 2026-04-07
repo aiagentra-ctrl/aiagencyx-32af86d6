@@ -4,14 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
   Eye, MessageCircle, Phone, MousePointer, Users, Globe, Filter,
-  ExternalLink, CheckCircle2, XCircle, RefreshCw, Monitor, Smartphone,
-  Tablet, AlertTriangle, TrendingUp, Send, Clock, Copy
+  CheckCircle2, XCircle, RefreshCw, Monitor, Smartphone,
+  Tablet, TrendingUp, Clock, ChevronDown, ChevronRight
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import ClientDetailPanel from "./ClientDetailPanel";
 
 const ASIAN_COUNTRIES = ["NP", "IN", "BD", "PK", "LK", "MM", "TH", "VN", "PH", "ID", "MY", "CN", "JP", "KR", "TW", "HK", "SG", "KH", "LA", "BN", "MN", "AF"];
 const TARGET_MARKETS = ["NZ", "AU", "CA"];
@@ -139,6 +139,7 @@ const AnalyticsPanel = () => {
   const [excludeOwner, setExcludeOwner] = useState(true);
   const [targetOnly, setTargetOnly] = useState(false);
   const [slugFilter, setSlugFilter] = useState<string>("all");
+  const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
 
   const fetchEvents = async () => {
     setLoading(true);
