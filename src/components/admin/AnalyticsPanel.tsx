@@ -518,6 +518,7 @@ const AnalyticsPanel = () => {
           )}
         </CardContent>
       </Card>
+      <ClientDetailCard client={selectedClient} open={detailOpen} onOpenChange={setDetailOpen} />
     </div>
   );
 };
