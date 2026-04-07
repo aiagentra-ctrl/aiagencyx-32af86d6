@@ -15,6 +15,7 @@ import SiteSettingsPanel from "@/components/admin/SiteSettingsPanel";
 import ActivityLogViewer from "@/components/admin/ActivityLogViewer";
 import { Link } from "react-router-dom";
 import TemplatesPanel from "@/components/admin/TemplatesPanel";
+import LeadsPanel from "@/components/admin/LeadsPanel";
 import { Input } from "@/components/ui/input";
 
 const ADMIN_EMAIL = "aiagentron@gmail.com";
