@@ -139,6 +139,7 @@ const AnalyticsPanel = () => {
   const [excludeOwner, setExcludeOwner] = useState(true);
   const [targetOnly, setTargetOnly] = useState(false);
   const [slugFilter, setSlugFilter] = useState<string>("all");
+  const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
 
   const fetchEvents = async () => {
     setLoading(true);
