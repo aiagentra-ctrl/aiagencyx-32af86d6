@@ -165,6 +165,14 @@ const AnalyticsPanel = () => {
   const uniqueSessions = useMemo(() => new Set(filtered.map(e => e.session_id).filter(Boolean)).size, [filtered]);
   const countByType = (type: string) => filtered.filter(e => e.event_type === type).length;
 
+  const formatDuration = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}h ${m}m`;
+  };
+
   const clientRows = useMemo(() => {
     const map = new Map<string, Omit<ClientRow, "followUp">>();
 
@@ -174,11 +182,12 @@ const AnalyticsPanel = () => {
         map.set(e.slug, {
           business_name: e.business_name, slug: e.slug,
           linkOpened: false, websiteViewed: false, chatbotClicked: false, voiceClicked: false,
-          totalClicks: 0, lastActivity: e.created_at,
+          totalClicks: 0, lastActivity: e.created_at, firstActivity: e.created_at,
           country: e.country_code, city: e.city,
           sessions: new Set(),
           device_type: meta.device_type || "unknown",
           browser: meta.browser || "unknown", os: meta.os || "unknown",
+          totalDuration: 0, totalActiveTime: 0, sessionCount: 0,
         });
       }
       const row = map.get(e.slug)!;
@@ -192,6 +201,16 @@ const AnalyticsPanel = () => {
         if (meta.browser) row.browser = meta.browser;
         if (meta.os) row.os = meta.os;
       }
+      if (new Date(e.created_at) < new Date(row.firstActivity)) {
+        row.firstActivity = e.created_at;
+      }
+
+      // Accumulate duration from session_end events
+      if (e.event_type === "session_end" && meta.duration_seconds > 0) {
+        row.totalDuration += meta.duration_seconds;
+        row.totalActiveTime += meta.active_time_seconds || 0;
+        row.sessionCount++;
+      }
 
       switch (e.event_type) {
         case "page_view": row.linkOpened = true; row.websiteViewed = true; break;
@@ -204,6 +223,32 @@ const AnalyticsPanel = () => {
     return Array.from(map.values())
       .map(row => ({ ...row, followUp: classifyFollowUp(row) } as ClientRow))
       .sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
+  }, [filtered]);
+
+  // Aggregate time metrics
+  const avgSessionDuration = useMemo(() => {
+    const withDuration = clientRows.filter(r => r.sessionCount > 0);
+    if (withDuration.length === 0) return 0;
+    const total = withDuration.reduce((s, r) => s + r.totalDuration, 0);
+    const count = withDuration.reduce((s, r) => s + r.sessionCount, 0);
+    return Math.round(total / count);
+  }, [clientRows]);
+
+  const avgActiveTime = useMemo(() => {
+    const withDuration = clientRows.filter(r => r.sessionCount > 0);
+    if (withDuration.length === 0) return 0;
+    const total = withDuration.reduce((s, r) => s + r.totalActiveTime, 0);
+    const count = withDuration.reduce((s, r) => s + r.sessionCount, 0);
+    return Math.round(total / count);
+  }, [clientRows]);
+
+  // Active sessions (session_start in last 5min without matching session_end)
+  const activeSessions = useMemo(() => {
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const starts = new Set(filtered.filter(e => e.event_type === "session_start" && e.created_at >= fiveMinAgo).map(e => e.session_id));
+    const ends = new Set(filtered.filter(e => e.event_type === "session_end" && e.created_at >= fiveMinAgo).map(e => e.session_id));
+    for (const sid of ends) starts.delete(sid);
+    return starts.size;
   }, [filtered]);
 
   const followUpCounts = useMemo(() => {
