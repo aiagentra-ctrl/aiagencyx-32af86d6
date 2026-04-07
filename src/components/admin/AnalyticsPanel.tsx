@@ -68,6 +68,7 @@ interface ClientRow {
   voiceClicked: boolean;
   totalClicks: number;
   lastActivity: string;
+  firstActivity: string;
   country: string | null;
   city: string | null;
   sessions: Set<string>;
@@ -75,6 +76,9 @@ interface ClientRow {
   browser: string;
   os: string;
   followUp: FollowUpResult;
+  totalDuration: number;
+  totalActiveTime: number;
+  sessionCount: number;
 }
 
 function getEngagementDetail(row: { linkOpened: boolean; chatbotClicked: boolean; voiceClicked: boolean }): EngagementDetail {
@@ -161,6 +165,14 @@ const AnalyticsPanel = () => {
   const uniqueSessions = useMemo(() => new Set(filtered.map(e => e.session_id).filter(Boolean)).size, [filtered]);
   const countByType = (type: string) => filtered.filter(e => e.event_type === type).length;
 
+  const formatDuration = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${h}h ${m}m`;
+  };
+
   const clientRows = useMemo(() => {
     const map = new Map<string, Omit<ClientRow, "followUp">>();
 
@@ -170,11 +182,12 @@ const AnalyticsPanel = () => {
         map.set(e.slug, {
           business_name: e.business_name, slug: e.slug,
           linkOpened: false, websiteViewed: false, chatbotClicked: false, voiceClicked: false,
-          totalClicks: 0, lastActivity: e.created_at,
+          totalClicks: 0, lastActivity: e.created_at, firstActivity: e.created_at,
           country: e.country_code, city: e.city,
           sessions: new Set(),
           device_type: meta.device_type || "unknown",
           browser: meta.browser || "unknown", os: meta.os || "unknown",
+          totalDuration: 0, totalActiveTime: 0, sessionCount: 0,
         });
       }
       const row = map.get(e.slug)!;
@@ -188,6 +201,16 @@ const AnalyticsPanel = () => {
         if (meta.browser) row.browser = meta.browser;
         if (meta.os) row.os = meta.os;
       }
+      if (new Date(e.created_at) < new Date(row.firstActivity)) {
+        row.firstActivity = e.created_at;
+      }
+
+      // Accumulate duration from session_end events
+      if (e.event_type === "session_end" && meta.duration_seconds > 0) {
+        row.totalDuration += meta.duration_seconds;
+        row.totalActiveTime += meta.active_time_seconds || 0;
+        row.sessionCount++;
+      }
 
       switch (e.event_type) {
         case "page_view": row.linkOpened = true; row.websiteViewed = true; break;
@@ -200,6 +223,32 @@ const AnalyticsPanel = () => {
     return Array.from(map.values())
       .map(row => ({ ...row, followUp: classifyFollowUp(row) } as ClientRow))
       .sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
+  }, [filtered]);
+
+  // Aggregate time metrics
+  const avgSessionDuration = useMemo(() => {
+    const withDuration = clientRows.filter(r => r.sessionCount > 0);
+    if (withDuration.length === 0) return 0;
+    const total = withDuration.reduce((s, r) => s + r.totalDuration, 0);
+    const count = withDuration.reduce((s, r) => s + r.sessionCount, 0);
+    return Math.round(total / count);
+  }, [clientRows]);
+
+  const avgActiveTime = useMemo(() => {
+    const withDuration = clientRows.filter(r => r.sessionCount > 0);
+    if (withDuration.length === 0) return 0;
+    const total = withDuration.reduce((s, r) => s + r.totalActiveTime, 0);
+    const count = withDuration.reduce((s, r) => s + r.sessionCount, 0);
+    return Math.round(total / count);
+  }, [clientRows]);
+
+  // Active sessions (session_start in last 5min without matching session_end)
+  const activeSessions = useMemo(() => {
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const starts = new Set(filtered.filter(e => e.event_type === "session_start" && e.created_at >= fiveMinAgo).map(e => e.session_id));
+    const ends = new Set(filtered.filter(e => e.event_type === "session_end" && e.created_at >= fiveMinAgo).map(e => e.session_id));
+    for (const sid of ends) starts.delete(sid);
+    return starts.size;
   }, [filtered]);
 
   const followUpCounts = useMemo(() => {
@@ -256,12 +305,15 @@ const AnalyticsPanel = () => {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-8">
         <Card><CardContent className="pt-6 text-center"><Users className="mx-auto mb-2 h-5 w-5 text-primary" /><div className="text-2xl font-bold">{uniqueSessions}</div><div className="text-xs text-muted-foreground">Unique Visitors</div></CardContent></Card>
         <Card><CardContent className="pt-6 text-center"><Eye className="mx-auto mb-2 h-5 w-5 text-blue-500" /><div className="text-2xl font-bold">{countByType("page_view")}</div><div className="text-xs text-muted-foreground">Page Views</div></CardContent></Card>
         <Card><CardContent className="pt-6 text-center"><MessageCircle className="mx-auto mb-2 h-5 w-5 text-green-500" /><div className="text-2xl font-bold">{countByType("chatbot_opened") + countByType("chatbot_message")}</div><div className="text-xs text-muted-foreground">Chatbot Engagements</div></CardContent></Card>
         <Card><CardContent className="pt-6 text-center"><Phone className="mx-auto mb-2 h-5 w-5 text-orange-500" /><div className="text-2xl font-bold">{countByType("voice_call_started")}</div><div className="text-xs text-muted-foreground">Voice Calls</div></CardContent></Card>
         <Card><CardContent className="pt-6 text-center"><MousePointer className="mx-auto mb-2 h-5 w-5 text-purple-500" /><div className="text-2xl font-bold">{countByType("cta_clicked")}</div><div className="text-xs text-muted-foreground">CTA Clicks</div></CardContent></Card>
+        <Card><CardContent className="pt-6 text-center"><Clock className="mx-auto mb-2 h-5 w-5 text-teal-500" /><div className="text-2xl font-bold">{formatDuration(avgSessionDuration)}</div><div className="text-xs text-muted-foreground">Avg Session</div></CardContent></Card>
+        <Card><CardContent className="pt-6 text-center"><TrendingUp className="mx-auto mb-2 h-5 w-5 text-emerald-500" /><div className="text-2xl font-bold">{formatDuration(avgActiveTime)}</div><div className="text-xs text-muted-foreground">Avg Active Time</div></CardContent></Card>
+        <Card><CardContent className="pt-6 text-center"><Globe className="mx-auto mb-2 h-5 w-5 text-rose-500" /><div className="text-2xl font-bold">{activeSessions}</div><div className="text-xs text-muted-foreground flex items-center justify-center gap-1">{activeSessions > 0 && <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />}Active Now</div></CardContent></Card>
       </div>
 
       {/* Client Activity Table */}
@@ -289,7 +341,9 @@ const AnalyticsPanel = () => {
                     <TableHead className="text-center">Chatbot</TableHead>
                     <TableHead className="text-center">Voice</TableHead>
                     <TableHead className="text-center">Clicks</TableHead>
+                    <TableHead>Time</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Action</TableHead>
                     <TableHead>Problem</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
@@ -314,6 +368,15 @@ const AnalyticsPanel = () => {
                       <TableCell className="text-center"><YesNo value={row.chatbotClicked} /></TableCell>
                       <TableCell className="text-center"><YesNo value={row.voiceClicked} /></TableCell>
                       <TableCell className="text-center font-semibold">{row.totalClicks}</TableCell>
+                      <TableCell>
+                        <div className="text-xs">
+                          {row.totalDuration > 0 ? (
+                            <><span className="font-medium">{formatDuration(row.totalDuration)}</span><br/><span className="text-muted-foreground">{formatDuration(row.totalActiveTime)} active</span></>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{getStatusBadge(row)}</TableCell>
                       <TableCell><span className="text-xs font-medium">{row.followUp.problemLabel}</span></TableCell>
                       <TableCell>

@@ -56,6 +56,7 @@ const TemplatesPanel = () => {
   const [problemsText, setProblemsText] = useState("[]");
   const [navItemsText, setNavItemsText] = useState("[]");
   const [bubblesText, setBubblesText] = useState("[]");
+  const [voicePromptText, setVoicePromptText] = useState("");
 
   const fetchTemplates = async () => {
     const { data } = await supabase.from("industry_templates").select("*").order("priority", { ascending: true }) as any;
@@ -71,6 +72,7 @@ const TemplatesPanel = () => {
     setProblemsText("[]");
     setNavItemsText("[]");
     setBubblesText("[]");
+    setVoicePromptText("");
     setDialogOpen(true);
   };
 
@@ -80,6 +82,7 @@ const TemplatesPanel = () => {
     setProblemsText(JSON.stringify(t.problem_statements || [], null, 2));
     setNavItemsText(JSON.stringify(t.chatbot_nav_items || [], null, 2));
     setBubblesText(JSON.stringify(t.floating_bubbles || [], null, 2));
+    setVoicePromptText((t.voice_config as any)?.voice_prompt_template || "");
     setDialogOpen(true);
   };
 
@@ -105,6 +108,7 @@ const TemplatesPanel = () => {
       problem_statements: problems,
       chatbot_nav_items: navItems,
       floating_bubbles: bubbles,
+      voice_config: { ...(form.voice_config || {}), voice_prompt_template: voicePromptText || "" },
       status: form.status || "active",
       priority: form.priority || 0,
       updated_at: new Date().toISOString(),
@@ -254,6 +258,12 @@ const TemplatesPanel = () => {
             <div className="space-y-2">
               <Label>Floating Bubbles (JSON array of strings)</Label>
               <Textarea rows={2} value={bubblesText} onChange={(e) => setBubblesText(e.target.value)} className="font-mono text-xs" placeholder='["📞 \"Book a table\"", "💬 \"Get a quote\""]' />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Voice Prompt Template (VAPI structured format)</Label>
+              <Textarea rows={8} value={voicePromptText} onChange={(e) => setVoicePromptText(e.target.value)} className="font-mono text-xs" placeholder={`[Identity]\nYou are {agent_name}, a staff member at {business_name}...\n\n[Style]\n- Conversational, warm...\n\n[Task: Primary Flow]\nStep 1: ...\n<wait for user response>`} />
+              <p className="text-[10px] text-muted-foreground">Use {'{business_name}'}, {'{agent_name}'}, {'{industry}'} as variables. Follow VAPI structure: [Identity], [Style], [Task], [Error Handling]</p>
             </div>
           </div>
 

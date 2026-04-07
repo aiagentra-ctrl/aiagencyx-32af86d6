@@ -5,7 +5,7 @@ export type CallStatus = "idle" | "calling" | "connected" | "ended";
 import { supabase } from "@/integrations/supabase/client";
 import HeroSection from "@/components/demo/HeroSection";
 import DemoNavbar from "@/components/demo/DemoNavbar";
-import { trackEvent } from "@/lib/tracking";
+import { trackEvent, trackSessionStart, trackSessionEnd, trackSectionEnter, trackSectionLeave } from "@/lib/tracking";
 
 const VoiceAgentSection = lazy(() => import("@/components/demo/VoiceAgentSection"));
 const PersonalizationProofSection = lazy(() => import("@/components/demo/PersonalizationProofSection"));
@@ -100,11 +100,30 @@ const DemoPage = () => {
       }
       if (chatbotRes.data) setLinkedChatbot(chatbotRes.data as unknown as LinkedChatbot);
 
-      // Track page view via analytics system
+      // Track page view + session start
       trackEvent(data.slug, "page_view", { demoPageId: data.id, businessName: data.business_name });
+      trackSessionStart(data.slug, { demoPageId: data.id, businessName: data.business_name });
     };
 
     fetchPage();
+
+    // Session end on unload/visibility
+    const handleUnload = () => {
+      if (resolvedSlug) trackSessionEnd(resolvedSlug);
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden" && resolvedSlug) {
+        trackSessionEnd(resolvedSlug);
+      }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      if (resolvedSlug) trackSessionEnd(resolvedSlug);
+      window.removeEventListener("beforeunload", handleUnload);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [resolvedSlug]);
 
   useEffect(() => {
