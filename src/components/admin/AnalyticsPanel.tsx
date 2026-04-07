@@ -12,6 +12,7 @@ import {
   Tablet, AlertTriangle, TrendingUp, Send, Clock, Copy
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import ClientDetailCard from "./ClientDetailCard";
 
 const ASIAN_COUNTRIES = ["NP", "IN", "BD", "PK", "LK", "MM", "TH", "VN", "PH", "ID", "MY", "CN", "JP", "KR", "TW", "HK", "SG", "KH", "LA", "BN", "MN", "AF"];
 const TARGET_MARKETS = ["NZ", "AU", "CA"];
