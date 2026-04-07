@@ -216,6 +216,22 @@ const AnalyticsPanel = () => {
         row.totalDuration += meta.duration_seconds;
         row.totalActiveTime += meta.active_time_seconds || 0;
         row.sessionCount++;
+        if (meta.max_scroll_depth > row.maxScrollDepth) row.maxScrollDepth = meta.max_scroll_depth;
+      }
+
+      // Scroll depth
+      if (e.event_type === "scroll_depth" && meta.depth_percent > row.maxScrollDepth) {
+        row.maxScrollDepth = meta.depth_percent;
+      }
+
+      // Return visits
+      if (e.event_type === "return_visit") {
+        row.returnVisits = Math.max(row.returnVisits, meta.total_visits || 0);
+      }
+
+      // Chat quality score from chatbot_message metadata
+      if (e.event_type === "chatbot_message" && meta.conversation_score) {
+        row.chatScore = Math.max(row.chatScore, meta.conversation_score);
       }
 
       switch (e.event_type) {
