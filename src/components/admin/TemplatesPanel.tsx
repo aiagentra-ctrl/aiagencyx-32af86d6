@@ -108,6 +108,7 @@ const TemplatesPanel = () => {
       problem_statements: problems,
       chatbot_nav_items: navItems,
       floating_bubbles: bubbles,
+      voice_config: { ...(form.voice_config || {}), voice_prompt_template: voicePromptText || "" },
       status: form.status || "active",
       priority: form.priority || 0,
       updated_at: new Date().toISOString(),
