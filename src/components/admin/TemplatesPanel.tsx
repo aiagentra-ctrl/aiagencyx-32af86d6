@@ -56,6 +56,7 @@ const TemplatesPanel = () => {
   const [problemsText, setProblemsText] = useState("[]");
   const [navItemsText, setNavItemsText] = useState("[]");
   const [bubblesText, setBubblesText] = useState("[]");
+  const [voicePromptText, setVoicePromptText] = useState("");
 
   const fetchTemplates = async () => {
     const { data } = await supabase.from("industry_templates").select("*").order("priority", { ascending: true }) as any;
