@@ -134,7 +134,7 @@ const ClientDetailCard = ({ client, open, onOpenChange }: Props) => {
 
         if (convos && convos.length > 0) {
           const msgs = convos[0].messages;
-          setChatHistory(Array.isArray(msgs) ? (msgs as ChatMessage[]) : []);
+          setChatHistory(Array.isArray(msgs) ? (msgs as unknown as ChatMessage[]) : []);
         } else {
           setChatHistory([]);
         }

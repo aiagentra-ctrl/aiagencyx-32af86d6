@@ -373,7 +373,7 @@ const AnalyticsPanel = () => {
                 </TableHeader>
                 <TableBody>
                   {clientRows.map((row) => (
-                    <TableRow key={row.slug} className={
+                    <TableRow key={row.slug} className={`cursor-pointer hover:opacity-80 ` + (
                       row.followUp.problem === "multiple_clicks" ? "bg-blue-500/5" :
                       row.followUp.problem === "clicked_no_action" ? "bg-yellow-500/5" :
                       "bg-red-500/5"
