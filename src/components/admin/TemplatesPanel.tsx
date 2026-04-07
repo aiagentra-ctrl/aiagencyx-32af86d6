@@ -82,6 +82,7 @@ const TemplatesPanel = () => {
     setProblemsText(JSON.stringify(t.problem_statements || [], null, 2));
     setNavItemsText(JSON.stringify(t.chatbot_nav_items || [], null, 2));
     setBubblesText(JSON.stringify(t.floating_bubbles || [], null, 2));
+    setVoicePromptText((t.voice_config as any)?.voice_prompt_template || "");
     setDialogOpen(true);
   };
 
