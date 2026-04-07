@@ -79,6 +79,10 @@ interface ClientRow {
   totalDuration: number;
   totalActiveTime: number;
   sessionCount: number;
+  maxScrollDepth: number;
+  returnVisits: number;
+  chatScore: number; // 0-100
+  topClicks: { element: string; text: string; count: number }[];
 }
 
 function getEngagementDetail(row: { linkOpened: boolean; chatbotClicked: boolean; voiceClicked: boolean }): EngagementDetail {
