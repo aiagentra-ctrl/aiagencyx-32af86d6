@@ -1,89 +1,97 @@
 
 
-## Plan: Advanced Time Tracking + VAPI Prompt Builder System
+## Plan: Lead Management & Follow-up System
 
-### Two Workstreams
-
----
-
-### Workstream 1: Advanced Time Tracking
-
-**Problem**: Current tracking only records event timestamps. No session duration, time-on-page, start/end times, or real-time engagement metrics.
-
-#### Changes
-
-**A. `src/lib/tracking.ts` — Session Timer + Duration Tracking**
-- Add `trackSessionStart()` — records page load time, sends `session_start` event
-- Add `trackSessionEnd()` — fires on `beforeunload`/`visibilitychange`, sends `session_end` with duration
-- Add `trackEngagementTime(slug, section)` — tracks time spent on specific sections (chatbot, voice agent)
-- Store `session_start_time` in sessionStorage for duration calculation
-- Send metadata: `{ start_time, end_time, duration_seconds, active_time_seconds }`
-- Track idle vs active time using `mousemove`/`keydown`/`scroll` listeners with 30s idle threshold
-
-**B. `src/pages/DemoPage.tsx` — Hook Session Tracking**
-- Call `trackSessionStart()` on mount
-- Call `trackSessionEnd()` on unmount and visibility change
-- Track section-level engagement (time on chatbot, time on voice section)
-
-**C. `src/components/admin/AnalyticsPanel.tsx` — Display Time Metrics**
-- Add new summary cards: "Avg Session Duration", "Avg Active Time"
-- Add time columns to client table: "First Visit", "Last Visit", "Total Time", "Sessions"
-- Calculate per-client: total duration, average session length, time between first and last visit
-- Add real-time indicator showing active sessions (sessions with start but no end in last 5 min)
-- Format durations as human-readable (e.g., "2m 34s", "1h 12m")
-
-**D. `supabase/functions/track-event/index.ts` — Process Duration Data**
-- Accept new fields in metadata: `start_time`, `end_time`, `duration_seconds`, `active_time_seconds`
-- Validate duration (reject negative or >24h values)
-- No schema change needed — all stored in existing `metadata` JSONB column
+### Summary
+Add a new "Leads" tab to the admin dashboard with a full lead management system — independent from the existing analytics table (zero changes to it). Includes a new `leads` database table for follow-up tracking, automated status classification, and a detailed lead view.
 
 ---
 
-### Workstream 2: VAPI Prompt Builder System
+### 1. Database: New `leads` Table
 
-**Problem**: Current prompt building is hardcoded in edge functions. Need a reusable, template-driven system based on the VAPI Prompting Guide framework.
+```sql
+CREATE TABLE leads (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug text NOT NULL,
+  business_name text NOT NULL,
+  status text NOT NULL DEFAULT 'needs_follow_up',
+  -- statuses: needs_follow_up, interested, awaiting_response, engaged, call_scheduled, cold_lead
+  follow_up_count integer NOT NULL DEFAULT 0,
+  last_follow_up_at timestamptz,
+  next_follow_up_at timestamptz,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
 
-#### VAPI Framework (from official guide)
-Every prompt follows this structure:
-- `[Identity]` — persona, role, background
-- `[Style]` — tone, language rules, speech patterns
-- `[Response Guidelines]` — formatting, limits, dos/donts
-- `[Task]` — step-by-step flows with `<wait for user response>` markers
-- `[Error Handling]` — fallbacks, unclear input, off-topic
-- `[Knowledge Base]` — injected business data
-
-#### Changes
-
-**A. New Edge Function: `supabase/functions/generate-voice-prompt/index.ts`**
-
-Dedicated prompt generation endpoint:
-1. Accepts: `industry`, `business_name`, `agent_name`, `knowledge_base`, `custom_instructions`
-2. Looks up `industry_templates` for the industry
-3. If template has `system_prompt_template` -> use with variable injection
-4. If no template -> use LLM to generate a VAPI-structured prompt
-5. Auto-saves generated prompts back to `industry_templates` for reuse
-6. Returns complete system prompt + first message
-
-The LLM meta-prompt enforces the VAPI structure:
-```text
-Generate a voice agent prompt for a {industry} business.
-MUST follow this structure:
-[Identity] — agent persona as {agent_name} at {business_name}
-[Style] — conversational, contractions, fillers, spell out numbers
-[Response Guidelines] — one question at a time, remember context
-[Task: Primary Flow] — step-by-step with <wait for user response>
-[Task: Secondary Flows] — additional paths
-[Error Handling] — fallbacks
-[Knowledge Base] — {structured data}
+CREATE TABLE lead_follow_ups (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id uuid REFERENCES leads(id) ON DELETE CASCADE NOT NULL,
+  message text NOT NULL,
+  stage text NOT NULL DEFAULT 'reminder', -- reminder, nudge, final
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 ```
 
-**B. Update `create-demo/index.ts` and `create-voice-agent/index.ts`**
-- Replace inline prompt builders with shared prompt builder logic
-- Use template's prompt if available, generate via LLM if not
+RLS: Full access for anon/authenticated (matches existing pattern).
 
-**C. Update `TemplatesPanel.tsx`**
-- Add `voice_prompt_template` textarea for full VAPI-structured prompt editing
-- Preview rendered prompt with sample data
+---
+
+### 2. New Component: `src/components/admin/LeadsPanel.tsx`
+
+Main leads dashboard with:
+- **Auto-sync**: On load, scans `link_events` for unique slugs and upserts into `leads` table
+- **Auto-classify status** based on activity from `link_events`:
+  - Only page_view → `needs_follow_up`
+  - Tried voice agent → `interested`
+  - Tried chatbot only → `awaiting_response`
+  - Multiple interactions → `engaged`
+  - Manual override for `call_scheduled` and `cold_lead`
+- **Lead table** with columns: Business, Status (color badge), Follow-ups Sent, Last Follow-up, Next Reminder, Actions
+- **Filter tabs**: All | Needs Follow-up | Interested | Engaged | Cold
+- **Bulk actions**: Mark as Cold, Schedule Follow-up
+
+---
+
+### 3. New Component: `src/components/admin/LeadDetailView.tsx`
+
+Opens as a Dialog when clicking a lead row. Shows:
+
+**Header**: Business name, status badge, manual status override dropdown
+
+**Sections (tabs or accordion)**:
+- **Overview**: First visit, last activity, total sessions, device, location, voice/chatbot usage flags
+- **Activity Timeline**: Fetched from `link_events` — chronological feed (reuses pattern from ClientDetailCard)
+- **Chat History**: From `chatbot_conversations` — full transcript
+- **Follow-up History**: From `lead_follow_ups` — all sent messages with timestamps and stage labels
+- **Add Follow-up**: Form with message textarea + stage selector (Reminder/Nudge/Final). On submit, inserts into `lead_follow_ups`, increments `follow_up_count`, updates `last_follow_up_at`
+- **Notes**: Editable text field saved to `leads.notes`
+- **Next Follow-up**: Date picker for `next_follow_up_at`
+
+---
+
+### 4. Admin Dashboard Integration
+
+Add a new tab "Leads" to `AdminDashboard.tsx`:
+```
+<TabsTrigger value="leads">
+  <UserCheck className="mr-1.5 h-3.5 w-3.5" />
+  Leads
+</TabsTrigger>
+```
+
+---
+
+### 5. Auto-Status Update Logic (in LeadsPanel)
+
+On sync, for each lead:
+1. Query `link_events` for that slug
+2. Check for `voice_call_started` → `interested`
+3. Check for `chatbot_opened`/`chatbot_message` → `awaiting_response`
+4. Check totalClicks >= 3 → `engaged`
+5. Check if `follow_up_count >= 3` and no recent activity → `cold_lead`
+6. Otherwise → `needs_follow_up`
+7. Never auto-downgrade manually set statuses (`call_scheduled`)
 
 ---
 
@@ -91,13 +99,8 @@ MUST follow this structure:
 
 | File | Change |
 |------|--------|
-| `src/lib/tracking.ts` | Add session start/end, engagement timer, active time detection |
-| `src/pages/DemoPage.tsx` | Hook session lifecycle tracking |
-| `src/components/admin/AnalyticsPanel.tsx` | Add time metrics, duration columns, active sessions |
-| `supabase/functions/track-event/index.ts` | Validate duration metadata |
-| `supabase/functions/generate-voice-prompt/index.ts` | **New** — VAPI prompt builder with template + LLM fallback |
-| `supabase/functions/create-demo/index.ts` | Use new prompt builder |
-| `supabase/functions/create-voice-agent/index.ts` | Use new prompt builder |
-| `src/components/admin/TemplatesPanel.tsx` | Add voice prompt template field |
-| `supabase/config.toml` | Add generate-voice-prompt config |
+| Migration | Create `leads` + `lead_follow_ups` tables with RLS |
+| `src/components/admin/LeadsPanel.tsx` | **New** — lead list, auto-sync, filters, status badges |
+| `src/components/admin/LeadDetailView.tsx` | **New** — full lead detail dialog with follow-up management |
+| `src/pages/AdminDashboard.tsx` | Add "Leads" tab (no changes to existing tabs) |
 
