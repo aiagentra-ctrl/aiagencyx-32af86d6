@@ -400,8 +400,34 @@ const AnalyticsPanel = () => {
                           )}
                         </div>
                       </TableCell>
+                      <TableCell>
+                        <div className="text-xs font-medium">
+                          {row.maxScrollDepth > 0 ? (
+                            <span className={row.maxScrollDepth >= 75 ? "text-green-600" : row.maxScrollDepth >= 50 ? "text-yellow-600" : "text-red-600"}>
+                              {row.maxScrollDepth}%
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs">
+                          {row.returnVisits > 1 ? (
+                            <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/20 text-[10px]">
+                              🔄 {row.returnVisits}x
+                            </Badge>
+                          ) : <span className="text-muted-foreground">1st</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs">
+                          {row.chatScore > 0 ? (
+                            <span className={`font-medium ${row.chatScore >= 70 ? "text-green-600" : row.chatScore >= 40 ? "text-yellow-600" : "text-red-600"}`}>
+                              {row.chatScore}/100
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </div>
+                      </TableCell>
                       <TableCell>{getStatusBadge(row)}</TableCell>
-                      <TableCell><span className="text-xs font-medium">{row.followUp.problemLabel}</span></TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px] cursor-pointer" onClick={() => copyMessage(row.followUp.message)}>
                           {row.followUp.action}
