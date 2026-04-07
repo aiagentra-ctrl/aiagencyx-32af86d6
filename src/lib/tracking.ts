@@ -26,14 +26,12 @@ const getClientDeviceInfo = () => {
   return { screenWidth, screenHeight, language, timezone, pixelRatio: window.devicePixelRatio || 1 };
 };
 
-// Track recent events to prevent client-side duplicate fires
 const recentEvents = new Map<string, number>();
 
 // ── Activity tracking ──
 const markActive = () => {
   const now = Date.now();
   if (!isActive && lastActiveTime) {
-    // Was idle, now active again
     isActive = true;
   }
   lastActiveTime = now;
@@ -46,11 +44,8 @@ let activityInterval: ReturnType<typeof setInterval> | null = null;
 const startActivityTracking = () => {
   lastActiveTime = Date.now();
   isActive = true;
-  
   const events = ["mousemove", "keydown", "scroll", "touchstart", "click"];
   events.forEach(e => window.addEventListener(e, markActive, { passive: true }));
-  
-  // Accumulate active seconds every second
   activityInterval = setInterval(() => {
     if (isActive) activeSeconds++;
   }, 1000);
@@ -75,13 +70,150 @@ export const trackSectionLeave = (slug: string, section: string, options?: { dem
   if (!startTime) return;
   const duration = Math.round((Date.now() - startTime) / 1000);
   sectionTimers.delete(section);
-  if (duration < 2) return; // Ignore very short visits
-  
+  if (duration < 2) return;
   trackEvent(slug, "section_engagement", {
     ...options,
     metadata: { section, duration_seconds: duration },
   });
 };
+
+// ── Scroll depth tracking ──
+const scrollMilestones = new Set<number>();
+let scrollTrackingSlug: string | null = null;
+let scrollTrackingOptions: { demoPageId?: string; businessName?: string } = {};
+
+const handleScrollDepth = () => {
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  if (docHeight <= 0) return;
+  const pct = Math.round((scrollTop / docHeight) * 100);
+
+  for (const milestone of [25, 50, 75, 100]) {
+    if (pct >= milestone && !scrollMilestones.has(milestone)) {
+      scrollMilestones.add(milestone);
+      if (scrollTrackingSlug) {
+        trackEvent(scrollTrackingSlug, "scroll_depth", {
+          ...scrollTrackingOptions,
+          metadata: { depth_percent: milestone },
+        });
+      }
+    }
+  }
+};
+
+export const startScrollTracking = (slug: string, options?: { demoPageId?: string; businessName?: string }) => {
+  scrollMilestones.clear();
+  scrollTrackingSlug = slug;
+  scrollTrackingOptions = options || {};
+  window.addEventListener("scroll", handleScrollDepth, { passive: true });
+};
+
+export const stopScrollTracking = () => {
+  window.removeEventListener("scroll", handleScrollDepth);
+  scrollTrackingSlug = null;
+};
+
+// ── Click heatmap tracking ──
+let clickTrackingSlug: string | null = null;
+let clickTrackingOptions: { demoPageId?: string; businessName?: string } = {};
+
+const handleClickTrack = (e: MouseEvent) => {
+  if (!clickTrackingSlug) return;
+  const target = e.target as HTMLElement;
+  if (!target) return;
+
+  // Identify what was clicked
+  const button = target.closest("button");
+  const link = target.closest("a");
+  const section = target.closest("section, [id]");
+
+  const clickData: Record<string, any> = {
+    x_percent: Math.round((e.clientX / window.innerWidth) * 100),
+    y_percent: Math.round((e.clientY / document.documentElement.scrollHeight) * 100),
+    viewport_y: Math.round(((e.clientY + window.scrollY) / document.documentElement.scrollHeight) * 100),
+  };
+
+  if (button) {
+    clickData.element = "button";
+    clickData.text = button.textContent?.trim().substring(0, 50) || "";
+    clickData.classes = button.className.substring(0, 100);
+  } else if (link) {
+    clickData.element = "link";
+    clickData.text = link.textContent?.trim().substring(0, 50) || "";
+    clickData.href = (link as HTMLAnchorElement).href?.substring(0, 200) || "";
+  } else {
+    clickData.element = target.tagName.toLowerCase();
+    clickData.text = target.textContent?.trim().substring(0, 30) || "";
+  }
+
+  if (section) {
+    clickData.section_id = (section as HTMLElement).id || "";
+  }
+
+  trackEvent(clickTrackingSlug, "click_heatmap", {
+    ...clickTrackingOptions,
+    metadata: clickData,
+  });
+};
+
+export const startClickTracking = (slug: string, options?: { demoPageId?: string; businessName?: string }) => {
+  clickTrackingSlug = slug;
+  clickTrackingOptions = options || {};
+  document.addEventListener("click", handleClickTrack, { passive: true });
+};
+
+export const stopClickTracking = () => {
+  document.removeEventListener("click", handleClickTrack);
+  clickTrackingSlug = null;
+};
+
+// ── Return visit detection ──
+export const trackReturnVisit = (slug: string, options?: { demoPageId?: string; businessName?: string }) => {
+  const key = `visit_history_${slug}`;
+  const now = Date.now();
+  const historyRaw = localStorage.getItem(key);
+  let visits: number[] = [];
+
+  try {
+    visits = historyRaw ? JSON.parse(historyRaw) : [];
+  } catch { visits = []; }
+
+  const visitCount = visits.length + 1;
+  const lastVisit = visits.length > 0 ? visits[visits.length - 1] : null;
+  const timeSinceLastMs = lastVisit ? now - lastVisit : null;
+  const isReturn = visits.length > 0;
+
+  // Save this visit
+  visits.push(now);
+  if (visits.length > 20) visits = visits.slice(-20); // Keep last 20
+  localStorage.setItem(key, JSON.stringify(visits));
+
+  if (isReturn) {
+    trackEvent(slug, "return_visit", {
+      ...options,
+      metadata: {
+        visit_number: visitCount,
+        time_since_last_seconds: timeSinceLastMs ? Math.round(timeSinceLastMs / 1000) : null,
+        time_since_last_human: timeSinceLastMs ? formatTimeSince(timeSinceLastMs) : null,
+        total_visits: visitCount,
+        first_visit: new Date(visits[0]).toISOString(),
+      },
+    });
+  }
+
+  return { isReturn, visitCount, timeSinceLastMs };
+};
+
+function formatTimeSince(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
 
 // ── Session lifecycle ──
 export const trackSessionStart = (slug: string, options?: { demoPageId?: string; businessName?: string }) => {
@@ -103,13 +235,10 @@ export const trackSessionEnd = (slug: string, options?: { demoPageId?: string; b
 
   const endTime = Date.now();
   const durationSeconds = Math.round((endTime - start) / 1000);
-
-  // Reject invalid durations
   if (durationSeconds < 1 || durationSeconds > 86400) return;
 
   stopActivityTracking();
 
-  // Use sendBeacon for reliable delivery on page unload
   const body = JSON.stringify({
     slug,
     event_type: "session_end",
@@ -123,27 +252,19 @@ export const trackSessionEnd = (slug: string, options?: { demoPageId?: string; b
       end_time: new Date(endTime).toISOString(),
       duration_seconds: durationSeconds,
       active_time_seconds: activeSeconds,
+      max_scroll_depth: Math.max(...scrollMilestones, 0),
       client_device: getClientDeviceInfo(),
     },
   });
 
   const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-event`;
-  const headers = {
-    "Content-Type": "application/json",
-    "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  };
-
-  // Try sendBeacon first (works on page unload), fallback to fetch
   const blob = new Blob([body], { type: "application/json" });
   if (navigator.sendBeacon) {
-    // sendBeacon doesn't support custom headers, so use fetch if possible
-    try {
-      navigator.sendBeacon(url, blob);
-    } catch {
-      fetch(url, { method: "POST", headers, body, keepalive: true }).catch(() => {});
+    try { navigator.sendBeacon(url, blob); } catch {
+      fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY }, body, keepalive: true }).catch(() => {});
     }
   } else {
-    fetch(url, { method: "POST", headers, body, keepalive: true }).catch(() => {});
+    fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY }, body, keepalive: true }).catch(() => {});
   }
 
   sessionStartTime = null;
@@ -163,14 +284,14 @@ export const trackEvent = async (
   }
 ) => {
   try {
-    // Client-side dedupe: same slug+event within 3s
     const dedupeKey = `${slug}:${eventType}`;
+    // Allow scroll_depth and click_heatmap through with less aggressive dedupe
+    const dedupeMs = (eventType === "click_heatmap") ? 500 : (eventType === "scroll_depth") ? 0 : 3000;
     const lastFired = recentEvents.get(dedupeKey);
-    if (lastFired && Date.now() - lastFired < 3000) return;
+    if (lastFired && Date.now() - lastFired < dedupeMs) return;
     recentEvents.set(dedupeKey, Date.now());
 
-    // Clean old entries
-    if (recentEvents.size > 50) {
+    if (recentEvents.size > 100) {
       const cutoff = Date.now() - 10000;
       for (const [k, v] of recentEvents) {
         if (v < cutoff) recentEvents.delete(k);
