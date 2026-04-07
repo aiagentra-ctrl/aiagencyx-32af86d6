@@ -100,9 +100,13 @@ const DemoPage = () => {
       }
       if (chatbotRes.data) setLinkedChatbot(chatbotRes.data as unknown as LinkedChatbot);
 
-      // Track page view + session start
-      trackEvent(data.slug, "page_view", { demoPageId: data.id, businessName: data.business_name });
-      trackSessionStart(data.slug, { demoPageId: data.id, businessName: data.business_name });
+      // Track page view + session start + scroll/click tracking + return visits
+      const opts = { demoPageId: data.id, businessName: data.business_name };
+      trackEvent(data.slug, "page_view", opts);
+      trackSessionStart(data.slug, opts);
+      startScrollTracking(data.slug, opts);
+      startClickTracking(data.slug, opts);
+      trackReturnVisit(data.slug, opts);
     };
 
     fetchPage();
