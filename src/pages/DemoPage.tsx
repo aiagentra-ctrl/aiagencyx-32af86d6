@@ -125,6 +125,8 @@ const DemoPage = () => {
 
     return () => {
       if (resolvedSlug) trackSessionEnd(resolvedSlug);
+      stopScrollTracking();
+      stopClickTracking();
       window.removeEventListener("beforeunload", handleUnload);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
