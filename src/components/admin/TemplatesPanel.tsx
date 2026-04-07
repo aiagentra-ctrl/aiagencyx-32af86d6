@@ -72,6 +72,7 @@ const TemplatesPanel = () => {
     setProblemsText("[]");
     setNavItemsText("[]");
     setBubblesText("[]");
+    setVoicePromptText("");
     setDialogOpen(true);
   };
 
