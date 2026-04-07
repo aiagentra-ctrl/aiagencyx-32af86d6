@@ -192,6 +192,8 @@ const AnalyticsPanel = () => {
           device_type: meta.device_type || "unknown",
           browser: meta.browser || "unknown", os: meta.os || "unknown",
           totalDuration: 0, totalActiveTime: 0, sessionCount: 0,
+          maxScrollDepth: 0, returnVisits: 0, chatScore: 0,
+          topClicks: [],
         });
       }
       const row = map.get(e.slug)!;
