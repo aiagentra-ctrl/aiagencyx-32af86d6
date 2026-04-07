@@ -259,6 +259,12 @@ const TemplatesPanel = () => {
               <Label>Floating Bubbles (JSON array of strings)</Label>
               <Textarea rows={2} value={bubblesText} onChange={(e) => setBubblesText(e.target.value)} className="font-mono text-xs" placeholder='["📞 \"Book a table\"", "💬 \"Get a quote\""]' />
             </div>
+
+            <div className="space-y-2">
+              <Label>Voice Prompt Template (VAPI structured format)</Label>
+              <Textarea rows={8} value={voicePromptText} onChange={(e) => setVoicePromptText(e.target.value)} className="font-mono text-xs" placeholder={`[Identity]\nYou are {agent_name}, a staff member at {business_name}...\n\n[Style]\n- Conversational, warm...\n\n[Task: Primary Flow]\nStep 1: ...\n<wait for user response>`} />
+              <p className="text-[10px] text-muted-foreground">Use {'{business_name}'}, {'{agent_name}'}, {'{industry}'} as variables. Follow VAPI structure: [Identity], [Style], [Task], [Error Handling]</p>
+            </div>
           </div>
 
           <DialogFooter>
