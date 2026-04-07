@@ -341,7 +341,9 @@ const AnalyticsPanel = () => {
                     <TableHead className="text-center">Chatbot</TableHead>
                     <TableHead className="text-center">Voice</TableHead>
                     <TableHead className="text-center">Clicks</TableHead>
+                    <TableHead>Time</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Action</TableHead>
                     <TableHead>Problem</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
