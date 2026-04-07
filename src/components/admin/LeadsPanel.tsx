@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { RefreshCw, UserCheck, Clock, Flame, Snowflake, Eye, Phone } from "lucide-react";
+import { RefreshCw, UserCheck, Clock, Flame, Snowflake, Eye, Phone, Inbox, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import LeadDetailView from "./LeadDetailView";
 
 interface Lead {
@@ -21,16 +21,23 @@ interface Lead {
   updated_at: string;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  needs_follow_up: { label: "Needs Follow-up", color: "bg-yellow-100 text-yellow-800 border-yellow-300", icon: <Clock className="h-3 w-3" /> },
-  interested: { label: "Interested", color: "bg-green-100 text-green-800 border-green-300", icon: <Flame className="h-3 w-3" /> },
-  awaiting_response: { label: "Awaiting Response", color: "bg-blue-100 text-blue-800 border-blue-300", icon: <Eye className="h-3 w-3" /> },
-  engaged: { label: "Engaged", color: "bg-purple-100 text-purple-800 border-purple-300", icon: <UserCheck className="h-3 w-3" /> },
-  call_scheduled: { label: "Call Scheduled", color: "bg-emerald-100 text-emerald-800 border-emerald-300", icon: <Phone className="h-3 w-3" /> },
-  cold_lead: { label: "Cold Lead", color: "bg-gray-100 text-gray-600 border-gray-300", icon: <Snowflake className="h-3 w-3" /> },
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode; dotColor: string }> = {
+  needs_follow_up: { label: "Needs Follow-up", color: "bg-yellow-100 text-yellow-800 border-yellow-300", icon: <Clock className="h-3.5 w-3.5" />, dotColor: "bg-yellow-500" },
+  interested: { label: "Interested", color: "bg-green-100 text-green-800 border-green-300", icon: <Flame className="h-3.5 w-3.5" />, dotColor: "bg-green-500" },
+  awaiting_response: { label: "Awaiting Response", color: "bg-blue-100 text-blue-800 border-blue-300", icon: <Eye className="h-3.5 w-3.5" />, dotColor: "bg-blue-500" },
+  engaged: { label: "Engaged", color: "bg-purple-100 text-purple-800 border-purple-300", icon: <UserCheck className="h-3.5 w-3.5" />, dotColor: "bg-purple-500" },
+  call_scheduled: { label: "Call Scheduled", color: "bg-emerald-100 text-emerald-800 border-emerald-300", icon: <Phone className="h-3.5 w-3.5" />, dotColor: "bg-emerald-500" },
+  cold_lead: { label: "Cold Lead", color: "bg-gray-100 text-gray-600 border-gray-300", icon: <Snowflake className="h-3.5 w-3.5" />, dotColor: "bg-gray-400" },
 };
 
-const FILTERS = ["all", "needs_follow_up", "interested", "engaged", "cold_lead"] as const;
+const SIDEBAR_ITEMS = [
+  { key: "all", label: "All Leads", icon: Inbox },
+  { key: "needs_follow_up", label: "Needs Follow-up", icon: Clock },
+  { key: "interested", label: "Interested", icon: Flame },
+  { key: "awaiting_response", label: "Awaiting Response", icon: Eye },
+  { key: "engaged", label: "Engaged", icon: UserCheck },
+  { key: "cold_lead", label: "Cold Leads", icon: Snowflake },
+] as const;
 
 const LeadsPanel = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -38,18 +45,25 @@ const LeadsPanel = () => {
   const [syncing, setSyncing] = useState(false);
   const [filter, setFilter] = useState<string>("all");
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [search, setSearch] = useState("");
 
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async () => {
     const { data } = await supabase.from("leads").select("*").order("updated_at", { ascending: false });
-    if (data) setLeads(data as unknown as Lead[]);
+    if (data) {
+      const leadsData = data as unknown as Lead[];
+      setLeads(leadsData);
+      // Refresh selected lead if it's still in the list
+      if (selectedLead) {
+        const updated = leadsData.find(l => l.id === selectedLead.id);
+        if (updated) setSelectedLead(updated);
+      }
+    }
     setLoading(false);
-  };
+  }, [selectedLead]);
 
   const syncLeads = async () => {
     setSyncing(true);
     try {
-      // Get unique slugs from link_events
       const { data: events } = await supabase.from("link_events").select("slug, business_name, event_type");
       if (!events || events.length === 0) { setSyncing(false); return; }
 
@@ -60,29 +74,22 @@ const LeadsPanel = () => {
         slugMap.set(e.slug, entry);
       }
 
-      // Get existing leads
       const { data: existingLeads } = await supabase.from("leads").select("slug, status, follow_up_count");
       const existingMap = new Map((existingLeads || []).map((l: any) => [l.slug, l]));
 
       for (const [slug, info] of slugMap) {
         const existing = existingMap.get(slug) as any;
-        
-        // Don't auto-downgrade manually set statuses
-        if (existing && (existing.status === "call_scheduled")) continue;
+        if (existing && existing.status === "call_scheduled") continue;
 
-        // Auto-classify
         let status = "needs_follow_up";
         const evts = info.events;
         if (evts.includes("voice_call_started")) status = "interested";
         else if (evts.includes("chatbot_opened") || evts.includes("chatbot_message")) status = "awaiting_response";
-        
         const totalClicks = evts.filter(e => e === "click" || e === "cta_click").length;
         if (totalClicks >= 3 || evts.length >= 5) status = "engaged";
-
         if (existing && existing.follow_up_count >= 3 && status === "needs_follow_up") status = "cold_lead";
 
         if (existing) {
-          // Only update status if it changed and wasn't manually set
           if (existing.status !== status && existing.status !== "call_scheduled") {
             await supabase.from("leads").update({ status }).eq("slug", slug);
           }
@@ -101,92 +108,153 @@ const LeadsPanel = () => {
 
   useEffect(() => { fetchLeads(); }, []);
 
-  const filtered = filter === "all" ? leads : leads.filter(l => l.status === filter);
+  const filtered = leads
+    .filter(l => filter === "all" || l.status === filter)
+    .filter(l => !search || l.business_name.toLowerCase().includes(search.toLowerCase()));
 
-  const statusBadge = (status: string) => {
-    const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.needs_follow_up;
-    return (
-      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.color}`}>
-        {cfg.icon} {cfg.label}
-      </span>
-    );
+  const countByStatus = (s: string) => s === "all" ? leads.length : leads.filter(l => l.status === s).length;
+
+  const timeAgo = (date: string) => {
+    const diff = Date.now() - new Date(date).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Lead Management</CardTitle>
-              <CardDescription>{leads.length} total leads</CardDescription>
-            </div>
-            <Button onClick={syncLeads} disabled={syncing} size="sm" className="gap-1.5">
-              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Syncing..." : "Auto-Sync"}
+    <div className="flex h-[calc(100vh-180px)] rounded-lg border bg-card overflow-hidden">
+      {/* Left Sidebar */}
+      <div className="w-56 shrink-0 border-r bg-muted/30 flex flex-col">
+        <div className="p-3 border-b">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-foreground">Leads</h2>
+            <Button onClick={syncLeads} disabled={syncing} variant="ghost" size="icon" className="h-7 w-7">
+              <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {/* Filter tabs */}
-          <div className="mb-4 flex flex-wrap gap-2">
-            {FILTERS.map(f => (
-              <Button
-                key={f}
-                variant={filter === f ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilter(f)}
+        </div>
+        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
+          {SIDEBAR_ITEMS.map(item => {
+            const count = countByStatus(item.key);
+            const isActive = filter === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => setFilter(item.key)}
+                className={cn(
+                  "w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors text-left",
+                  isActive
+                    ? "bg-primary/10 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                )}
               >
-                {f === "all" ? "All" : STATUS_CONFIG[f]?.label || f}
-              </Button>
-            ))}
+                <item.icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1 truncate">{item.label}</span>
+                {count > 0 && (
+                  <span className={cn(
+                    "text-xs rounded-full px-1.5 py-0.5 min-w-[20px] text-center",
+                    isActive ? "bg-primary/20 text-primary" : "bg-muted-foreground/10 text-muted-foreground"
+                  )}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Middle Panel - Lead List */}
+      <div className={cn(
+        "flex flex-col border-r",
+        selectedLead ? "w-80 shrink-0" : "flex-1"
+      )}>
+        <div className="p-3 border-b">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search leads..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
           </div>
+        </div>
 
+        <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex justify-center py-8"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>
+            <div className="flex justify-center py-12">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
           ) : filtered.length === 0 ? (
-            <p className="py-8 text-center text-muted-foreground">No leads found. Click Auto-Sync to import from analytics.</p>
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <Inbox className="h-10 w-10 text-muted-foreground/40 mb-3" />
+              <p className="text-sm text-muted-foreground">No leads found</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Click sync to import from analytics</p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Business</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-center">Follow-ups</TableHead>
-                  <TableHead className="hidden md:table-cell">Last Follow-up</TableHead>
-                  <TableHead className="hidden md:table-cell">Next Reminder</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map(lead => (
-                  <TableRow
+            <div className="divide-y">
+              {filtered.map(lead => {
+                const cfg = STATUS_CONFIG[lead.status] || STATUS_CONFIG.needs_follow_up;
+                const isSelected = selectedLead?.id === lead.id;
+                return (
+                  <button
                     key={lead.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => { setSelectedLead(lead); setDetailOpen(true); }}
+                    onClick={() => setSelectedLead(lead)}
+                    className={cn(
+                      "w-full text-left px-4 py-3 transition-colors hover:bg-muted/50",
+                      isSelected && "bg-primary/5 border-l-2 border-l-primary"
+                    )}
                   >
-                    <TableCell className="font-medium">{lead.business_name}</TableCell>
-                    <TableCell>{statusBadge(lead.status)}</TableCell>
-                    <TableCell className="text-center">{lead.follow_up_count}</TableCell>
-                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                      {lead.last_follow_up_at ? new Date(lead.last_follow_up_at).toLocaleDateString() : "—"}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                      {lead.next_follow_up_at ? new Date(lead.next_follow_up_at).toLocaleDateString() : "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    <div className="flex items-start gap-3">
+                      <div className={cn("h-2.5 w-2.5 rounded-full mt-1.5 shrink-0", cfg.dotColor)} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-sm truncate text-foreground">{lead.business_name}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(lead.updated_at)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={cn("inline-flex items-center gap-1 rounded-full border px-1.5 py-0 text-[10px] font-medium", cfg.color)}>
+                            {cfg.label}
+                          </span>
+                        </div>
+                        {lead.follow_up_count > 0 && (
+                          <p className="text-xs text-muted-foreground mt-1 truncate">
+                            {lead.follow_up_count} follow-up{lead.follow_up_count > 1 ? "s" : ""} sent
+                            {lead.last_follow_up_at && ` · Last ${timeAgo(lead.last_follow_up_at)}`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <LeadDetailView
-        lead={selectedLead}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        onUpdated={fetchLeads}
-      />
+      {/* Right Panel - Lead Detail */}
+      {selectedLead ? (
+        <div className="flex-1 overflow-hidden">
+          <LeadDetailView
+            lead={selectedLead}
+            onUpdated={fetchLeads}
+            onClose={() => setSelectedLead(null)}
+          />
+        </div>
+      ) : (
+        <div className="hidden md:flex flex-1 items-center justify-center text-center p-8">
+          <div>
+            <Inbox className="h-16 w-16 text-muted-foreground/20 mx-auto mb-4" />
+            <p className="text-muted-foreground text-sm">Select a lead to view details</p>
+            <p className="text-muted-foreground/60 text-xs mt-1">Click on any lead from the list</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
