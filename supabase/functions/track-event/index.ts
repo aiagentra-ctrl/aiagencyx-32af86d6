@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
       user_agent: userAgent,
       referrer,
       metadata: {
-        ...(metadata || {}),
+        ...meta,
         is_owner: isOwnerTraffic,
         device_type: deviceInfo.device_type,
         browser: deviceInfo.browser,

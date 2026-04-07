@@ -100,11 +100,30 @@ const DemoPage = () => {
       }
       if (chatbotRes.data) setLinkedChatbot(chatbotRes.data as unknown as LinkedChatbot);
 
-      // Track page view via analytics system
+      // Track page view + session start
       trackEvent(data.slug, "page_view", { demoPageId: data.id, businessName: data.business_name });
+      trackSessionStart(data.slug, { demoPageId: data.id, businessName: data.business_name });
     };
 
     fetchPage();
+
+    // Session end on unload/visibility
+    const handleUnload = () => {
+      if (resolvedSlug) trackSessionEnd(resolvedSlug);
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden" && resolvedSlug) {
+        trackSessionEnd(resolvedSlug);
+      }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      if (resolvedSlug) trackSessionEnd(resolvedSlug);
+      window.removeEventListener("beforeunload", handleUnload);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [resolvedSlug]);
 
   useEffect(() => {

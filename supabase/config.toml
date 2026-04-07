@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.generate-website]
 verify_jwt = false
+
+[functions.generate-voice-prompt]
+verify_jwt = false
