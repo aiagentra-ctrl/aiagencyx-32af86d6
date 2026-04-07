@@ -1,18 +1,15 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Send, Clock, MessageSquare, Activity, FileText } from "lucide-react";
+import { CalendarIcon, Send, Clock, MessageSquare, Activity, FileText, X, ChevronDown } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -35,10 +32,9 @@ interface FollowUp {
 }
 
 interface LeadDetailViewProps {
-  lead: Lead | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  lead: Lead;
   onUpdated: () => void;
+  onClose: () => void;
 }
 
 const STATUSES = [
@@ -56,7 +52,7 @@ const STAGES = [
   { value: "final", label: "Final Follow-up" },
 ];
 
-const LeadDetailView = ({ lead, open, onOpenChange, onUpdated }: LeadDetailViewProps) => {
+const LeadDetailView = ({ lead, onUpdated, onClose }: LeadDetailViewProps) => {
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [events, setEvents] = useState<any[]>([]);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
@@ -66,29 +62,28 @@ const LeadDetailView = ({ lead, open, onOpenChange, onUpdated }: LeadDetailViewP
   const [status, setStatus] = useState("");
   const [nextDate, setNextDate] = useState<Date | undefined>();
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<"thread" | "activity" | "chat" | "notes">("thread");
 
   useEffect(() => {
-    if (!lead || !open) return;
     setNotes(lead.notes || "");
     setStatus(lead.status);
     setNextDate(lead.next_follow_up_at ? new Date(lead.next_follow_up_at) : undefined);
     loadData(lead);
-  }, [lead, open]);
+  }, [lead.id]);
 
   const loadData = async (l: Lead) => {
     const [fuRes, evRes, chatRes] = await Promise.all([
-      supabase.from("lead_follow_ups").select("*").eq("lead_id", l.id).order("created_at", { ascending: false }),
+      supabase.from("lead_follow_ups").select("*").eq("lead_id", l.id).order("created_at", { ascending: true }),
       supabase.from("link_events").select("*").eq("slug", l.slug).order("created_at", { ascending: false }).limit(50),
       supabase.from("chatbot_conversations").select("*").order("created_at", { ascending: false }).limit(5),
     ]);
     if (fuRes.data) setFollowUps(fuRes.data as unknown as FollowUp[]);
     if (evRes.data) setEvents(evRes.data);
-    // Filter conversations that match this slug's chatbot
     if (chatRes.data) setChatMessages(chatRes.data);
   };
 
   const addFollowUp = async () => {
-    if (!lead || !newMessage.trim()) return;
+    if (!newMessage.trim()) return;
     setSaving(true);
     await supabase.from("lead_follow_ups").insert({ lead_id: lead.id, message: newMessage, stage: newStage });
     await supabase.from("leads").update({
@@ -98,12 +93,11 @@ const LeadDetailView = ({ lead, open, onOpenChange, onUpdated }: LeadDetailViewP
     setNewMessage("");
     await loadData(lead);
     onUpdated();
-    toast({ title: "Follow-up added" });
+    toast({ title: "Follow-up sent" });
     setSaving(false);
   };
 
   const saveChanges = async () => {
-    if (!lead) return;
     setSaving(true);
     await supabase.from("leads").update({
       status,
@@ -115,161 +109,200 @@ const LeadDetailView = ({ lead, open, onOpenChange, onUpdated }: LeadDetailViewP
     setSaving(false);
   };
 
-  if (!lead) return null;
-
   const stageColor = (s: string) => {
-    if (s === "reminder") return "bg-blue-100 text-blue-800";
-    if (s === "nudge") return "bg-orange-100 text-orange-800";
-    return "bg-red-100 text-red-800";
+    if (s === "reminder") return "bg-blue-100 text-blue-800 border-blue-200";
+    if (s === "nudge") return "bg-orange-100 text-orange-800 border-orange-200";
+    return "bg-red-100 text-red-800 border-red-200";
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            {lead.business_name}
-            <Badge variant="outline" className="text-xs">{lead.slug}</Badge>
-          </DialogTitle>
-        </DialogHeader>
+  const tabs = [
+    { key: "thread" as const, label: "Thread", icon: Send },
+    { key: "activity" as const, label: "Activity", icon: Activity },
+    { key: "chat" as const, label: "Chat", icon: MessageSquare },
+    { key: "notes" as const, label: "Notes", icon: FileText },
+  ];
 
-        {/* Status + Next Follow-up */}
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Status</label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="px-5 py-4 border-b bg-card">
+        <div className="flex items-center justify-between mb-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-foreground truncate">{lead.business_name}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">/{lead.slug} · Added {format(new Date(lead.created_at), "MMM d, yyyy")}</p>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Next Follow-up</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal", !nextDate && "text-muted-foreground")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {nextDate ? format(nextDate, "PPP") : "Pick date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={nextDate} onSelect={setNextDate} className="p-3 pointer-events-auto" />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <Button onClick={saveChanges} disabled={saving} size="sm">Save</Button>
+          <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 shrink-0">
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
-        <Tabs defaultValue="follow_ups" className="mt-4">
-          <TabsList className="flex-wrap">
-            <TabsTrigger value="follow_ups"><Send className="mr-1 h-3 w-3" />Follow-ups</TabsTrigger>
-            <TabsTrigger value="activity"><Activity className="mr-1 h-3 w-3" />Activity</TabsTrigger>
-            <TabsTrigger value="chat"><MessageSquare className="mr-1 h-3 w-3" />Chat</TabsTrigger>
-            <TabsTrigger value="notes"><FileText className="mr-1 h-3 w-3" />Notes</TabsTrigger>
-          </TabsList>
+        {/* Status + Next Follow-up row */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <Select value={status} onValueChange={v => { setStatus(v); }}>
+            <SelectTrigger className="w-[160px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
-          {/* Follow-ups Tab */}
-          <TabsContent value="follow_ups" className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Add Follow-up</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Textarea
-                  placeholder="What did you say/send?"
-                  value={newMessage}
-                  onChange={e => setNewMessage(e.target.value)}
-                  rows={2}
-                />
-                <div className="flex gap-2">
-                  <Select value={newStage} onValueChange={setNewStage}>
-                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {STAGES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={addFollowUp} disabled={saving || !newMessage.trim()} size="sm" className="gap-1">
-                    <Send className="h-3 w-3" /> Send
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className={cn("h-8 text-xs gap-1.5", !nextDate && "text-muted-foreground")}>
+                <CalendarIcon className="h-3 w-3" />
+                {nextDate ? format(nextDate, "MMM d") : "Reminder"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={nextDate} onSelect={setNextDate} className="p-3 pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
 
-            <div className="space-y-2">
+          <Button onClick={saveChanges} disabled={saving} size="sm" className="h-8 text-xs">
+            Save
+          </Button>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex border-b px-5 bg-card">
+        {tabs.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors",
+              activeTab === tab.key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <tab.icon className="h-3.5 w-3.5" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content area */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Thread Tab - Email-style conversation */}
+        {activeTab === "thread" && (
+          <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
               {followUps.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No follow-ups yet</p>
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Send className="h-10 w-10 text-muted-foreground/20 mb-3" />
+                  <p className="text-sm text-muted-foreground">No follow-ups yet</p>
+                  <p className="text-xs text-muted-foreground/60 mt-1">Send your first message below</p>
+                </div>
               ) : followUps.map(fu => (
-                <div key={fu.id} className="flex items-start gap-3 rounded-lg border p-3">
-                  <Clock className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${stageColor(fu.stage)}`}>
+                <div key={fu.id} className="group">
+                  <div className="rounded-lg border bg-card p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-medium", stageColor(fu.stage))}>
                         {fu.stage}
                       </span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(fu.created_at).toLocaleString()}
+                      <span className="text-[10px] text-muted-foreground ml-auto">
+                        {format(new Date(fu.created_at), "MMM d, yyyy 'at' h:mm a")}
                       </span>
                     </div>
-                    <p className="text-sm">{fu.message}</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{fu.message}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </TabsContent>
 
-          {/* Activity Tab */}
-          <TabsContent value="activity">
-            <div className="max-h-[300px] overflow-y-auto space-y-2">
-              {events.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No activity recorded</p>
-              ) : events.map((ev: any) => (
-                <div key={ev.id} className="flex items-center gap-3 rounded-lg border p-2.5 text-sm">
-                  <Badge variant="outline" className="text-xs shrink-0">{ev.event_type}</Badge>
-                  <span className="text-muted-foreground text-xs">{new Date(ev.created_at).toLocaleString()}</span>
-                  {ev.city && <span className="text-xs text-muted-foreground ml-auto">{ev.city}, {ev.country_code}</span>}
+            {/* Compose area */}
+            <div className="border-t p-4 bg-card">
+              <Textarea
+                placeholder="Write a follow-up message..."
+                value={newMessage}
+                onChange={e => setNewMessage(e.target.value)}
+                rows={2}
+                className="resize-none text-sm mb-2"
+              />
+              <div className="flex items-center gap-2">
+                <Select value={newStage} onValueChange={setNewStage}>
+                  <SelectTrigger className="w-[130px] h-8 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STAGES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button
+                  onClick={addFollowUp}
+                  disabled={saving || !newMessage.trim()}
+                  size="sm"
+                  className="h-8 gap-1.5 ml-auto"
+                >
+                  <Send className="h-3 w-3" /> Send
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Activity Tab */}
+        {activeTab === "activity" && (
+          <div className="p-5 space-y-2">
+            {events.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No activity recorded</p>
+            ) : events.map((ev: any) => (
+              <div key={ev.id} className="flex items-center gap-3 rounded-lg border p-3 text-sm bg-card">
+                <Badge variant="outline" className="text-[10px] shrink-0">{ev.event_type}</Badge>
+                <span className="text-muted-foreground text-xs">{format(new Date(ev.created_at), "MMM d, h:mm a")}</span>
+                {ev.city && <span className="text-xs text-muted-foreground ml-auto">{ev.city}, {ev.country_code}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Chat Tab */}
+        {activeTab === "chat" && (
+          <div className="p-5 space-y-3">
+            {chatMessages.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No chat history</p>
+            ) : chatMessages.map((conv: any) => {
+              const msgs = Array.isArray(conv.messages) ? conv.messages : [];
+              return (
+                <div key={conv.id} className="rounded-lg border bg-card p-4">
+                  <p className="text-[10px] text-muted-foreground mb-2">
+                    Session {conv.session_id?.slice(0, 8)}… · {format(new Date(conv.created_at), "MMM d, h:mm a")}
+                  </p>
+                  <div className="space-y-1.5">
+                    {msgs.slice(0, 6).map((m: any, i: number) => (
+                      <div key={i} className={cn("text-xs rounded-md p-2", m.role === "user" ? "bg-muted" : "bg-primary/5")}>
+                        <span className="font-medium">{m.role}: </span>
+                        {typeof m.content === "string" ? m.content.slice(0, 200) : ""}
+                      </div>
+                    ))}
+                    {msgs.length > 6 && <p className="text-[10px] text-muted-foreground">+{msgs.length - 6} more</p>}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </TabsContent>
+              );
+            })}
+          </div>
+        )}
 
-          {/* Chat Tab */}
-          <TabsContent value="chat">
-            <div className="max-h-[300px] overflow-y-auto space-y-2">
-              {chatMessages.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">No chat history</p>
-              ) : chatMessages.map((conv: any) => {
-                const msgs = Array.isArray(conv.messages) ? conv.messages : [];
-                return (
-                  <Card key={conv.id}>
-                    <CardContent className="p-3 space-y-1">
-                      <p className="text-xs text-muted-foreground mb-2">Session: {conv.session_id?.slice(0, 8)}… • {new Date(conv.created_at).toLocaleString()}</p>
-                      {msgs.slice(0, 6).map((m: any, i: number) => (
-                        <div key={i} className={`text-xs rounded p-1.5 ${m.role === "user" ? "bg-muted" : "bg-primary/5"}`}>
-                          <span className="font-medium">{m.role}: </span>{typeof m.content === "string" ? m.content.slice(0, 200) : ""}
-                        </div>
-                      ))}
-                      {msgs.length > 6 && <p className="text-xs text-muted-foreground">+{msgs.length - 6} more messages</p>}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </TabsContent>
-
-          {/* Notes Tab */}
-          <TabsContent value="notes" className="space-y-3">
+        {/* Notes Tab */}
+        {activeTab === "notes" && (
+          <div className="p-5 space-y-3">
             <Textarea
               placeholder="Add notes about this lead..."
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              rows={5}
+              rows={8}
+              className="resize-none text-sm"
             />
-            <Button onClick={saveChanges} disabled={saving} size="sm">Save Notes</Button>
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+            <Button onClick={saveChanges} disabled={saving} size="sm" className="h-8">
+              Save Notes
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
