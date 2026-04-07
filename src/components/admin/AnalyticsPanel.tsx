@@ -79,6 +79,10 @@ interface ClientRow {
   totalDuration: number;
   totalActiveTime: number;
   sessionCount: number;
+  maxScrollDepth: number;
+  returnVisits: number;
+  chatScore: number; // 0-100
+  topClicks: { element: string; text: string; count: number }[];
 }
 
 function getEngagementDetail(row: { linkOpened: boolean; chatbotClicked: boolean; voiceClicked: boolean }): EngagementDetail {
@@ -188,6 +192,8 @@ const AnalyticsPanel = () => {
           device_type: meta.device_type || "unknown",
           browser: meta.browser || "unknown", os: meta.os || "unknown",
           totalDuration: 0, totalActiveTime: 0, sessionCount: 0,
+          maxScrollDepth: 0, returnVisits: 0, chatScore: 0,
+          topClicks: [],
         });
       }
       const row = map.get(e.slug)!;
@@ -210,6 +216,22 @@ const AnalyticsPanel = () => {
         row.totalDuration += meta.duration_seconds;
         row.totalActiveTime += meta.active_time_seconds || 0;
         row.sessionCount++;
+        if (meta.max_scroll_depth > row.maxScrollDepth) row.maxScrollDepth = meta.max_scroll_depth;
+      }
+
+      // Scroll depth
+      if (e.event_type === "scroll_depth" && meta.depth_percent > row.maxScrollDepth) {
+        row.maxScrollDepth = meta.depth_percent;
+      }
+
+      // Return visits
+      if (e.event_type === "return_visit") {
+        row.returnVisits = Math.max(row.returnVisits, meta.total_visits || 0);
+      }
+
+      // Chat quality score from chatbot_message metadata
+      if (e.event_type === "chatbot_message" && meta.conversation_score) {
+        row.chatScore = Math.max(row.chatScore, meta.conversation_score);
       }
 
       switch (e.event_type) {
@@ -342,9 +364,10 @@ const AnalyticsPanel = () => {
                     <TableHead className="text-center">Voice</TableHead>
                     <TableHead className="text-center">Clicks</TableHead>
                     <TableHead>Time</TableHead>
+                    <TableHead>Scroll</TableHead>
+                    <TableHead>Visits</TableHead>
+                    <TableHead>Chat Score</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Problem</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -377,8 +400,34 @@ const AnalyticsPanel = () => {
                           )}
                         </div>
                       </TableCell>
+                      <TableCell>
+                        <div className="text-xs font-medium">
+                          {row.maxScrollDepth > 0 ? (
+                            <span className={row.maxScrollDepth >= 75 ? "text-green-600" : row.maxScrollDepth >= 50 ? "text-yellow-600" : "text-red-600"}>
+                              {row.maxScrollDepth}%
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs">
+                          {row.returnVisits > 1 ? (
+                            <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/20 text-[10px]">
+                              🔄 {row.returnVisits}x
+                            </Badge>
+                          ) : <span className="text-muted-foreground">1st</span>}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs">
+                          {row.chatScore > 0 ? (
+                            <span className={`font-medium ${row.chatScore >= 70 ? "text-green-600" : row.chatScore >= 40 ? "text-yellow-600" : "text-red-600"}`}>
+                              {row.chatScore}/100
+                            </span>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </div>
+                      </TableCell>
                       <TableCell>{getStatusBadge(row)}</TableCell>
-                      <TableCell><span className="text-xs font-medium">{row.followUp.problemLabel}</span></TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px] cursor-pointer" onClick={() => copyMessage(row.followUp.message)}>
                           {row.followUp.action}

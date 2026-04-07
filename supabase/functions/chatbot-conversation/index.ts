@@ -413,17 +413,65 @@ Deno.serve(async (req) => {
           ...updatedMessages,
           { role: "assistant", content: fullResponse, timestamp: new Date().toISOString() },
         ];
+
+        // Calculate conversation quality score (0-100)
+        const userMsgs = finalMessages.filter((m: any) => m.role === "user");
+        const assistantMsgs = finalMessages.filter((m: any) => m.role === "assistant");
+        let score = 0;
+        // Message count depth (max 30 pts)
+        score += Math.min(userMsgs.length * 10, 30);
+        // Avg message length (max 20 pts)
+        const avgUserLen = userMsgs.length > 0 ? userMsgs.reduce((s: number, m: any) => s + (m.content?.length || 0), 0) / userMsgs.length : 0;
+        score += Math.min(Math.round(avgUserLen / 5), 20);
+        // Back-and-forth ratio (max 20 pts)
+        if (assistantMsgs.length > 0 && userMsgs.length > 0) {
+          const ratio = Math.min(userMsgs.length / assistantMsgs.length, 1);
+          score += Math.round(ratio * 20);
+        }
+        // Intent signals (max 30 pts)
+        const allUserText = userMsgs.map((m: any) => (m.content || "").toLowerCase()).join(" ");
+        const intentKeywords = ["order", "book", "reserve", "buy", "price", "cost", "appointment", "schedule", "menu", "service", "deliver", "pickup", "available", "open", "hours", "address", "phone", "contact"];
+        const matchedIntents = intentKeywords.filter(k => allUserText.includes(k));
+        score += Math.min(matchedIntents.length * 6, 30);
+
+        const conversationScore = Math.min(score, 100);
+
+        // Save conversation with score
+        const saveData = {
+          messages: finalMessages,
+          updated_at: new Date().toISOString(),
+        };
+
         if (conversation) {
           await supabase
             .from("chatbot_conversations")
-            .update({ messages: finalMessages, updated_at: new Date().toISOString() })
+            .update(saveData)
             .eq("id", conversation.id);
         } else {
           await supabase.from("chatbot_conversations").insert({
             chatbot_id: chatbotId,
             session_id: sessionId,
-            messages: finalMessages,
+            ...saveData,
           });
+        }
+
+        // Track conversation quality as an event
+        if (conversationScore > 0) {
+          try {
+            await supabase.from("link_events").insert({
+              slug: chatbot?.slug || "unknown",
+              event_type: "chatbot_message",
+              business_name: chatbot?.business_name || "unknown",
+              session_id: sessionId,
+              chatbot_id: chatbotId,
+              metadata: {
+                conversation_score: conversationScore,
+                message_count: userMsgs.length,
+                intent_signals: matchedIntents,
+                avg_msg_length: Math.round(avgUserLen),
+              },
+            });
+          } catch { /* non-critical */ }
         }
       },
     });

@@ -5,7 +5,7 @@ export type CallStatus = "idle" | "calling" | "connected" | "ended";
 import { supabase } from "@/integrations/supabase/client";
 import HeroSection from "@/components/demo/HeroSection";
 import DemoNavbar from "@/components/demo/DemoNavbar";
-import { trackEvent, trackSessionStart, trackSessionEnd, trackSectionEnter, trackSectionLeave } from "@/lib/tracking";
+import { trackEvent, trackSessionStart, trackSessionEnd, trackSectionEnter, trackSectionLeave, startScrollTracking, stopScrollTracking, startClickTracking, stopClickTracking, trackReturnVisit } from "@/lib/tracking";
 
 const VoiceAgentSection = lazy(() => import("@/components/demo/VoiceAgentSection"));
 const PersonalizationProofSection = lazy(() => import("@/components/demo/PersonalizationProofSection"));
@@ -100,9 +100,13 @@ const DemoPage = () => {
       }
       if (chatbotRes.data) setLinkedChatbot(chatbotRes.data as unknown as LinkedChatbot);
 
-      // Track page view + session start
-      trackEvent(data.slug, "page_view", { demoPageId: data.id, businessName: data.business_name });
-      trackSessionStart(data.slug, { demoPageId: data.id, businessName: data.business_name });
+      // Track page view + session start + scroll/click tracking + return visits
+      const opts = { demoPageId: data.id, businessName: data.business_name };
+      trackEvent(data.slug, "page_view", opts);
+      trackSessionStart(data.slug, opts);
+      startScrollTracking(data.slug, opts);
+      startClickTracking(data.slug, opts);
+      trackReturnVisit(data.slug, opts);
     };
 
     fetchPage();
@@ -121,6 +125,8 @@ const DemoPage = () => {
 
     return () => {
       if (resolvedSlug) trackSessionEnd(resolvedSlug);
+      stopScrollTracking();
+      stopClickTracking();
       window.removeEventListener("beforeunload", handleUnload);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
