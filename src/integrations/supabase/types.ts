@@ -318,6 +318,77 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_follow_ups: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          message: string
+          stage: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          message: string
+          stage?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          message?: string
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_follow_ups_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          business_name: string
+          created_at: string
+          follow_up_count: number
+          id: string
+          last_follow_up_at: string | null
+          next_follow_up_at: string | null
+          notes: string | null
+          slug: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          business_name: string
+          created_at?: string
+          follow_up_count?: number
+          id?: string
+          last_follow_up_at?: string | null
+          next_follow_up_at?: string | null
+          notes?: string | null
+          slug: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          business_name?: string
+          created_at?: string
+          follow_up_count?: number
+          id?: string
+          last_follow_up_at?: string | null
+          next_follow_up_at?: string | null
+          notes?: string | null
+          slug?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       link_events: {
         Row: {
           business_name: string
