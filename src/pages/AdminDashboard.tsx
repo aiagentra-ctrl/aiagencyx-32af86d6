@@ -173,6 +173,10 @@ const AdminDashboard = () => {
               <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
               Analytics
             </TabsTrigger>
+            <TabsTrigger value="leads">
+              <UserCheck className="mr-1.5 h-3.5 w-3.5" />
+              Leads
+            </TabsTrigger>
             <TabsTrigger value="templates">
               <Layers className="mr-1.5 h-3.5 w-3.5" />
               Templates
