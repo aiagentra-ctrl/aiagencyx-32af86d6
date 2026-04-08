@@ -225,6 +225,9 @@ const DemoPage = () => {
   const companyName = page.company_name || page.business_name;
   const dc = (page.dynamic_content as any) || {};
   const chatbotNavItems = linkedChatbot?.widget_config?.navItems || dc.chatbot_nav_items || undefined;
+  const isDental = ["dental", "clinic", "dentist", "healthcare", "medical", "doctor"]
+    .some(k => (page.industry || "").toLowerCase().includes(k));
+  const wt = dc.website_template || {};
 
   return (
     <div className="min-h-screen bg-background">
