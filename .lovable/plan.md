@@ -1,113 +1,86 @@
-## Plan: Dental Clinic Industry Template — Dynamic Personalization Sections
+
+
+## Plan: Advanced Dental Voice Agent + Firecrawl KB Integration + Smarter Booking Flow
 
 ### Summary
-
-Build a dedicated dental clinic template with 5 new/upgraded website sections (Problem, Outcome, Solution, ROI Calculator, Why Every Clinic) that match the reference images. Store the dental template content in `industry_templates` so voice agent, chatbot, and website all pull from the same source. The existing generic sections remain untouched — dental-specific rendering activates when `industry` matches dental/clinic/healthcare.
-
----
-
-### 1. Database: Seed Dental Industry Template
-
-Create a migration that inserts a comprehensive `industry_templates` row for `dental` with:
-
-- `system_prompt_template`: Dental-specific voice prompt (appointment booking flow, services, patient recall)
-- `hero_subtitle_template`: "We built a live AI receptionist for {business_name} — it books appointments, answers patient questions, and never misses a call."
-- `first_message_template`: Dental-friendly greeting
-- `chatbot_nav_items`: Book Appointment, Our Services, Location & Hours, Insurance Info
-- `floating_bubbles`: Dental-specific ("Book a cleaning for next week", "Do you accept my insurance?")
-- New JSONB fields in the template: `outcome_benefits`, `solution_features`, `roi_defaults`, `why_clinic_scenarios` (stored inside existing flexible JSONB or as part of `problem_statements` extended structure)
+Upgrade the dental clinic voice agent and chatbot system prompts to be production-grade: add a dedicated `buildDentalVoicePrompt` function (like the restaurant one), integrate Firecrawl scraped data as the primary knowledge source with strict response rules, and redesign the chatbot booking flow for dental appointments to be smoother and higher-converting.
 
 ---
 
-### 2. New Component: `DentalProblemSection.tsx`
+### 1. `supabase/functions/create-demo/index.ts` — Add Dedicated Dental Voice Prompt
 
-Matches the "Every Missed Call = Lost Patients = Lost Revenue" reference image:
+Add `buildDentalVoicePrompt()` alongside the existing `buildRestaurantVoicePrompt()`. This is a full VAPI-structured prompt with:
 
-- 4 pain-point cards with icons (clock, phone-off, users, calendar)
-- Each card: icon + text description
-- Math block at bottom: "3 missed calls/day x $250 = $750/day → $15,000+/month"
-- Red/warm color accents for urgency
-- CTA button: "See How Much You Could Be Losing — Book a Free Demo"
+- **[Identity]**: Real receptionist persona at the dental clinic, knows all services/treatments
+- **[Style]**: Warm, reassuring tone (patients may be nervous), uses dental-appropriate language
+- **[Task: Appointment Booking]**: Step-by-step flow (service needed → preferred date → preferred time → name → phone → insurance → confirmation) with `<wait for user response>` markers
+- **[Task: Service Questions]**: Pulls from scraped KB data to answer about treatments, pricing, insurance
+- **[Task: Emergency Handling]**: Recognizes dental emergencies, prioritizes urgent scheduling
+- **[Task: Insurance & Pricing]**: Answers from KB, gracefully handles unknowns ("Let me have our billing team confirm that for you")
+- **[Task: Patient Recall]**: Proactively suggests follow-ups for returning patients
+- **[KB Usage Rules]**: Strict — never guess services/pricing, never mention scraping, answer from verified data only, fallback: "I'll have our team confirm that for you"
 
----
-
-### 3. New Component: `DentalOutcomeSection.tsx`
-
-Matches "What If Every Call Became a Booked Appointment?" reference:
-
-- Moon emoji + headline
-- 6 benefit cards in 3x2 grid with green checkmarks
-- Benefits: 24/7 answered, 30% more bookings, 2-3 staff hours saved, 20-50% revenue increase, zero missed opportunities, no empty slots
-- CTA: "See How It Works"
-
----
-
-### 4. New Component: `DentalSolutionSection.tsx`
-
-Matches "Meet Your 24/7 AI Call Agent" reference:
-
-- Robot emoji + headline + subtitle "The Receptionist That Never Sleeps"
-- 6 feature cards in 3x2 grid with icons (Phone, Calendar, MessageSquare, Clock, Brain, BarChart)
-- Features: 24/7 Call Answering, Instant Booking, Automatic Follow-Ups, No-Show Reduction, Smart Memory, Analytics Dashboard
-- CTA: "Watch the AI in Action — Book a Free Demo"
-
----
-
-### 5. New Component: `DentalROISection.tsx`
-
-Matches the ROI Calculator reference image:
-
-- Interactive sliders: Patient calls/day, Missed calls, Average patient value
-- Real-time calculated outputs: Revenue Lost/Month, Appointments Recovered, Monthly Gain with AI
-- "AI pays for itself in approximately X days" line
-- CTA: "See It in Action — Book a Free Demo"
-
----
-
-### 6. New Component: `DentalWhyClinicSection.tsx`
-
-Matches "Why Every Clinic Needs a 24/7 AI Receptionist" reference:
-
-- Scenario table with 3 rows (Conservative, Realistic, Busy Clinic)
-- Columns: Scenario, Missed Calls, Avg Patient Value, Monthly Revenue Lost, Recovered with AI
-- Bottom callout: "Even saving 1 new patient/day = $7,500/month in added revenue"
-- Guarantee line: "Recover 30% More Appointments in 30 Days — Or It's Free Forever"
-
----
-
-### 7. `DemoPage.tsx` — Conditional Dental Layout
-
-Add industry detection logic:
-
+Update the dispatcher `getVoicePrompt()` to detect dental industry and route to this new function:
 ```
-const isDental = ["dental", "clinic", "dentist", "healthcare", "medical", "doctor"]
-  .some(k => (page.industry || "").toLowerCase().includes(k));
+if (isDentalIndustry(industry)) return buildDentalVoicePrompt(...);
+if (isRestaurantIndustry(industry)) return buildRestaurantVoicePrompt(...);
+return buildGenericVoicePrompt(...);
 ```
 
-When `isDental`:
-
-- Render dental-specific sections instead of generic ProblemSection/OutcomeSection
-- Section order: Hero → VoiceAgent → PersonalizationProof → DentalProblem → DentalWhyClinic → DentalROI → DentalOutcome → DentalSolution → CTA → Footer
-- Non-dental pages continue using existing generic sections unchanged
+Add `isDentalIndustry()` helper matching: dental, dentist, clinic, orthodont, oral, healthcare, medical, doctor.
 
 ---
 
-### 8. `create-demo/index.ts` — Use Dental Template
+### 2. `supabase/functions/create-voice-agent/index.ts` — Same Dental Prompt
 
-The existing template engine already handles this — when `industry=dental`, it loads the dental template. Add the dental-specific `dynamic_content` fields (roi_defaults, solution_features, etc.) so frontend can consume them. Also update `buildGenericVoicePrompt`'s dental branch to use a more detailed appointment booking flow.
+Mirror the same `buildDentalVoicePrompt()` and `isDentalIndustry()` in the standalone voice agent creation function. Update its dispatcher to use the dental prompt when applicable.
+
+---
+
+### 3. `supabase/functions/chatbot-conversation/index.ts` — Smarter Dental Booking Flow + KB Rules
+
+Upgrade `buildSystemPrompt()` to detect dental industry and inject:
+
+**A. Enhanced Appointment Booking Flow (replaces generic reservation flow for dental):**
+- Step 1: "What brings you in? Routine cleaning, a specific concern, or something else?"
+- Step 2: Suggest relevant services from KB with pricing (if available)
+- Step 3: "Do you have a preferred day?" (show Today/Tomorrow/This Week/Next Week buttons)
+- Step 4: "Morning or afternoon?" (show time-range buttons instead of exact times)
+- Step 5: "Can I get your name?"
+- Step 6: "Best phone number to reach you?"
+- Step 7: "Do you have dental insurance? If so, which provider?"
+- Step 8: Confirmation summary with edit option
+- Each step uses action buttons for common choices to reduce typing
+
+**B. Firecrawl KB Integration Rules (added to system prompt for all industries but emphasized for dental):**
+- Prioritize scraped website content over assumptions
+- Never guess services or pricing — only state what's in KB
+- Never mention "scraped data" or "Firecrawl" — present naturally
+- If data is available → answer directly
+- If partially available → answer + clarify
+- If missing → "I'll have our team confirm that for you"
+- Guide toward booking when answering service questions
+
+**C. Dental-Specific Response Intelligence:**
+- Recognize urgency keywords (pain, emergency, broken tooth, bleeding) → fast-track to booking
+- For treatment questions → pull from KB, describe simply, suggest consultation
+- For cost questions → give KB price if available, else suggest calling for exact quote
+- For insurance → check KB, offer to verify coverage
+
+---
+
+### 4. `supabase/functions/generate-voice-prompt/index.ts` — Dental Meta-Prompt Enhancement
+
+Update the `VAPI_META_PROMPT` to include dental-specific instructions so when auto-generating prompts for dental businesses, the LLM produces the right appointment booking flow, emergency handling, and insurance/pricing patterns.
 
 ---
 
 ### Files Summary
 
+| File | Change |
+|------|--------|
+| `supabase/functions/create-demo/index.ts` | Add `buildDentalVoicePrompt()`, `isDentalIndustry()`, update dispatcher |
+| `supabase/functions/create-voice-agent/index.ts` | Same dental prompt builder + dispatcher update |
+| `supabase/functions/chatbot-conversation/index.ts` | Dental-specific booking flow, KB response rules, urgency detection |
+| `supabase/functions/generate-voice-prompt/index.ts` | Dental-aware meta-prompt for auto-generation |
 
-| File                                             | Change                                                                   |
-| ------------------------------------------------ | ------------------------------------------------------------------------ |
-| Migration                                        | Seed `industry_templates` row for "dental" with full content             |
-| `src/components/demo/DentalProblemSection.tsx`   | **New** — Pain + money section                                           |
-| `src/components/demo/DentalOutcomeSection.tsx`   | **New** — Vision + benefits                                              |
-| `src/components/demo/DentalSolutionSection.tsx`  | **New** — Product features grid                                          |
-| `src/components/demo/DentalROISection.tsx`       | **New** — Interactive ROI calculator                                     |
-| `src/components/demo/DentalWhyClinicSection.tsx` | **New** — Scenario comparison table                                      |
-| `src/pages/DemoPage.tsx`                         | Edit — conditional dental layout rendering                               |
-| `supabase/functions/create-demo/index.ts`        | Minor — ensure dental template populates extended dynamic_content fields |
