@@ -1,106 +1,113 @@
-
-
-## Plan: Lead Management & Follow-up System
+## Plan: Dental Clinic Industry Template — Dynamic Personalization Sections
 
 ### Summary
-Add a new "Leads" tab to the admin dashboard with a full lead management system — independent from the existing analytics table (zero changes to it). Includes a new `leads` database table for follow-up tracking, automated status classification, and a detailed lead view.
+
+Build a dedicated dental clinic template with 5 new/upgraded website sections (Problem, Outcome, Solution, ROI Calculator, Why Every Clinic) that match the reference images. Store the dental template content in `industry_templates` so voice agent, chatbot, and website all pull from the same source. The existing generic sections remain untouched — dental-specific rendering activates when `industry` matches dental/clinic/healthcare.
 
 ---
 
-### 1. Database: New `leads` Table
+### 1. Database: Seed Dental Industry Template
 
-```sql
-CREATE TABLE leads (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  slug text NOT NULL,
-  business_name text NOT NULL,
-  status text NOT NULL DEFAULT 'needs_follow_up',
-  -- statuses: needs_follow_up, interested, awaiting_response, engaged, call_scheduled, cold_lead
-  follow_up_count integer NOT NULL DEFAULT 0,
-  last_follow_up_at timestamptz,
-  next_follow_up_at timestamptz,
-  notes text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
+Create a migration that inserts a comprehensive `industry_templates` row for `dental` with:
 
-CREATE TABLE lead_follow_ups (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  lead_id uuid REFERENCES leads(id) ON DELETE CASCADE NOT NULL,
-  message text NOT NULL,
-  stage text NOT NULL DEFAULT 'reminder', -- reminder, nudge, final
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+- `system_prompt_template`: Dental-specific voice prompt (appointment booking flow, services, patient recall)
+- `hero_subtitle_template`: "We built a live AI receptionist for {business_name} — it books appointments, answers patient questions, and never misses a call."
+- `first_message_template`: Dental-friendly greeting
+- `chatbot_nav_items`: Book Appointment, Our Services, Location & Hours, Insurance Info
+- `floating_bubbles`: Dental-specific ("Book a cleaning for next week", "Do you accept my insurance?")
+- New JSONB fields in the template: `outcome_benefits`, `solution_features`, `roi_defaults`, `why_clinic_scenarios` (stored inside existing flexible JSONB or as part of `problem_statements` extended structure)
+
+---
+
+### 2. New Component: `DentalProblemSection.tsx`
+
+Matches the "Every Missed Call = Lost Patients = Lost Revenue" reference image:
+
+- 4 pain-point cards with icons (clock, phone-off, users, calendar)
+- Each card: icon + text description
+- Math block at bottom: "3 missed calls/day x $250 = $750/day → $15,000+/month"
+- Red/warm color accents for urgency
+- CTA button: "See How Much You Could Be Losing — Book a Free Demo"
+
+---
+
+### 3. New Component: `DentalOutcomeSection.tsx`
+
+Matches "What If Every Call Became a Booked Appointment?" reference:
+
+- Moon emoji + headline
+- 6 benefit cards in 3x2 grid with green checkmarks
+- Benefits: 24/7 answered, 30% more bookings, 2-3 staff hours saved, 20-50% revenue increase, zero missed opportunities, no empty slots
+- CTA: "See How It Works"
+
+---
+
+### 4. New Component: `DentalSolutionSection.tsx`
+
+Matches "Meet Your 24/7 AI Call Agent" reference:
+
+- Robot emoji + headline + subtitle "The Receptionist That Never Sleeps"
+- 6 feature cards in 3x2 grid with icons (Phone, Calendar, MessageSquare, Clock, Brain, BarChart)
+- Features: 24/7 Call Answering, Instant Booking, Automatic Follow-Ups, No-Show Reduction, Smart Memory, Analytics Dashboard
+- CTA: "Watch the AI in Action — Book a Free Demo"
+
+---
+
+### 5. New Component: `DentalROISection.tsx`
+
+Matches the ROI Calculator reference image:
+
+- Interactive sliders: Patient calls/day, Missed calls, Average patient value
+- Real-time calculated outputs: Revenue Lost/Month, Appointments Recovered, Monthly Gain with AI
+- "AI pays for itself in approximately X days" line
+- CTA: "See It in Action — Book a Free Demo"
+
+---
+
+### 6. New Component: `DentalWhyClinicSection.tsx`
+
+Matches "Why Every Clinic Needs a 24/7 AI Receptionist" reference:
+
+- Scenario table with 3 rows (Conservative, Realistic, Busy Clinic)
+- Columns: Scenario, Missed Calls, Avg Patient Value, Monthly Revenue Lost, Recovered with AI
+- Bottom callout: "Even saving 1 new patient/day = $7,500/month in added revenue"
+- Guarantee line: "Recover 30% More Appointments in 30 Days — Or It's Free Forever"
+
+---
+
+### 7. `DemoPage.tsx` — Conditional Dental Layout
+
+Add industry detection logic:
+
+```
+const isDental = ["dental", "clinic", "dentist", "healthcare", "medical", "doctor"]
+  .some(k => (page.industry || "").toLowerCase().includes(k));
 ```
 
-RLS: Full access for anon/authenticated (matches existing pattern).
+When `isDental`:
+
+- Render dental-specific sections instead of generic ProblemSection/OutcomeSection
+- Section order: Hero → VoiceAgent → PersonalizationProof → DentalProblem → DentalWhyClinic → DentalROI → DentalOutcome → DentalSolution → CTA → Footer
+- Non-dental pages continue using existing generic sections unchanged
 
 ---
 
-### 2. New Component: `src/components/admin/LeadsPanel.tsx`
+### 8. `create-demo/index.ts` — Use Dental Template
 
-Main leads dashboard with:
-- **Auto-sync**: On load, scans `link_events` for unique slugs and upserts into `leads` table
-- **Auto-classify status** based on activity from `link_events`:
-  - Only page_view → `needs_follow_up`
-  - Tried voice agent → `interested`
-  - Tried chatbot only → `awaiting_response`
-  - Multiple interactions → `engaged`
-  - Manual override for `call_scheduled` and `cold_lead`
-- **Lead table** with columns: Business, Status (color badge), Follow-ups Sent, Last Follow-up, Next Reminder, Actions
-- **Filter tabs**: All | Needs Follow-up | Interested | Engaged | Cold
-- **Bulk actions**: Mark as Cold, Schedule Follow-up
-
----
-
-### 3. New Component: `src/components/admin/LeadDetailView.tsx`
-
-Opens as a Dialog when clicking a lead row. Shows:
-
-**Header**: Business name, status badge, manual status override dropdown
-
-**Sections (tabs or accordion)**:
-- **Overview**: First visit, last activity, total sessions, device, location, voice/chatbot usage flags
-- **Activity Timeline**: Fetched from `link_events` — chronological feed (reuses pattern from ClientDetailCard)
-- **Chat History**: From `chatbot_conversations` — full transcript
-- **Follow-up History**: From `lead_follow_ups` — all sent messages with timestamps and stage labels
-- **Add Follow-up**: Form with message textarea + stage selector (Reminder/Nudge/Final). On submit, inserts into `lead_follow_ups`, increments `follow_up_count`, updates `last_follow_up_at`
-- **Notes**: Editable text field saved to `leads.notes`
-- **Next Follow-up**: Date picker for `next_follow_up_at`
-
----
-
-### 4. Admin Dashboard Integration
-
-Add a new tab "Leads" to `AdminDashboard.tsx`:
-```
-<TabsTrigger value="leads">
-  <UserCheck className="mr-1.5 h-3.5 w-3.5" />
-  Leads
-</TabsTrigger>
-```
-
----
-
-### 5. Auto-Status Update Logic (in LeadsPanel)
-
-On sync, for each lead:
-1. Query `link_events` for that slug
-2. Check for `voice_call_started` → `interested`
-3. Check for `chatbot_opened`/`chatbot_message` → `awaiting_response`
-4. Check totalClicks >= 3 → `engaged`
-5. Check if `follow_up_count >= 3` and no recent activity → `cold_lead`
-6. Otherwise → `needs_follow_up`
-7. Never auto-downgrade manually set statuses (`call_scheduled`)
+The existing template engine already handles this — when `industry=dental`, it loads the dental template. Add the dental-specific `dynamic_content` fields (roi_defaults, solution_features, etc.) so frontend can consume them. Also update `buildGenericVoicePrompt`'s dental branch to use a more detailed appointment booking flow.
 
 ---
 
 ### Files Summary
 
-| File | Change |
-|------|--------|
-| Migration | Create `leads` + `lead_follow_ups` tables with RLS |
-| `src/components/admin/LeadsPanel.tsx` | **New** — lead list, auto-sync, filters, status badges |
-| `src/components/admin/LeadDetailView.tsx` | **New** — full lead detail dialog with follow-up management |
-| `src/pages/AdminDashboard.tsx` | Add "Leads" tab (no changes to existing tabs) |
 
+| File                                             | Change                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------ |
+| Migration                                        | Seed `industry_templates` row for "dental" with full content             |
+| `src/components/demo/DentalProblemSection.tsx`   | **New** — Pain + money section                                           |
+| `src/components/demo/DentalOutcomeSection.tsx`   | **New** — Vision + benefits                                              |
+| `src/components/demo/DentalSolutionSection.tsx`  | **New** — Product features grid                                          |
+| `src/components/demo/DentalROISection.tsx`       | **New** — Interactive ROI calculator                                     |
+| `src/components/demo/DentalWhyClinicSection.tsx` | **New** — Scenario comparison table                                      |
+| `src/pages/DemoPage.tsx`                         | Edit — conditional dental layout rendering                               |
+| `supabase/functions/create-demo/index.ts`        | Minor — ensure dental template populates extended dynamic_content fields |
