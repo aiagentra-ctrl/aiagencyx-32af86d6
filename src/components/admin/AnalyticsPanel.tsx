@@ -140,6 +140,9 @@ const AnalyticsPanel = () => {
   const [events, setEvents] = useState<LinkEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>("7d");
+  const [customFrom, setCustomFrom] = useState<Date | undefined>(undefined);
+  const [customTo, setCustomTo] = useState<Date | undefined>(undefined);
+  const [searchQuery, setSearchQuery] = useState("");
   const [excludeAsia, setExcludeAsia] = useState(true);
   const [excludeOwner, setExcludeOwner] = useState(true);
   const [targetOnly, setTargetOnly] = useState(false);
@@ -147,21 +150,50 @@ const AnalyticsPanel = () => {
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
+  const getDateSince = (): Date | null => {
+    const now = new Date();
+    const hoursMap: Record<string, number> = {
+      "1h": 1, "3h": 3, "6h": 6, "12h": 12, "24h": 24, "7d": 168, "30d": 720,
+    };
+    if (dateRange === "all") return null;
+    if (dateRange === "today") {
+      const start = new Date(now); start.setHours(0, 0, 0, 0); return start;
+    }
+    if (dateRange === "yesterday") {
+      const start = new Date(now); start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0); return start;
+    }
+    if (dateRange === "custom") {
+      return customFrom || null;
+    }
+    if (hoursMap[dateRange]) {
+      return new Date(now.getTime() - hoursMap[dateRange] * 60 * 60 * 1000);
+    }
+    return null;
+  };
+
+  const getDateUntil = (): Date | null => {
+    if (dateRange === "yesterday") {
+      const end = new Date(); end.setHours(0, 0, 0, 0); return end;
+    }
+    if (dateRange === "custom" && customTo) {
+      const end = new Date(customTo); end.setHours(23, 59, 59, 999); return end;
+    }
+    return null;
+  };
+
   const fetchEvents = async () => {
     setLoading(true);
     let query = supabase.from("link_events").select("*").order("created_at", { ascending: false }).limit(1000);
-    if (dateRange !== "all") {
-      const now = new Date();
-      const hoursMap: Record<string, number> = { "24h": 24, "7d": 168, "30d": 720 };
-      const since = new Date(now.getTime() - hoursMap[dateRange] * 60 * 60 * 1000);
-      query = query.gte("created_at", since.toISOString());
-    }
+    const since = getDateSince();
+    const until = getDateUntil();
+    if (since) query = query.gte("created_at", since.toISOString());
+    if (until) query = query.lte("created_at", until.toISOString());
     const { data } = await query;
     setEvents((data as unknown as LinkEvent[]) || []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchEvents(); }, [dateRange]);
+  useEffect(() => { fetchEvents(); }, [dateRange, customFrom, customTo]);
 
   const filtered = useMemo(() => {
     let result = events;
@@ -169,8 +201,16 @@ const AnalyticsPanel = () => {
     if (excludeAsia) result = result.filter(e => !e.country_code || !ASIAN_COUNTRIES.includes(e.country_code));
     if (targetOnly) result = result.filter(e => e.country_code && TARGET_MARKETS.includes(e.country_code));
     if (slugFilter !== "all") result = result.filter(e => e.slug === slugFilter);
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(e =>
+        e.business_name.toLowerCase().includes(q) ||
+        e.slug.toLowerCase().includes(q) ||
+        (e.metadata as any)?.website_url?.toLowerCase().includes(q)
+      );
+    }
     return result;
-  }, [events, excludeAsia, excludeOwner, targetOnly, slugFilter]);
+  }, [events, excludeAsia, excludeOwner, targetOnly, slugFilter, searchQuery]);
 
   const uniqueSlugs = useMemo(() => [...new Set(events.map(e => e.slug))], [events]);
   const uniqueSessions = useMemo(() => new Set(filtered.map(e => e.session_id).filter(Boolean)).size, [filtered]);
