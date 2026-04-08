@@ -482,6 +482,14 @@ const AnalyticsPanel = () => {
                         </a>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{row.country && row.city ? `${row.city}, ${row.country}` : row.country || "—"}</TableCell>
+                      <TableCell>
+                        {row.website_url ? (
+                          <a href={row.website_url.startsWith("http") ? row.website_url : `https://${row.website_url}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline max-w-[140px] truncate" onClick={e => e.stopPropagation()}>
+                            {row.website_url.replace(/^https?:\/\//, "").replace(/\/$/, "").substring(0, 25)}
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                          </a>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell><div className="flex items-center gap-1 text-xs text-muted-foreground"><DeviceIcon type={row.device_type} /><span>{row.browser}</span></div></TableCell>
                       <TableCell className="text-center font-medium">{row.sessions.size}</TableCell>
                       <TableCell className="text-center"><YesNo value={row.linkOpened} /></TableCell>
