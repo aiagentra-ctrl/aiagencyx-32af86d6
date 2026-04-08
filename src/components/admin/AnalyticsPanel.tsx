@@ -67,6 +67,7 @@ interface FollowUpResult {
 interface ClientRow {
   business_name: string;
   slug: string;
+  website_url: string;
   linkOpened: boolean;
   websiteViewed: boolean;
   chatbotClicked: boolean;
@@ -86,7 +87,7 @@ interface ClientRow {
   sessionCount: number;
   maxScrollDepth: number;
   returnVisits: number;
-  chatScore: number; // 0-100
+  chatScore: number;
   topClicks: { element: string; text: string; count: number }[];
 }
 
