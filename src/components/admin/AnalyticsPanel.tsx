@@ -3,15 +3,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
   Eye, MessageCircle, Phone, MousePointer, Users, Globe, Filter,
   ExternalLink, CheckCircle2, XCircle, RefreshCw, Monitor, Smartphone,
-  Tablet, AlertTriangle, TrendingUp, Send, Clock, Copy
+  Tablet, AlertTriangle, TrendingUp, Send, Clock, Copy, Search, CalendarIcon
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 import ClientDetailCard from "./ClientDetailCard";
 
 const ASIAN_COUNTRIES = ["NP", "IN", "BD", "PK", "LK", "MM", "TH", "VN", "PH", "ID", "MY", "CN", "JP", "KR", "TW", "HK", "SG", "KH", "LA", "BN", "MN", "AF"];
@@ -32,7 +36,7 @@ interface LinkEvent {
   user_agent: string | null;
 }
 
-type DateRange = "24h" | "7d" | "30d" | "all";
+type DateRange = "1h" | "3h" | "6h" | "12h" | "24h" | "today" | "yesterday" | "7d" | "30d" | "custom" | "all";
 
 const YesNo = ({ value }: { value: boolean }) =>
   value ? (
@@ -63,6 +67,7 @@ interface FollowUpResult {
 interface ClientRow {
   business_name: string;
   slug: string;
+  website_url: string;
   linkOpened: boolean;
   websiteViewed: boolean;
   chatbotClicked: boolean;
@@ -82,7 +87,7 @@ interface ClientRow {
   sessionCount: number;
   maxScrollDepth: number;
   returnVisits: number;
-  chatScore: number; // 0-100
+  chatScore: number;
   topClicks: { element: string; text: string; count: number }[];
 }
 
@@ -134,8 +139,12 @@ const DETAIL_CONFIG: Record<EngagementDetail, { icon: string; label: string }> =
 
 const AnalyticsPanel = () => {
   const [events, setEvents] = useState<LinkEvent[]>([]);
+  const [websiteUrls, setWebsiteUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>("7d");
+  const [customFrom, setCustomFrom] = useState<Date | undefined>(undefined);
+  const [customTo, setCustomTo] = useState<Date | undefined>(undefined);
+  const [searchQuery, setSearchQuery] = useState("");
   const [excludeAsia, setExcludeAsia] = useState(true);
   const [excludeOwner, setExcludeOwner] = useState(true);
   const [targetOnly, setTargetOnly] = useState(false);
@@ -143,21 +152,64 @@ const AnalyticsPanel = () => {
   const [selectedClient, setSelectedClient] = useState<ClientRow | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
+  const getDateSince = (): Date | null => {
+    const now = new Date();
+    const hoursMap: Record<string, number> = {
+      "1h": 1, "3h": 3, "6h": 6, "12h": 12, "24h": 24, "7d": 168, "30d": 720,
+    };
+    if (dateRange === "all") return null;
+    if (dateRange === "today") {
+      const start = new Date(now); start.setHours(0, 0, 0, 0); return start;
+    }
+    if (dateRange === "yesterday") {
+      const start = new Date(now); start.setDate(start.getDate() - 1); start.setHours(0, 0, 0, 0); return start;
+    }
+    if (dateRange === "custom") {
+      return customFrom || null;
+    }
+    if (hoursMap[dateRange]) {
+      return new Date(now.getTime() - hoursMap[dateRange] * 60 * 60 * 1000);
+    }
+    return null;
+  };
+
+  const getDateUntil = (): Date | null => {
+    if (dateRange === "yesterday") {
+      const end = new Date(); end.setHours(0, 0, 0, 0); return end;
+    }
+    if (dateRange === "custom" && customTo) {
+      const end = new Date(customTo); end.setHours(23, 59, 59, 999); return end;
+    }
+    return null;
+  };
+
   const fetchEvents = async () => {
     setLoading(true);
     let query = supabase.from("link_events").select("*").order("created_at", { ascending: false }).limit(1000);
-    if (dateRange !== "all") {
-      const now = new Date();
-      const hoursMap: Record<string, number> = { "24h": 24, "7d": 168, "30d": 720 };
-      const since = new Date(now.getTime() - hoursMap[dateRange] * 60 * 60 * 1000);
-      query = query.gte("created_at", since.toISOString());
+    const since = getDateSince();
+    const until = getDateUntil();
+    if (since) query = query.gte("created_at", since.toISOString());
+    if (until) query = query.lte("created_at", until.toISOString());
+    
+    const [eventsRes, chatbotsRes] = await Promise.all([
+      query,
+      supabase.from("chatbots").select("slug, website_url"),
+    ]);
+    
+    setEvents((eventsRes.data as unknown as LinkEvent[]) || []);
+    
+    // Build slug → website_url map from chatbots
+    const urlMap: Record<string, string> = {};
+    if (chatbotsRes.data) {
+      for (const c of chatbotsRes.data) {
+        if (c.website_url) urlMap[c.slug] = c.website_url;
+      }
     }
-    const { data } = await query;
-    setEvents((data as unknown as LinkEvent[]) || []);
+    setWebsiteUrls(urlMap);
     setLoading(false);
   };
 
-  useEffect(() => { fetchEvents(); }, [dateRange]);
+  useEffect(() => { fetchEvents(); }, [dateRange, customFrom, customTo]);
 
   const filtered = useMemo(() => {
     let result = events;
@@ -165,8 +217,17 @@ const AnalyticsPanel = () => {
     if (excludeAsia) result = result.filter(e => !e.country_code || !ASIAN_COUNTRIES.includes(e.country_code));
     if (targetOnly) result = result.filter(e => e.country_code && TARGET_MARKETS.includes(e.country_code));
     if (slugFilter !== "all") result = result.filter(e => e.slug === slugFilter);
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(e =>
+        e.business_name.toLowerCase().includes(q) ||
+        e.slug.toLowerCase().includes(q) ||
+        (websiteUrls[e.slug] || "").toLowerCase().includes(q) ||
+        (e.metadata as any)?.website_url?.toLowerCase().includes(q)
+      );
+    }
     return result;
-  }, [events, excludeAsia, excludeOwner, targetOnly, slugFilter]);
+  }, [events, excludeAsia, excludeOwner, targetOnly, slugFilter, searchQuery, websiteUrls]);
 
   const uniqueSlugs = useMemo(() => [...new Set(events.map(e => e.slug))], [events]);
   const uniqueSessions = useMemo(() => new Set(filtered.map(e => e.session_id).filter(Boolean)).size, [filtered]);
@@ -188,6 +249,7 @@ const AnalyticsPanel = () => {
       if (!map.has(e.slug)) {
         map.set(e.slug, {
           business_name: e.business_name, slug: e.slug,
+          website_url: meta.website_url || websiteUrls[e.slug] || "",
           linkOpened: false, websiteViewed: false, chatbotClicked: false, voiceClicked: false,
           totalClicks: 0, lastActivity: e.created_at, firstActivity: e.created_at,
           country: e.country_code, city: e.city,
@@ -209,6 +271,7 @@ const AnalyticsPanel = () => {
         if (meta.device_type) row.device_type = meta.device_type;
         if (meta.browser) row.browser = meta.browser;
         if (meta.os) row.os = meta.os;
+        if (meta.website_url && !row.website_url) row.website_url = meta.website_url;
       }
       if (new Date(e.created_at) < new Date(row.firstActivity)) {
         row.firstActivity = e.created_at;
@@ -248,7 +311,7 @@ const AnalyticsPanel = () => {
     return Array.from(map.values())
       .map(row => ({ ...row, followUp: classifyFollowUp(row) } as ClientRow))
       .sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
-  }, [filtered]);
+  }, [filtered, websiteUrls]);
 
   // Aggregate time metrics
   const avgSessionDuration = useMemo(() => {
@@ -301,30 +364,76 @@ const AnalyticsPanel = () => {
     <div className="space-y-6">
       {/* Filters */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap items-center gap-4">
+        <CardContent className="pt-6 space-y-3">
+          {/* Row 1: Time filters */}
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filters:</span>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Time:</span>
             </div>
-            <div className="flex gap-1">
-              {(["24h", "7d", "30d", "all"] as DateRange[]).map(r => (
-                <Button key={r} size="sm" variant={dateRange === r ? "default" : "outline"} onClick={() => setDateRange(r)}>
-                  {r === "all" ? "All" : r === "24h" ? "24h" : r === "7d" ? "7 days" : "30 days"}
+            <div className="flex flex-wrap gap-1">
+              {([
+                { v: "1h", l: "1h" }, { v: "3h", l: "3h" }, { v: "6h", l: "6h" }, { v: "12h", l: "12h" },
+                { v: "24h", l: "24h" }, { v: "today", l: "Today" }, { v: "yesterday", l: "Yesterday" },
+                { v: "7d", l: "7 days" }, { v: "30d", l: "30 days" }, { v: "all", l: "All" },
+              ] as { v: DateRange; l: string }[]).map(r => (
+                <Button key={r.v} size="sm" variant={dateRange === r.v ? "default" : "outline"} onClick={() => setDateRange(r.v)} className="h-7 text-xs px-2">
+                  {r.l}
                 </Button>
               ))}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button size="sm" variant={dateRange === "custom" ? "default" : "outline"} className="h-7 text-xs px-2 gap-1" onClick={() => setDateRange("custom")}>
+                    <CalendarIcon className="h-3 w-3" /> Custom
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="flex gap-2 p-3">
+                    <div>
+                      <p className="text-xs font-medium mb-1 text-muted-foreground">From</p>
+                      <Calendar mode="single" selected={customFrom} onSelect={(d) => { setCustomFrom(d); setDateRange("custom"); }} initialFocus />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium mb-1 text-muted-foreground">To</p>
+                      <Calendar mode="single" selected={customTo} onSelect={(d) => { setCustomTo(d); setDateRange("custom"); }} />
+                    </div>
+                  </div>
+                  {customFrom && (
+                    <div className="px-3 pb-3 text-xs text-muted-foreground">
+                      {format(customFrom, "MMM d, yyyy")} → {customTo ? format(customTo, "MMM d, yyyy") : "Now"}
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          {/* Row 2: Search + business filter + toggles */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filter:</span>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or website URL..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 w-[260px] text-sm"
+              />
             </div>
             <Select value={slugFilter} onValueChange={setSlugFilter}>
-              <SelectTrigger className="w-[200px]"><SelectValue placeholder="All businesses" /></SelectTrigger>
+              <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue placeholder="All businesses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All businesses</SelectItem>
                 {uniqueSlugs.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
-            <div className="flex items-center gap-2"><Switch checked={excludeOwner} onCheckedChange={setExcludeOwner} /><span className="text-sm">Exclude my traffic</span></div>
-            <div className="flex items-center gap-2"><Switch checked={excludeAsia} onCheckedChange={setExcludeAsia} /><span className="text-sm">Exclude Asia</span></div>
-            <div className="flex items-center gap-2"><Switch checked={targetOnly} onCheckedChange={(v) => { setTargetOnly(v); if (v) setExcludeAsia(false); }} /><span className="text-sm">NZ/AU/CA only</span></div>
-            <Button variant="outline" size="sm" onClick={fetchEvents} className="gap-1.5"><RefreshCw className="h-3.5 w-3.5" /> Refresh</Button>
+            <div className="flex items-center gap-2"><Switch checked={excludeOwner} onCheckedChange={setExcludeOwner} /><span className="text-xs">Exclude mine</span></div>
+            <div className="flex items-center gap-2"><Switch checked={excludeAsia} onCheckedChange={setExcludeAsia} /><span className="text-xs">Exclude Asia</span></div>
+            <div className="flex items-center gap-2"><Switch checked={targetOnly} onCheckedChange={(v) => { setTargetOnly(v); if (v) setExcludeAsia(false); }} /><span className="text-xs">NZ/AU/CA</span></div>
+            <Button variant="outline" size="sm" onClick={fetchEvents} className="gap-1.5 h-8"><RefreshCw className="h-3.5 w-3.5" /> Refresh</Button>
           </div>
         </CardContent>
       </Card>
@@ -360,6 +469,7 @@ const AnalyticsPanel = () => {
                     <TableHead>Business</TableHead>
                     <TableHead>Link</TableHead>
                     <TableHead>Country</TableHead>
+                    <TableHead>Website</TableHead>
                     <TableHead>Device</TableHead>
                     <TableHead className="text-center">Users</TableHead>
                     <TableHead className="text-center">Opened</TableHead>
@@ -388,6 +498,14 @@ const AnalyticsPanel = () => {
                         </a>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{row.country && row.city ? `${row.city}, ${row.country}` : row.country || "—"}</TableCell>
+                      <TableCell>
+                        {row.website_url ? (
+                          <a href={row.website_url.startsWith("http") ? row.website_url : `https://${row.website_url}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline max-w-[140px] truncate" onClick={e => e.stopPropagation()}>
+                            {row.website_url.replace(/^https?:\/\//, "").replace(/\/$/, "").substring(0, 25)}
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                          </a>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell><div className="flex items-center gap-1 text-xs text-muted-foreground"><DeviceIcon type={row.device_type} /><span>{row.browser}</span></div></TableCell>
                       <TableCell className="text-center font-medium">{row.sessions.size}</TableCell>
                       <TableCell className="text-center"><YesNo value={row.linkOpened} /></TableCell>
