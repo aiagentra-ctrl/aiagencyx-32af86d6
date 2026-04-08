@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
     if (template?.system_prompt_template) {
       // Use template with variable injection
       const systemPrompt = injectVars(template.system_prompt_template, vars);
-      const firstMessage = injectVars(template.first_message_template || `Hey, this is {agent_name} from {business_name}! How can I help you today?`, vars);
+      const firstMessage = injectVars(template.first_message_template || `Hi! Thanks for calling {business_name}. How can I help?`, vars);
 
       return new Response(JSON.stringify({
         system_prompt: systemPrompt,
