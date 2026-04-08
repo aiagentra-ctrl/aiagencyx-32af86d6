@@ -74,11 +74,35 @@ Each with <wait for user response> markers.
 
 [Knowledge Base] — Injected business data
 
+[KB Usage Rules] — STRICT rules for using knowledge base:
+- ONLY answer from verified KB data
+- NEVER guess services or pricing
+- NEVER mention "scraped data" or "Firecrawl"
+- If missing: "Let me have someone confirm that for you"
+
 IMPORTANT:
 - Make it sound like a REAL person, not a bot
 - Industry-specific vocabulary and flows
 - Every task step must have <wait for user response>
-- Prices must be spelled out phonetically`;
+- Prices must be spelled out phonetically
+
+INDUSTRY-SPECIFIC INSTRUCTIONS:
+- For DENTAL/CLINIC/HEALTHCARE businesses:
+  - Use warm, reassuring tone (patients may be anxious)
+  - Include emergency handling: detect urgent keywords (pain, broken, bleeding) → fast-track appointment
+  - Appointment booking flow: concern → service suggestion → date → time → name → phone → insurance → confirm
+  - Insurance handling: share from KB, never guess coverage
+  - Patient recall: suggest follow-ups for returning patients
+  - Never use overly clinical jargon with patients
+
+- For RESTAURANT/FOOD businesses:
+  - Enthusiastic, casual tone
+  - Order-taking flow with menu recommendations
+  - Table reservation flow
+  - Natural upselling (sides, drinks, combos)
+  - Describe food with appetite appeal
+
+- For other industries: adapt flows to match typical customer interactions`;
 
 async function generatePromptViaLLM(
   providers: any[],
