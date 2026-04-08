@@ -190,8 +190,22 @@ const AnalyticsPanel = () => {
     const until = getDateUntil();
     if (since) query = query.gte("created_at", since.toISOString());
     if (until) query = query.lte("created_at", until.toISOString());
-    const { data } = await query;
-    setEvents((data as unknown as LinkEvent[]) || []);
+    
+    const [eventsRes, chatbotsRes] = await Promise.all([
+      query,
+      supabase.from("chatbots").select("slug, website_url"),
+    ]);
+    
+    setEvents((eventsRes.data as unknown as LinkEvent[]) || []);
+    
+    // Build slug → website_url map from chatbots
+    const urlMap: Record<string, string> = {};
+    if (chatbotsRes.data) {
+      for (const c of chatbotsRes.data) {
+        if (c.website_url) urlMap[c.slug] = c.website_url;
+      }
+    }
+    setWebsiteUrls(urlMap);
     setLoading(false);
   };
 
@@ -208,11 +222,12 @@ const AnalyticsPanel = () => {
       result = result.filter(e =>
         e.business_name.toLowerCase().includes(q) ||
         e.slug.toLowerCase().includes(q) ||
+        (websiteUrls[e.slug] || "").toLowerCase().includes(q) ||
         (e.metadata as any)?.website_url?.toLowerCase().includes(q)
       );
     }
     return result;
-  }, [events, excludeAsia, excludeOwner, targetOnly, slugFilter, searchQuery]);
+  }, [events, excludeAsia, excludeOwner, targetOnly, slugFilter, searchQuery, websiteUrls]);
 
   const uniqueSlugs = useMemo(() => [...new Set(events.map(e => e.slug))], [events]);
   const uniqueSessions = useMemo(() => new Set(filtered.map(e => e.session_id).filter(Boolean)).size, [filtered]);
