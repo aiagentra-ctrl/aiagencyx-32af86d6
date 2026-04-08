@@ -135,7 +135,7 @@ ${knowledgeBase || "No specific knowledge base provided."}
 
 Return a JSON object with two fields:
 1. "system_prompt" — the complete VAPI-structured prompt
-2. "first_message" — a natural greeting like "Hey, this is ${agentName} from ${businessName}! How can I help you today?"`,
+2. "first_message" — a short, simple greeting like "Hi! Thanks for calling ${businessName}. How can I help?"`,
             },
           ],
           tools: [{
@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
     if (template?.system_prompt_template) {
       // Use template with variable injection
       const systemPrompt = injectVars(template.system_prompt_template, vars);
-      const firstMessage = injectVars(template.first_message_template || `Hey, this is {agent_name} from {business_name}! How can I help you today?`, vars);
+      const firstMessage = injectVars(template.first_message_template || `Hi! Thanks for calling {business_name}. How can I help?`, vars);
 
       return new Response(JSON.stringify({
         system_prompt: systemPrompt,
@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
       const defaultPrompt = `[Identity]\nYou are ${resolvedAgent}, a friendly staff member at ${business_name}.\n\n[Style]\n- Conversational, warm\n- Use contractions\n- 1-3 sentences max\n\n[Task]\nHelp callers with questions about ${business_name}.\n<wait for user response>\n\n[Error Handling]\n- "Sorry, could you say that again?"\n- "Let me have someone get back to you."`;
       return new Response(JSON.stringify({
         system_prompt: defaultPrompt,
-        first_message: `Hey, this is ${resolvedAgent} from ${business_name}! How can I help you today?`,
+        first_message: `Hi! Thanks for calling ${business_name}. How can I help?`,
         source: "default",
         industry: resolvedIndustry,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

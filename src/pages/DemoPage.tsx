@@ -266,17 +266,6 @@ const DemoPage = () => {
           />
         </div>
 
-        <PersonalizationProofSection
-          companyName={companyName}
-          menuItems={research.menu_items}
-          products={research.products}
-          categories={research.categories}
-          services={research.services}
-          businessHours={research.business_hours}
-          address={research.address}
-          phone={research.phone}
-          industry={page.industry || undefined}
-        />
 
         {isDental ? (
           <>
