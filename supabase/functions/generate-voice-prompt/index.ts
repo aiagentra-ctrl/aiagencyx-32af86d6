@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
       const defaultPrompt = `[Identity]\nYou are ${resolvedAgent}, a friendly staff member at ${business_name}.\n\n[Style]\n- Conversational, warm\n- Use contractions\n- 1-3 sentences max\n\n[Task]\nHelp callers with questions about ${business_name}.\n<wait for user response>\n\n[Error Handling]\n- "Sorry, could you say that again?"\n- "Let me have someone get back to you."`;
       return new Response(JSON.stringify({
         system_prompt: defaultPrompt,
-        first_message: `Hey, this is ${resolvedAgent} from ${business_name}! How can I help you today?`,
+        first_message: `Hi! Thanks for calling ${business_name}. How can I help?`,
         source: "default",
         industry: resolvedIndustry,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
