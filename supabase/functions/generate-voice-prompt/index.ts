@@ -135,7 +135,7 @@ ${knowledgeBase || "No specific knowledge base provided."}
 
 Return a JSON object with two fields:
 1. "system_prompt" — the complete VAPI-structured prompt
-2. "first_message" — a natural greeting like "Hey, this is ${agentName} from ${businessName}! How can I help you today?"`,
+2. "first_message" — a short, simple greeting like "Hi! Thanks for calling ${businessName}. How can I help?"`,
             },
           ],
           tools: [{

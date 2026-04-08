@@ -1048,8 +1048,8 @@ Deno.serve(async (req) => {
       dynamicContent.use_case_scenarios = structuredData.use_cases;
     }
 
-    const firstMessage = dynamicContent.first_message || injectVars(
-      adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
+    const firstMessage = injectVars(
+      "Hi! Thanks for calling {business_name}. How can I help?",
       templateVars
     );
 
