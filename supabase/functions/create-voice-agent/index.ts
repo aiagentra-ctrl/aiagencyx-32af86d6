@@ -404,11 +404,26 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         name: business_name.substring(0, 40),
         firstMessage,
-        model: { provider: modelProvider, model, messages: [{ role: "system", content: fullPrompt }] },
-        voice: { provider: voiceProvider, voiceId },
+        model: {
+          provider: modelProvider,
+          model,
+          messages: [{ role: "system", content: fullPrompt }],
+          maxTokens: 150,
+          temperature: 0.7,
+        },
+        voice: {
+          provider: voiceProvider,
+          voiceId,
+          speed: 1.1,
+        },
         endCallMessage,
         maxDurationSeconds: 600,
         firstMessageMode: "assistant-speaks-first",
+        silenceTimeoutSeconds: 30,
+        responseDelaySeconds: 0.4,
+        numWordsToInterruptAssistant: 1,
+        backgroundDenoisingEnabled: true,
+        backchannelingEnabled: true,
       }),
     }, 30000);
 
