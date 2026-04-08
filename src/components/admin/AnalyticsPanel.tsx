@@ -255,6 +255,7 @@ const AnalyticsPanel = () => {
         if (meta.device_type) row.device_type = meta.device_type;
         if (meta.browser) row.browser = meta.browser;
         if (meta.os) row.os = meta.os;
+        if (meta.website_url && !row.website_url) row.website_url = meta.website_url;
       }
       if (new Date(e.created_at) < new Date(row.firstActivity)) {
         row.firstActivity = e.created_at;
