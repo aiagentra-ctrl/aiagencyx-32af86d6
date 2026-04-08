@@ -16,6 +16,13 @@ const FooterSection = lazy(() => import("@/components/demo/FooterSection"));
 const StickyCallButton = lazy(() => import("@/components/demo/StickyCallButton"));
 const ChatWidget = lazy(() => import("@/components/chatbot/ChatWidget"));
 
+// Dental-specific sections
+const DentalProblemSection = lazy(() => import("@/components/demo/DentalProblemSection"));
+const DentalOutcomeSection = lazy(() => import("@/components/demo/DentalOutcomeSection"));
+const DentalSolutionSection = lazy(() => import("@/components/demo/DentalSolutionSection"));
+const DentalROISection = lazy(() => import("@/components/demo/DentalROISection"));
+const DentalWhyClinicSection = lazy(() => import("@/components/demo/DentalWhyClinicSection"));
+
 interface DemoPageData {
   id: string;
   slug: string;
