@@ -278,8 +278,20 @@ const DemoPage = () => {
           industry={page.industry || undefined}
         />
 
-        <ProblemSection companyName={companyName} problems={dc.problem_statements} industry={page.industry || undefined} />
-        <OutcomeSection companyName={companyName} outcomes={dc.outcome_metrics} />
+        {isDental ? (
+          <>
+            <DentalProblemSection companyName={companyName} problems={dc.problem_statements} onBookCall={handleBookCall} />
+            <DentalWhyClinicSection scenarios={wt.why_clinic_scenarios} />
+            <DentalROISection roiDefaults={wt.roi_defaults} onBookCall={handleBookCall} />
+            <DentalOutcomeSection companyName={companyName} benefits={wt.outcome_benefits} onScrollToDemo={scrollToDemo} />
+            <DentalSolutionSection companyName={companyName} features={wt.solution_features} onBookCall={handleBookCall} />
+          </>
+        ) : (
+          <>
+            <ProblemSection companyName={companyName} problems={dc.problem_statements} industry={page.industry || undefined} />
+            <OutcomeSection companyName={companyName} outcomes={dc.outcome_metrics} />
+          </>
+        )}
 
         <CTASection
           companyName={companyName}
