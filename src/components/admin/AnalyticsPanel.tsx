@@ -3,15 +3,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
   Eye, MessageCircle, Phone, MousePointer, Users, Globe, Filter,
   ExternalLink, CheckCircle2, XCircle, RefreshCw, Monitor, Smartphone,
-  Tablet, AlertTriangle, TrendingUp, Send, Clock, Copy
+  Tablet, AlertTriangle, TrendingUp, Send, Clock, Copy, Search, CalendarIcon
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 import ClientDetailCard from "./ClientDetailCard";
 
 const ASIAN_COUNTRIES = ["NP", "IN", "BD", "PK", "LK", "MM", "TH", "VN", "PH", "ID", "MY", "CN", "JP", "KR", "TW", "HK", "SG", "KH", "LA", "BN", "MN", "AF"];
@@ -32,7 +36,7 @@ interface LinkEvent {
   user_agent: string | null;
 }
 
-type DateRange = "24h" | "7d" | "30d" | "all";
+type DateRange = "1h" | "3h" | "6h" | "12h" | "24h" | "today" | "yesterday" | "7d" | "30d" | "custom" | "all";
 
 const YesNo = ({ value }: { value: boolean }) =>
   value ? (
