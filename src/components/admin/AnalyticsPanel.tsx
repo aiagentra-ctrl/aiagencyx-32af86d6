@@ -249,7 +249,7 @@ const AnalyticsPanel = () => {
       if (!map.has(e.slug)) {
         map.set(e.slug, {
           business_name: e.business_name, slug: e.slug,
-          website_url: meta.website_url || "",
+          website_url: meta.website_url || websiteUrls[e.slug] || "",
           linkOpened: false, websiteViewed: false, chatbotClicked: false, voiceClicked: false,
           totalClicks: 0, lastActivity: e.created_at, firstActivity: e.created_at,
           country: e.country_code, city: e.city,
