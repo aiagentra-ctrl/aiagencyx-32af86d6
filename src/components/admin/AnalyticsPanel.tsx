@@ -311,7 +311,7 @@ const AnalyticsPanel = () => {
     return Array.from(map.values())
       .map(row => ({ ...row, followUp: classifyFollowUp(row) } as ClientRow))
       .sort((a, b) => new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime());
-  }, [filtered]);
+  }, [filtered, websiteUrls]);
 
   // Aggregate time metrics
   const avgSessionDuration = useMemo(() => {
