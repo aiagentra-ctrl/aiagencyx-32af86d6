@@ -345,30 +345,76 @@ const AnalyticsPanel = () => {
     <div className="space-y-6">
       {/* Filters */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap items-center gap-4">
+        <CardContent className="pt-6 space-y-3">
+          {/* Row 1: Time filters */}
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filters:</span>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Time:</span>
             </div>
-            <div className="flex gap-1">
-              {(["24h", "7d", "30d", "all"] as DateRange[]).map(r => (
-                <Button key={r} size="sm" variant={dateRange === r ? "default" : "outline"} onClick={() => setDateRange(r)}>
-                  {r === "all" ? "All" : r === "24h" ? "24h" : r === "7d" ? "7 days" : "30 days"}
+            <div className="flex flex-wrap gap-1">
+              {([
+                { v: "1h", l: "1h" }, { v: "3h", l: "3h" }, { v: "6h", l: "6h" }, { v: "12h", l: "12h" },
+                { v: "24h", l: "24h" }, { v: "today", l: "Today" }, { v: "yesterday", l: "Yesterday" },
+                { v: "7d", l: "7 days" }, { v: "30d", l: "30 days" }, { v: "all", l: "All" },
+              ] as { v: DateRange; l: string }[]).map(r => (
+                <Button key={r.v} size="sm" variant={dateRange === r.v ? "default" : "outline"} onClick={() => setDateRange(r.v)} className="h-7 text-xs px-2">
+                  {r.l}
                 </Button>
               ))}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button size="sm" variant={dateRange === "custom" ? "default" : "outline"} className="h-7 text-xs px-2 gap-1" onClick={() => setDateRange("custom")}>
+                    <CalendarIcon className="h-3 w-3" /> Custom
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="flex gap-2 p-3">
+                    <div>
+                      <p className="text-xs font-medium mb-1 text-muted-foreground">From</p>
+                      <Calendar mode="single" selected={customFrom} onSelect={(d) => { setCustomFrom(d); setDateRange("custom"); }} initialFocus />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium mb-1 text-muted-foreground">To</p>
+                      <Calendar mode="single" selected={customTo} onSelect={(d) => { setCustomTo(d); setDateRange("custom"); }} />
+                    </div>
+                  </div>
+                  {customFrom && (
+                    <div className="px-3 pb-3 text-xs text-muted-foreground">
+                      {format(customFrom, "MMM d, yyyy")} → {customTo ? format(customTo, "MMM d, yyyy") : "Now"}
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          {/* Row 2: Search + business filter + toggles */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filter:</span>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or website URL..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8 w-[260px] text-sm"
+              />
             </div>
             <Select value={slugFilter} onValueChange={setSlugFilter}>
-              <SelectTrigger className="w-[200px]"><SelectValue placeholder="All businesses" /></SelectTrigger>
+              <SelectTrigger className="w-[180px] h-8 text-sm"><SelectValue placeholder="All businesses" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All businesses</SelectItem>
                 {uniqueSlugs.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
-            <div className="flex items-center gap-2"><Switch checked={excludeOwner} onCheckedChange={setExcludeOwner} /><span className="text-sm">Exclude my traffic</span></div>
-            <div className="flex items-center gap-2"><Switch checked={excludeAsia} onCheckedChange={setExcludeAsia} /><span className="text-sm">Exclude Asia</span></div>
-            <div className="flex items-center gap-2"><Switch checked={targetOnly} onCheckedChange={(v) => { setTargetOnly(v); if (v) setExcludeAsia(false); }} /><span className="text-sm">NZ/AU/CA only</span></div>
-            <Button variant="outline" size="sm" onClick={fetchEvents} className="gap-1.5"><RefreshCw className="h-3.5 w-3.5" /> Refresh</Button>
+            <div className="flex items-center gap-2"><Switch checked={excludeOwner} onCheckedChange={setExcludeOwner} /><span className="text-xs">Exclude mine</span></div>
+            <div className="flex items-center gap-2"><Switch checked={excludeAsia} onCheckedChange={setExcludeAsia} /><span className="text-xs">Exclude Asia</span></div>
+            <div className="flex items-center gap-2"><Switch checked={targetOnly} onCheckedChange={(v) => { setTargetOnly(v); if (v) setExcludeAsia(false); }} /><span className="text-xs">NZ/AU/CA</span></div>
+            <Button variant="outline" size="sm" onClick={fetchEvents} className="gap-1.5 h-8"><RefreshCw className="h-3.5 w-3.5" /> Refresh</Button>
           </div>
         </CardContent>
       </Card>
