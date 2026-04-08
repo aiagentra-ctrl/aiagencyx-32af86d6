@@ -139,6 +139,7 @@ const DETAIL_CONFIG: Record<EngagementDetail, { icon: string; label: string }> =
 
 const AnalyticsPanel = () => {
   const [events, setEvents] = useState<LinkEvent[]>([]);
+  const [websiteUrls, setWebsiteUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange>("7d");
   const [customFrom, setCustomFrom] = useState<Date | undefined>(undefined);
