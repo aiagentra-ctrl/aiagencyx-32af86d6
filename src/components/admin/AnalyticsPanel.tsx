@@ -453,6 +453,7 @@ const AnalyticsPanel = () => {
                     <TableHead>Business</TableHead>
                     <TableHead>Link</TableHead>
                     <TableHead>Country</TableHead>
+                    <TableHead>Website</TableHead>
                     <TableHead>Device</TableHead>
                     <TableHead className="text-center">Users</TableHead>
                     <TableHead className="text-center">Opened</TableHead>
