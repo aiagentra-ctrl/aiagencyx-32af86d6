@@ -267,6 +267,25 @@ export const trackSessionEnd = (slug: string, options?: { demoPageId?: string; b
     fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY }, body, keepalive: true }).catch(() => {});
   }
 
+  // Mirror to track-visitor (additive — fire-and-forget beacon)
+  try {
+    const visitorBody = JSON.stringify({
+      slug,
+      event_type: "session_end",
+      session_id: getSessionId(),
+      metadata: {
+        time_seconds: durationSeconds,
+        active_time_seconds: activeSeconds,
+        scroll_depth: Math.max(...scrollMilestones, 0),
+      },
+    });
+    const visitorUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-visitor`;
+    const visitorBlob = new Blob([visitorBody], { type: "application/json" });
+    if (navigator.sendBeacon) {
+      try { navigator.sendBeacon(visitorUrl, visitorBlob); } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+
   sessionStartTime = null;
   sessionStorage.removeItem("tracking_start");
 };
