@@ -913,7 +913,22 @@ Deno.serve(async (req) => {
   const supabase = supabaseClient;
 
   try {
-    const { business_name, website_url, calendar_link, industry: userIndustry } = await req.json();
+    const reqBody = await req.json();
+    const { business_name, website_url, calendar_link, industry: userIndustry } = reqBody;
+    // Optional follow-up fields (additive — do not affect existing flow)
+    const followUp = {
+      first_name: reqBody.firstName || null,
+      company: reqBody.company || null,
+      campaign_name: reqBody.campaignName || null,
+      industry: reqBody.industry || null,
+      campaign_id: reqBody.campaignId || null,
+      lead_source: reqBody.leadSource || null,
+      sender_email: reqBody.senderEmail || null,
+      message_thread_id: reqBody.messageThreadId || null,
+      cc_emails: Array.isArray(reqBody.ccEmails) ? reqBody.ccEmails : [],
+      bcc_emails: Array.isArray(reqBody.bccEmails) ? reqBody.bccEmails : [],
+    };
+    const hasFollowUpData = !!(followUp.first_name || followUp.sender_email || followUp.campaign_id || followUp.message_thread_id);
 
     if (!business_name || !website_url) {
       return new Response(JSON.stringify({ error: "business_name and website_url are required" }),
