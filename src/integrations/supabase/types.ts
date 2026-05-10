@@ -186,6 +186,96 @@ export type Database = {
           },
         ]
       }
+      demo_leads: {
+        Row: {
+          bcc_emails: Json | null
+          campaign_id: string | null
+          campaign_name: string | null
+          cc_emails: Json | null
+          company: string | null
+          country_code: string | null
+          created_at: string
+          demo_page_id: string | null
+          demo_tried: boolean
+          demo_type_tried: string | null
+          engagement: Json
+          first_name: string | null
+          follow_up_message_id: string | null
+          follow_up_sent_at: string | null
+          id: string
+          industry: string | null
+          is_complete: boolean
+          last_visit_at: string | null
+          lead_score: number
+          lead_source: string | null
+          message_thread_id: string | null
+          score_tier: string | null
+          sender_email: string | null
+          slug: string
+          status: string
+          updated_at: string
+          visitor_session_id: string | null
+        }
+        Insert: {
+          bcc_emails?: Json | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          cc_emails?: Json | null
+          company?: string | null
+          country_code?: string | null
+          created_at?: string
+          demo_page_id?: string | null
+          demo_tried?: boolean
+          demo_type_tried?: string | null
+          engagement?: Json
+          first_name?: string | null
+          follow_up_message_id?: string | null
+          follow_up_sent_at?: string | null
+          id?: string
+          industry?: string | null
+          is_complete?: boolean
+          last_visit_at?: string | null
+          lead_score?: number
+          lead_source?: string | null
+          message_thread_id?: string | null
+          score_tier?: string | null
+          sender_email?: string | null
+          slug: string
+          status?: string
+          updated_at?: string
+          visitor_session_id?: string | null
+        }
+        Update: {
+          bcc_emails?: Json | null
+          campaign_id?: string | null
+          campaign_name?: string | null
+          cc_emails?: Json | null
+          company?: string | null
+          country_code?: string | null
+          created_at?: string
+          demo_page_id?: string | null
+          demo_tried?: boolean
+          demo_type_tried?: string | null
+          engagement?: Json
+          first_name?: string | null
+          follow_up_message_id?: string | null
+          follow_up_sent_at?: string | null
+          id?: string
+          industry?: string | null
+          is_complete?: boolean
+          last_visit_at?: string | null
+          lead_score?: number
+          lead_source?: string | null
+          message_thread_id?: string | null
+          score_tier?: string | null
+          sender_email?: string | null
+          slug?: string
+          status?: string
+          updated_at?: string
+          visitor_session_id?: string | null
+        }
+        Relationships: []
+      }
       demo_pages: {
         Row: {
           assistant_id: string
@@ -457,6 +547,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      manyreach_logs: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          lead_id: string | null
+          lead_score: number | null
+          request_payload: Json | null
+          response_payload: Json | null
+          slug: string | null
+          status: string
+          thread_id: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          lead_id?: string | null
+          lead_score?: number | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          slug?: string | null
+          status: string
+          thread_id?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          lead_id?: string | null
+          lead_score?: number | null
+          request_payload?: Json | null
+          response_payload?: Json | null
+          slug?: string | null
+          status?: string
+          thread_id?: string | null
+        }
+        Relationships: []
       }
       scraped_data: {
         Row: {
