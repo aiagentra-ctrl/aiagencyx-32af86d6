@@ -315,6 +315,25 @@ export const trackEvent = async (
         },
       },
     });
+
+    // Mirror to track-visitor for lead intelligence (additive, fire-and-forget)
+    try {
+      const utm: Record<string, string> = {};
+      try {
+        const p = new URLSearchParams(window.location.search);
+        ["utm_source","utm_medium","utm_campaign","utm_term","utm_content"].forEach(k => {
+          const v = p.get(k); if (v) utm[k] = v;
+        });
+      } catch { /* ignore */ }
+      supabase.functions.invoke("track-visitor", {
+        body: {
+          slug,
+          event_type: eventType,
+          session_id: getSessionId(),
+          metadata: { ...(options?.metadata || {}), utm },
+        },
+      }).catch(() => {});
+    } catch { /* ignore */ }
   } catch {
     // Tracking should never break the user experience
   }
