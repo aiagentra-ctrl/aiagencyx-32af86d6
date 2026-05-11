@@ -166,7 +166,11 @@ const ApiDocsPage = () => {
 
             <div>
               <p className="text-sm font-medium text-foreground mb-2">Response</p>
-              <CodeBlock code={`{ "demo_url": "https://yourdomain.com/marios-pizza" }`} />
+              <CodeBlock code={`{
+  "demo_url": "https://yourdomain.com/marios-pizza",
+  "lead_id": "uuid",          // only if follow-up data was sent
+  "followUpReady": true       // only if follow-up data was sent
+}`} />
             </div>
 
             {/* Industry Selection Logic */}
