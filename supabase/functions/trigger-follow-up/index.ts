@@ -67,13 +67,23 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ skipped: "country_not_allowed" }), { headers: corsHeaders });
     }
 
-    const variables = {
+    const siteUrl = Deno.env.get("SITE_URL") || "";
+    const variables: Record<string, string> = {
       FirstName: lead.first_name || "there",
       Company: lead.company || "your company",
       CampaignName: lead.campaign_name || "the team",
       Industry: lead.industry || "",
+      LeadSource: lead.lead_source || "",
+      DemoURL: siteUrl ? `${siteUrl}/${lead.slug}` : `/${lead.slug}`,
+      VisitorCountry: lead.country_code || "",
     };
-    const body = injectVars(lead.demo_tried ? FEEDBACK_BODY : REENGAGE_BODY, variables);
+
+    const condition = pickCondition(lead);
+    const { data: tpl } = await supabase.from("follow_up_templates").select("subject,body").eq("condition", condition).maybeSingle();
+    const subjectTpl = (tpl?.subject?.trim()) || FALLBACK[condition].subject;
+    const bodyTpl = (tpl?.body?.trim()) || FALLBACK[condition].body;
+    const subject = injectVars(subjectTpl, variables);
+    const body = injectVars(bodyTpl, variables);
 
     const payload: any = {
       threadId: lead.message_thread_id,
@@ -81,6 +91,7 @@ Deno.serve(async (req) => {
       from: lead.sender_email,
       cc: lead.cc_emails || [],
       bcc: lead.bcc_emails || [],
+      subject,
       body,
       variables,
       campaignId: lead.campaign_id,
@@ -90,6 +101,7 @@ Deno.serve(async (req) => {
         score_tier: lead.score_tier,
         demo_tried: lead.demo_tried,
         demo_type: lead.demo_type_tried,
+        condition,
       },
     };
 
