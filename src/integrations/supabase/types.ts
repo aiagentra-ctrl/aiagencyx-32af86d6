@@ -351,6 +351,33 @@ export type Database = {
         }
         Relationships: []
       }
+      follow_up_templates: {
+        Row: {
+          body: string
+          condition: string
+          created_at: string
+          id: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body?: string
+          condition: string
+          created_at?: string
+          id?: string
+          subject?: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          condition?: string
+          created_at?: string
+          id?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       industry_templates: {
         Row: {
           chatbot_config: Json
