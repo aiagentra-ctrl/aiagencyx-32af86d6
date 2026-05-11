@@ -1173,8 +1173,9 @@ Deno.serve(async (req) => {
 
     // Step 8: (Additive) store follow-up lead data if provided
     let leadId: string | null = null;
+    let isComplete = false;
     if (hasFollowUpData) {
-      const isComplete = !!(followUp.first_name && followUp.sender_email && followUp.campaign_id && followUp.message_thread_id && followUp.lead_source);
+      isComplete = !!(followUp.first_name && followUp.sender_email && followUp.campaign_id && followUp.campaign_name && followUp.message_thread_id);
       const { data: leadRow, error: leadErr } = await supabase.from("demo_leads").insert({
         demo_page_id: demoPage.id,
         slug: demoSlug,
@@ -1194,7 +1195,10 @@ Deno.serve(async (req) => {
     });
 
     const respBody: any = { demo_url: demoUrl };
-    if (leadId) respBody.lead_id = leadId;
+    if (leadId) {
+      respBody.lead_id = leadId;
+      respBody.followUpReady = isComplete;
+    }
     return new Response(JSON.stringify(respBody),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
