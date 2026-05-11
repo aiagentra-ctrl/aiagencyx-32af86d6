@@ -115,6 +115,27 @@ const ApiDocsPage = () => {
               </div>
             </div>
 
+            {/* Follow-up parameters */}
+            <div>
+              <p className="text-sm font-medium text-foreground mb-3">Follow-Up Parameters (optional, enables auto follow-up)</p>
+              <div className="rounded-lg border divide-y">
+                <ParamRow name="firstName" type="string">Lead's first name. Required for follow-up to fire.</ParamRow>
+                <ParamRow name="campaignName" type="string">Campaign label shown in templates. Required for follow-up to fire.</ParamRow>
+                <ParamRow name="campaignId" type="string">ManyReach campaign id. Required for follow-up to fire.</ParamRow>
+                <ParamRow name="messageThreadId" type="string">ManyReach thread id used for the reply. Required for follow-up to fire.</ParamRow>
+                <ParamRow name="senderEmail" type="string">From-address used to send the follow-up. Required for follow-up to fire.</ParamRow>
+                <ParamRow name="company" type="string">Lead's company. Used in templates.</ParamRow>
+                <ParamRow name="industry" type="string">Lead's industry (separate from website template industry).</ParamRow>
+                <ParamRow name="leadSource" type="string">Source label, e.g. <code className="text-xs bg-muted px-1 rounded">"cold-email"</code>.</ParamRow>
+                <ParamRow name="ccEmails" type="string[]">CC list for the follow-up reply.</ParamRow>
+                <ParamRow name="bccEmails" type="string[]">BCC list for the follow-up reply.</ParamRow>
+              </div>
+              <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-foreground">
+                <p className="font-semibold mb-1">Handled automatically — never send these:</p>
+                <p className="text-muted-foreground"><code>country</code>, <code>demoUrl</code>, <code>visitorSessionId</code>, <code>demoTried</code>, <code>device</code>, <code>browser</code>, <code>utmParams</code>, country block check. Detected from the visitor's browser/IP when they open the demo URL.</p>
+              </div>
+            </div>
+
             {/* Example: with industry */}
             <div>
               <p className="text-sm font-medium text-foreground mb-2">Example — Restaurant (uses template)</p>
