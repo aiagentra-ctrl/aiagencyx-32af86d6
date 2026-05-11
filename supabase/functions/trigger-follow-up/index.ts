@@ -12,16 +12,27 @@ function injectVars(t: string, v: Record<string, string>) {
   return t.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? `{${k}}`);
 }
 
-const FEEDBACK_BODY = `<p>Hey {FirstName},</p>
-<p>Thanks for trying our AI Voice Agent demo for {Company}. How was your experience? We'd love your honest feedback — even a one-liner helps.</p>
-<p>Reply to this email and let us know.</p>
-<p>— {CampaignName}</p>`;
+const FALLBACK = {
+  not_tried: {
+    subject: "Quick follow-up about {Company}",
+    body: `<p>Hi {FirstName},</p><p>I noticed you opened the demo for {Company} but didn't get a chance to try it. Worth a 30-second look?</p><p><a href="{DemoURL}">Open the demo →</a></p>`,
+  },
+  tried_voice_agent: {
+    subject: "Thoughts on the AI voice agent, {FirstName}?",
+    body: `<p>Hi {FirstName},</p><p>Saw you tested the voice agent for {Company}. What did you think? Happy to tweak it for {Industry}.</p>`,
+  },
+  tried_chatbot: {
+    subject: "How did the chatbot feel for {Company}?",
+    body: `<p>Hi {FirstName},</p><p>Thanks for trying the AI chatbot. Curious if it answered the way you'd want for your customers — reply and I'll fine-tune it.</p>`,
+  },
+} as const;
 
-const REENGAGE_BODY = `<p>Hey {FirstName},</p>
-<p>I noticed you visited the AI Voice Agent page we set up for {Company}, but didn't get a chance to try it.</p>
-<p>It takes under 30 seconds — just click the link from the original email and tap "Try AI Call".</p>
-<p>Worth a quick test?</p>
-<p>— {CampaignName}</p>`;
+function pickCondition(lead: any): "not_tried" | "tried_voice_agent" | "tried_chatbot" {
+  if (!lead.demo_tried) return "not_tried";
+  if (lead.demo_type_tried === "voice") return "tried_voice_agent";
+  if (lead.demo_type_tried === "chatbot") return "tried_chatbot";
+  return "not_tried";
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
