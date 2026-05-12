@@ -420,7 +420,34 @@ Deno.serve(async (req) => {
     ]);
     const scrapedData = scrapedResult.data;
 
-    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl, scrapedData);
+    // RAG: pull relevant knowledge base entries for the latest user message
+    let kbContext = "";
+    try {
+      const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+      if (lovableKey) {
+        const embRes = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/embeddings", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "openai/text-embedding-3-small", input: message.slice(0, 4000) }),
+        }, 5000);
+        if (embRes.ok) {
+          const emb = (await embRes.json())?.data?.[0]?.embedding;
+          if (emb) {
+            const { data: kb } = await supabase.rpc("match_kb_entries", {
+              p_chatbot_id: chatbotId, p_query_embedding: emb as any, p_match_count: 5,
+            });
+            if (kb && kb.length > 0) {
+              kbContext = "\n\n## RELEVANT KNOWLEDGE (use this to answer — never guess facts beyond it)\n" +
+                kb.map((e: any, i: number) => `[${i + 1}] ${e.title || e.content_type}${e.source_url ? ` (${e.source_url})` : ""}\n${e.content}`).join("\n\n---\n");
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("KB lookup failed", e);
+    }
+
+    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl, scrapedData) + kbContext;
 
     const aiMessages = [
       { role: "system", content: systemPrompt },
