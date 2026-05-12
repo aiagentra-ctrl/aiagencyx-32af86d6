@@ -17,6 +17,7 @@ import { Link } from "react-router-dom";
 import TemplatesPanel from "@/components/admin/TemplatesPanel";
 import LeadsPanel from "@/components/admin/LeadsPanel";
 import FollowUpTemplatesPanel from "@/components/admin/FollowUpTemplatesPanel";
+import KnowledgeBasePanel from "@/components/admin/KnowledgeBasePanel";
 import { Input } from "@/components/ui/input";
 
 const ADMIN_EMAIL = "aiagentron@gmail.com";
@@ -185,6 +186,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="followups">
               <Mail className="mr-1.5 h-3.5 w-3.5" />
               Follow-Ups
+            </TabsTrigger>
+            <TabsTrigger value="knowledge">
+              <Database className="mr-1.5 h-3.5 w-3.5" />
+              Knowledge Base
             </TabsTrigger>
             <TabsTrigger value="logs">
               <Activity className="mr-1.5 h-3.5 w-3.5" />
