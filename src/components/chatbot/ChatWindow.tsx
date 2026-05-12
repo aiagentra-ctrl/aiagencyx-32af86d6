@@ -222,7 +222,7 @@ const ChatWindow = ({
       </div>
 
       {/* Input bar */}
-      <div className="border-t bg-card/80 backdrop-blur-sm p-3">
+      <div className="border-t bg-card/80 backdrop-blur-md p-3">
         <form
           onSubmit={(e) => { e.preventDefault(); sendMessage(input); }}
           className="flex gap-2"
@@ -233,13 +233,13 @@ const ChatWindow = ({
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type a message..."
             disabled={isLoading}
-            className="flex-1 rounded-xl border border-input bg-background px-4 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-1 rounded-2xl border border-input bg-background px-4 py-2.5 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
           <Button
             type="submit"
             size="icon"
             disabled={isLoading || !input.trim()}
-            className="rounded-xl shrink-0 h-10 w-10"
+            className="rounded-2xl shrink-0 h-10 w-10 bg-gradient-to-br from-primary to-primary/80 shadow-md hover:shadow-lg transition-all"
           >
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
