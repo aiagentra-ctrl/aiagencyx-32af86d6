@@ -39,3 +39,9 @@ verify_jwt = false
 [functions.trigger-follow-up]
 verify_jwt = false
 
+[functions.build-knowledge-base]
+verify_jwt = false
+
+[functions.search-knowledge-base]
+verify_jwt = false
+
