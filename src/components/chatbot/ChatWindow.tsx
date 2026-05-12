@@ -25,6 +25,14 @@ interface ChatWindowProps {
 
 const getDefaultQuickActions = (industry?: string): ActionButton[] => {
   const ind = (industry || "").toLowerCase();
+  if (["real estate", "realestate", "real_estate", "property", "realty"].some(k => ind.includes(k))) {
+    return [
+      { label: "Browse Listings", value: "Show me your featured properties" },
+      { label: "Book a Tour", value: "I want to book a property tour" },
+      { label: "Pricing & Areas", value: "What areas and price ranges do you cover?" },
+      { label: "Talk to Agent", value: "Connect me with a human agent" },
+    ];
+  }
   if (["restaurant", "cafe", "food", "bakery", "pizzeria"].some(k => ind.includes(k))) {
     return [
       { label: "View Menu", value: "Show me the menu" },
