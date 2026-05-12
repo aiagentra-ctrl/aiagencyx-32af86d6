@@ -23,6 +23,10 @@ const DentalSolutionSection = lazy(() => import("@/components/demo/DentalSolutio
 const DentalROISection = lazy(() => import("@/components/demo/DentalROISection"));
 const DentalWhyClinicSection = lazy(() => import("@/components/demo/DentalWhyClinicSection"));
 
+// Real-estate specific sections
+const PropertyShowcaseSection = lazy(() => import("@/components/demo/realestate/PropertyShowcaseSection"));
+const RealEstateValueSection = lazy(() => import("@/components/demo/realestate/RealEstateValueSection"));
+
 interface DemoPageData {
   id: string;
   slug: string;
@@ -227,6 +231,8 @@ const DemoPage = () => {
   const chatbotNavItems = linkedChatbot?.widget_config?.navItems || dc.chatbot_nav_items || undefined;
   const isDental = ["dental", "clinic", "dentist", "healthcare", "medical", "doctor"]
     .some(k => (page.industry || "").toLowerCase().includes(k));
+  const isRealEstate = ["real estate", "real_estate", "realestate", "property", "realty"]
+    .some(k => (page.industry || "").toLowerCase().includes(k));
   const wt = dc.website_template || {};
 
   return (
@@ -274,6 +280,16 @@ const DemoPage = () => {
             <DentalROISection roiDefaults={wt.roi_defaults} onBookCall={handleBookCall} />
             <DentalOutcomeSection companyName={companyName} benefits={wt.outcome_benefits} onScrollToDemo={scrollToDemo} />
             <DentalSolutionSection companyName={companyName} features={wt.solution_features} onBookCall={handleBookCall} />
+          </>
+        ) : isRealEstate ? (
+          <>
+            <PropertyShowcaseSection
+              companyName={companyName}
+              properties={dc.properties || research.properties}
+              onChat={openChatbot}
+              onBookCall={handleBookCall}
+            />
+            <RealEstateValueSection />
           </>
         ) : (
           <>
