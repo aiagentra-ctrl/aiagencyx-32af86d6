@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3, Layers, Lock, UserCheck, Mail } from "lucide-react";
+import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3, Layers, Lock, UserCheck, Mail, Database } from "lucide-react";
 import EditPageDialog from "@/components/admin/EditPageDialog";
 import AnalyticsPanel from "@/components/admin/AnalyticsPanel";
 import EditChatbotDialog from "@/components/admin/EditChatbotDialog";
