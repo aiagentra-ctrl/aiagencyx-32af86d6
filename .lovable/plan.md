@@ -1,119 +1,137 @@
-## Plan: Follow-Up Templates Admin Module + Template-Driven Sends
+## Real Estate Template + Knowledge Base RAG + Premium UI
 
-Purely additive. No existing admin tab, API field, or edge function behavior changes.
-
----
-
-### 1. Database (additive migration)
-
-**New table `follow_up_templates`:**
-- `id` uuid PK
-- `condition` text UNIQUE — one of `not_tried`, `tried_voice_agent`, `tried_chatbot`
-- `subject` text
-- `body` text (HTML)
-- `updated_at` timestamptz default now()
-- `created_at` timestamptz default now()
-
-RLS: service_role full; anon/authenticated read + update (admin panel uses anon key like other settings tables — matches existing pattern in `site_settings`).
-
-Seed three rows (one per condition) with sensible defaults so the editor is never empty.
-
-No changes to `demo_leads`, `manyreach_logs`, `create-demo`, or `track-visitor` schema.
+Three additive workstreams. No existing endpoints, tables, or templates are modified destructively.
 
 ---
 
-### 2. Admin UI — new `FollowUpTemplatesPanel.tsx`
+### 1. Real Estate Industry Template
 
-Added as a new tab in `AdminDashboard` (alongside Templates, Leads, etc). Existing tabs untouched.
+**New `industry_templates` row** (`industry_name = "real_estate"`):
 
-Layout:
+- **System prompt** (uses your exact structure with auto-injected variables from scraped data):
+  ```
+  You are {agent_name}, a voice assistant for {business_name}.
+
+  PERSONA:
+  - Speak like a warm, confident human — never robotic
+  - Short sentences. Natural pauses. Conversational tone.
+  - Never say "As an AI" or "I'm a bot"
+
+  BUSINESS INFO:
+  - Company: {business_name}
+  - Location: {city}
+  - Services: {services}
+  - Speciality: {speciality}
+  - Working hours: {hours}
+  - Contact: {phone} / {email}
+
+  KNOWLEDGE BASE ACCESS:
+  - You have a `search_knowledge_base` tool with full property listings, pricing, locations, agent info, FAQs.
+  - ALWAYS call it before answering questions about specific properties, prices, availability, or policies.
+  - NEVER guess. If the tool returns nothing, say: "Let me have our team confirm that for you."
+
+  BEHAVIOR RULES:
+  - Greet with: "Hi, I'm {agent_name} from {business_name}. How can I help you today?"
+  - Ask one question at a time
+  - If budget mentioned → call search_knowledge_base with budget filter → match listings
+  - If not available → offer alternatives via tool, never say "we don't have it"
+  - Always end with a next step: book a visit, send details, or connect to a human
+  - Out of scope → "Let me connect you with our team for that"
+
+  TONE: Friendly, professional, brief. No jargon.
+  ```
+
+- **First message:** `"Hi, I'm {agent_name} from {business_name}. Looking to buy, rent, or sell today?"`
+- **Floating bubbles, nav items, problem statements** tuned for real estate (missed buyer leads, after-hours inquiries, tour booking).
+
+---
+
+### 2. Knowledge Base + RAG Tool System
+
+**Database (new tables, additive):**
+
 ```text
-[ Did Not Try Demo ] [ Tried Voice Agent ] [ Tried AI Chatbot ]
-─────────────────────────────────────────────
-Subject:  [ ___________________________ ]
+knowledge_base_entries
+  id, chatbot_id, source_url, content_type (property|faq|service|page|agent),
+  title, content (text), structured (jsonb), embedding (vector(1536)),
+  created_at, updated_at
 
-Variables:  [{FirstName}] [{Company}] [{CampaignName}]
-            [{Industry}] [{LeadSource}] [{DemoURL}] [{VisitorCountry}]
-
-┌─ Message Body ─────────┐  ┌─ Live Preview ─────────┐
-│ <textarea>             │  │ Subject: ...           │
-│                        │  │ ───────────────        │
-│                        │  │ <rendered HTML>        │
-└────────────────────────┘  └────────────────────────┘
-
-[ Save Template ]
+knowledge_base_jobs
+  id, chatbot_id, website_url, status (queued|scraping|embedding|done|failed),
+  pages_scraped, entries_created, error, created_at, completed_at
 ```
 
-Behavior:
-- Three Tabs (shadcn `Tabs`), each loads/saves its own row by `condition`.
-- Variable chips are buttons; clicking inserts the token at the textarea cursor (track `selectionStart` via ref).
-- Live preview: `dangerouslySetInnerHTML` of body with all `{Var}` tokens replaced by the dummy map (John / Acme Corp / Q3 Outreach / Real Estate / cold-email / demo URL / United States). Subject preview rendered as plain text above the body.
-- Unknown tokens stay as raw `{Foo}` so typos are visible.
-- Save button writes only the active tab's row (upsert by `condition`).
+Enable `pgvector`. Index: `ivfflat` on `embedding`. RLS: service-role full; anon/auth read.
 
-Files: `src/components/admin/FollowUpTemplatesPanel.tsx` (new) + one line added to `AdminDashboard.tsx` to register the tab.
+**New edge functions (additive only):**
 
----
+- `build-knowledge-base` — Triggered after chatbot creation OR manually. Uses Firecrawl `/v2/map` → `/v2/scrape` (markdown) on top N pages → chunks 500–800 tokens → embeds via Lovable AI Gateway (`google/gemini-embedding-001` or OpenAI embedding) → stores in `knowledge_base_entries`. Detects property listings via JSON extraction format. Writes job row for progress.
+- `search-knowledge-base` — POST `{ chatbotId, query, filters?: {budget, location, type}, limit }`. Embeds query, runs cosine-similarity SQL `<=>` against entries scoped to `chatbot_id`, returns top 5 with title/content/structured. Used as a tool by the chatbot.
 
-### 3. `trigger-follow-up` edge function — switch to DB templates
+**`chatbot-conversation` (additive change, no break):**
 
-Currently uses hardcoded FEEDBACK_BODY / REENGAGE_BODY. Change to:
+- Detect if chatbot has KB entries; if yes, register a `search_knowledge_base` tool in the OpenAI-style request (`tools: [{type:"function", function:{name, description, parameters}}]`) and pass `tool_choice: "auto"`.
+- Loop on `tool_calls`: call internal `search-knowledge-base`, append tool response, re-stream.
+- If no KB → existing behavior unchanged (full backward compatibility).
 
-1. Determine condition:
-   - `demo_type_tried === 'voice'` → `tried_voice_agent`
-   - `demo_type_tried === 'chatbot'` → `tried_chatbot`
-   - else → `not_tried`
-2. Fetch `follow_up_templates` row for that condition.
-3. Build variable map from `demo_leads` row:
-   - FirstName, Company, CampaignName, Industry, LeadSource, VisitorCountry, DemoURL (`${SITE_URL}/${slug}`)
-4. Replace tokens in subject + body, send via ManyReach (existing payload shape preserved), log to `manyreach_logs` (unchanged).
+**Admin Panel — new "Knowledge Base" tab in chatbot edit:**
 
-Fallback: if template row missing or empty, use current hardcoded copy so nothing breaks.
-
-No change to the function's trigger conditions, country gate, or response shape.
+- Shows scrape job status, entry count, source URLs.
+- "Rebuild knowledge base" button → triggers `build-knowledge-base`.
+- Table view of entries with search + delete.
 
 ---
 
-### 4. `create-demo` — confirm payload shape, return `followUpReady`
+### 3. Real Estate Demo Page UI/UX (premium)
 
-The function already accepts the optional fields and inserts `demo_leads`. Two small additive tweaks:
+**New components in `src/components/demo/realestate/`:**
 
-- Add `followUpReady: <bool>` to response (mirrors `is_complete`). Existing keys preserved.
-- Make sure system-managed fields (`country`, `demoUrl`, `visitorSessionId`, `demoTried`, `device`, `browser`, `utmParams`) are never read from the request body — they aren't today; just confirm and document.
+- `RealEstateHero.tsx` — Cinematic split layout: left = bold headline + voice CTA + chat CTA, right = animated property card stack with parallax. Glass morphism, gradient mesh background, smooth motion on load.
+- `PropertyShowcaseSection.tsx` — Replaces "Services". Grid of 3 featured properties from `dynamic_content.properties` or scraped data: image, price tag, beds/baths/sqft chips, "Book Tour" button. Hover lift + shine effect.
+- `RealEstateValueSection.tsx` — Three pillars (Instant Tour Booking / 24-7 Lead Capture / Multilingual Buyers), large icons, subtle gradient cards.
+- `RealEstateAgentSection.tsx` — Meet-the-AI-agent block with pulse-ring avatar matching brand.
+- `RealEstateCTASection.tsx` — Premium dark gradient CTA, dual buttons (Talk to AI / Browse Listings).
 
-No removals, no renames.
+**Chatbot UI upgrade (`ChatWindow.tsx`, `ChatWidget.tsx`, `WelcomeScreen.tsx`):**
 
----
+- New `premium` variant gated by `industry === "real_estate"` (no impact on other industries):
+  - Glass header with blurred backdrop, subtle gradient border.
+  - Message bubbles with soft shadows + rounded-3xl, fade-in-up animation per message.
+  - Quick-action buttons restyled as pill cards with icon + label + arrow.
+  - Property recommendation cards (already in `RecommendationCards.tsx`) restyled to magazine layout: large image, price overlay, spec chips, primary "Book Tour" CTA.
+  - Typing indicator: animated gradient dots.
+  - Send button: gradient with hover glow.
 
-### 5. API docs page (`src/pages/ApiDocsPage.tsx`)
+**`DemoPage.tsx` routing:**
 
-Update the `create-demo` section only:
-- Required: `firstName`, `campaignName`, `campaignId`, `messageThreadId`, `senderEmail` (+ existing `agentId`/`chatbotId`).
-- Optional: `company`, `industry`, `leadSource`, `ccEmails`, `bccEmails`.
-- New "Handled Automatically — Do Not Send" callout listing the 7 system-managed fields.
-- Show updated response example with `demoUrl`, `leadId`, `followUpReady`.
-
-No other doc sections touched.
-
----
-
-### 6. Files
-
-| File | Change |
-|------|--------|
-| `supabase/migrations/<new>.sql` | new `follow_up_templates` table + RLS + seed rows |
-| `src/components/admin/FollowUpTemplatesPanel.tsx` | NEW — tabs/editor/preview |
-| `src/pages/AdminDashboard.tsx` | add one tab entry |
-| `supabase/functions/trigger-follow-up/index.ts` | fetch template by condition + render variables |
-| `supabase/functions/create-demo/index.ts` | add `followUpReady` to response (additive) |
-| `src/pages/ApiDocsPage.tsx` | update required/optional/auto sections |
+- When `industry === "real_estate"`: render new real-estate sections; explicitly skip `OutcomeSection` "Services" block.
+- Add new tokens to `index.css` under a `.theme-realestate` scope (deep navy, gold accent, warm neutrals) — semantic only, HSL.
 
 ---
+
+### Files
+
+**New:**
+- `supabase/functions/build-knowledge-base/index.ts`
+- `supabase/functions/search-knowledge-base/index.ts`
+- `supabase/migrations/<ts>_knowledge_base.sql` (tables + pgvector + indexes + RLS)
+- `supabase/migrations/<ts>_real_estate_template.sql` (seed industry_templates row)
+- `src/components/demo/realestate/{RealEstateHero,PropertyShowcaseSection,RealEstateValueSection,RealEstateAgentSection,RealEstateCTASection}.tsx`
+- `src/components/admin/KnowledgeBasePanel.tsx`
+
+**Modified (additive only):**
+- `supabase/functions/chatbot-conversation/index.ts` — add tool-calling branch
+- `supabase/functions/create-chatbot/index.ts` — fire-and-forget `build-knowledge-base` after creation
+- `src/pages/DemoPage.tsx` — branch on `real_estate` industry
+- `src/components/chatbot/ChatWindow.tsx` + `WelcomeScreen.tsx` + `ChatMessage.tsx` — premium variant prop
+- `src/components/admin/EditChatbotDialog.tsx` — add KB tab
+- `src/index.css` + `tailwind.config.ts` — real-estate theme tokens
+- `supabase/config.toml` — register two new functions with `verify_jwt = false`
 
 ### Guarantees
-- No existing admin tab, table, RLS policy, or edge endpoint is altered destructively.
-- ManyReach send path remains the same; only the message source changes from hardcoded to DB.
-- If admin never opens the new panel, seeded defaults keep current behavior intact.
-- API caller surface is reduced to lead identity + campaign data; everything else stays server-side.
 
-Approve and I'll implement, starting with the migration.
+- No existing endpoint signature changes; create-demo, trigger-follow-up, track-visitor untouched.
+- Existing dental and generic templates render exactly as today.
+- KB tool only activates when entries exist for the chatbot — graceful no-op fallback.
+- Firecrawl already configured (`FIRECRAWL_API_KEY` present); no new secrets required.
+- Embeddings via Lovable AI Gateway → no API key request.
