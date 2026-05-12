@@ -80,6 +80,19 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Fire-and-forget: build the knowledge base from the website
+    if (chatbot && website_url) {
+      const kbUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/build-knowledge-base`;
+      fetch(kbUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({ chatbotId: chatbot.id, websiteUrl: website_url }),
+      }).catch((e) => console.warn("KB build trigger failed", e));
+    }
+
     return new Response(JSON.stringify({
       chatbot_id: chatbot.id,
       chatbot_slug: chatbot.slug,

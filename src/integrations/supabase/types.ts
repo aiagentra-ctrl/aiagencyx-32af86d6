@@ -435,6 +435,81 @@ export type Database = {
         }
         Relationships: []
       }
+      knowledge_base_entries: {
+        Row: {
+          chatbot_id: string
+          content: string
+          content_type: string
+          created_at: string
+          embedding: string | null
+          id: string
+          source_url: string | null
+          structured: Json | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          chatbot_id: string
+          content: string
+          content_type?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          source_url?: string | null
+          structured?: Json | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chatbot_id?: string
+          content?: string
+          content_type?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          source_url?: string | null
+          structured?: Json | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      knowledge_base_jobs: {
+        Row: {
+          chatbot_id: string
+          completed_at: string | null
+          created_at: string
+          entries_created: number
+          error: string | null
+          id: string
+          pages_scraped: number
+          status: string
+          website_url: string
+        }
+        Insert: {
+          chatbot_id: string
+          completed_at?: string | null
+          created_at?: string
+          entries_created?: number
+          error?: string | null
+          id?: string
+          pages_scraped?: number
+          status?: string
+          website_url: string
+        }
+        Update: {
+          chatbot_id?: string
+          completed_at?: string | null
+          created_at?: string
+          entries_created?: number
+          error?: string | null
+          id?: string
+          pages_scraped?: number
+          status?: string
+          website_url?: string
+        }
+        Relationships: []
+      }
       lead_follow_ups: {
         Row: {
           created_at: string
@@ -676,7 +751,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      match_kb_entries: {
+        Args: {
+          p_chatbot_id: string
+          p_match_count?: number
+          p_query_embedding: string
+        }
+        Returns: {
+          content: string
+          content_type: string
+          id: string
+          similarity: number
+          source_url: string
+          structured: Json
+          title: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

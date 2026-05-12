@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3, Layers, Lock, UserCheck, Mail } from "lucide-react";
+import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3, Layers, Lock, UserCheck, Mail, Database } from "lucide-react";
 import EditPageDialog from "@/components/admin/EditPageDialog";
 import AnalyticsPanel from "@/components/admin/AnalyticsPanel";
 import EditChatbotDialog from "@/components/admin/EditChatbotDialog";
@@ -17,6 +17,7 @@ import { Link } from "react-router-dom";
 import TemplatesPanel from "@/components/admin/TemplatesPanel";
 import LeadsPanel from "@/components/admin/LeadsPanel";
 import FollowUpTemplatesPanel from "@/components/admin/FollowUpTemplatesPanel";
+import KnowledgeBasePanel from "@/components/admin/KnowledgeBasePanel";
 import { Input } from "@/components/ui/input";
 
 const ADMIN_EMAIL = "aiagentron@gmail.com";
@@ -185,6 +186,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="followups">
               <Mail className="mr-1.5 h-3.5 w-3.5" />
               Follow-Ups
+            </TabsTrigger>
+            <TabsTrigger value="knowledge">
+              <Database className="mr-1.5 h-3.5 w-3.5" />
+              Knowledge Base
             </TabsTrigger>
             <TabsTrigger value="logs">
               <Activity className="mr-1.5 h-3.5 w-3.5" />
