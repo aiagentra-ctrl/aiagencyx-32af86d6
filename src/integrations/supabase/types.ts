@@ -192,6 +192,7 @@ export type Database = {
           campaign_id: string | null
           campaign_name: string | null
           cc_emails: Json | null
+          chat_first_at: string | null
           company: string | null
           country_code: string | null
           created_at: string
@@ -199,9 +200,16 @@ export type Database = {
           demo_tried: boolean
           demo_type_tried: string | null
           engagement: Json
+          feedback_link_clicked: boolean
+          feedback_link_clicked_at: string | null
+          feedback_link_visit_count: number
+          feedback_requested: boolean
+          fingerprint: string | null
           first_name: string | null
           follow_up_message_id: string | null
           follow_up_sent_at: string | null
+          followup_case1_sent: boolean
+          followup_case2_sent: boolean
           id: string
           industry: string | null
           is_complete: boolean
@@ -213,14 +221,18 @@ export type Database = {
           sender_email: string | null
           slug: string
           status: string
+          tried_chat: boolean
+          tried_voice: boolean
           updated_at: string
           visitor_session_id: string | null
+          voice_first_at: string | null
         }
         Insert: {
           bcc_emails?: Json | null
           campaign_id?: string | null
           campaign_name?: string | null
           cc_emails?: Json | null
+          chat_first_at?: string | null
           company?: string | null
           country_code?: string | null
           created_at?: string
@@ -228,9 +240,16 @@ export type Database = {
           demo_tried?: boolean
           demo_type_tried?: string | null
           engagement?: Json
+          feedback_link_clicked?: boolean
+          feedback_link_clicked_at?: string | null
+          feedback_link_visit_count?: number
+          feedback_requested?: boolean
+          fingerprint?: string | null
           first_name?: string | null
           follow_up_message_id?: string | null
           follow_up_sent_at?: string | null
+          followup_case1_sent?: boolean
+          followup_case2_sent?: boolean
           id?: string
           industry?: string | null
           is_complete?: boolean
@@ -242,14 +261,18 @@ export type Database = {
           sender_email?: string | null
           slug: string
           status?: string
+          tried_chat?: boolean
+          tried_voice?: boolean
           updated_at?: string
           visitor_session_id?: string | null
+          voice_first_at?: string | null
         }
         Update: {
           bcc_emails?: Json | null
           campaign_id?: string | null
           campaign_name?: string | null
           cc_emails?: Json | null
+          chat_first_at?: string | null
           company?: string | null
           country_code?: string | null
           created_at?: string
@@ -257,9 +280,16 @@ export type Database = {
           demo_tried?: boolean
           demo_type_tried?: string | null
           engagement?: Json
+          feedback_link_clicked?: boolean
+          feedback_link_clicked_at?: string | null
+          feedback_link_visit_count?: number
+          feedback_requested?: boolean
+          fingerprint?: string | null
           first_name?: string | null
           follow_up_message_id?: string | null
           follow_up_sent_at?: string | null
+          followup_case1_sent?: boolean
+          followup_case2_sent?: boolean
           id?: string
           industry?: string | null
           is_complete?: boolean
@@ -271,8 +301,11 @@ export type Database = {
           sender_email?: string | null
           slug?: string
           status?: string
+          tried_chat?: boolean
+          tried_voice?: boolean
           updated_at?: string
           visitor_session_id?: string | null
+          voice_first_at?: string | null
         }
         Relationships: []
       }
@@ -351,6 +384,42 @@ export type Database = {
         }
         Relationships: []
       }
+      email_queue: {
+        Row: {
+          cancelled_reason: string | null
+          created_at: string
+          id: string
+          lead_id: string
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          cancelled_reason?: string | null
+          created_at?: string
+          id?: string
+          lead_id: string
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          cancelled_reason?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       follow_up_templates: {
         Row: {
           body: string
@@ -375,6 +444,27 @@ export type Database = {
           id?: string
           subject?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      followup_settings: {
+        Row: {
+          id: string
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          id?: string
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: string | null
         }
         Relationships: []
       }
