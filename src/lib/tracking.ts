@@ -1,5 +1,25 @@
 import { supabase } from "@/integrations/supabase/client";
 
+let _fingerprint: string | null = null;
+async function getFingerprint(): Promise<string> {
+  if (_fingerprint) return _fingerprint;
+  const cached = localStorage.getItem("visitor_fp");
+  if (cached) { _fingerprint = cached; return cached; }
+  try {
+    const raw = `${navigator.userAgent}|${window.screen?.width || 0}|${Intl.DateTimeFormat().resolvedOptions().timeZone}|${navigator.language}`;
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+    const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+    _fingerprint = hex.slice(0, 32);
+    localStorage.setItem("visitor_fp", _fingerprint);
+    return _fingerprint;
+  } catch {
+    _fingerprint = crypto.randomUUID();
+    localStorage.setItem("visitor_fp", _fingerprint);
+    return _fingerprint;
+  }
+}
+export { getFingerprint };
+
 let sessionId: string | null = null;
 let sessionStartTime: number | null = null;
 let lastActiveTime: number | null = null;

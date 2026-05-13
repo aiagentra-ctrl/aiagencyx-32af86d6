@@ -350,7 +350,7 @@ Deno.serve(async (req) => {
   const supabase = getSupabase();
 
   try {
-    const { business_name, system_prompt, knowledge_base, industry, structured_data } = await req.json();
+    const { business_name, system_prompt, knowledge_base, industry, structured_data, chatbot_id } = await req.json();
 
     if (!business_name) {
       return new Response(JSON.stringify({ error: "business_name is required" }),
@@ -375,7 +375,7 @@ Deno.serve(async (req) => {
       templateVars
     );
 
-    const fullPrompt = getVoicePrompt(
+    const basePrompt = getVoicePrompt(
       agentName,
       business_name,
       resolvedIndustry,
@@ -383,6 +383,43 @@ Deno.serve(async (req) => {
       knowledge_base || "",
       structured_data || {}
     );
+
+    // RAG tool rules — always inject so voice agent uses search_knowledge_base first
+    const ragRules = chatbot_id ? `
+
+## RAG TOOL — STRICT RULES
+You have a tool called \`search_knowledge_base(query)\`.
+- BEFORE answering ANY factual question (services, pricing, hours, properties, menu, policies),
+  CALL search_knowledge_base FIRST with the user's question as the query.
+- Speak ONLY from the tool's returned text. Never invent facts.
+- If the tool returns "Let me check with our team on that." or empty results,
+  say exactly: "Let me check with our team on that."
+- The chatbot_id for this assistant is: ${chatbot_id}
+` : "";
+
+    const fullPrompt = basePrompt + ragRules;
+
+    // Vapi tool definition for KB search
+    const kbTool = chatbot_id ? {
+      type: "function",
+      async: false,
+      function: {
+        name: "search_knowledge_base",
+        description: "Search the business knowledge base for facts, services, pricing, properties, hours, or any specific information. ALWAYS call this before answering factual questions.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "The user's question or search query" },
+            top_k: { type: "number", description: "Number of results", default: 5 },
+            chatbotId: { type: "string", description: "Knowledge base scope id", default: chatbot_id },
+          },
+          required: ["query"],
+        },
+      },
+      server: {
+        url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-knowledge-base`,
+      },
+    } : null;
 
     const firstMessage = injectVars(
       adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
@@ -410,7 +447,9 @@ Deno.serve(async (req) => {
           messages: [{ role: "system", content: fullPrompt }],
           maxTokens: 150,
           temperature: 0.7,
+          ...(kbTool ? { tools: [kbTool] } : {}),
         },
+        ...(chatbot_id ? { metadata: { chatbot_id } } : {}),
         voice: {
           provider: voiceProvider,
           voiceId,

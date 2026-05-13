@@ -859,17 +859,48 @@ function getVoicePrompt(
 }
 
 // ── Create VAPI Assistant ──
-async function createVapiAssistant(adminSettings: Record<string, string>, systemPrompt: string, firstMessage: string, knowledgeBase: string, businessName: string, industry: string, structuredData: any): Promise<string> {
+async function createVapiAssistant(adminSettings: Record<string, string>, systemPrompt: string, firstMessage: string, knowledgeBase: string, businessName: string, industry: string, structuredData: any, chatbotId?: string): Promise<string> {
   const vapiKey = adminSettings.vapi_private_key || Deno.env.get("VAPI_API_KEY");
   if (!vapiKey) throw new Error("VAPI private key not configured. Set it in Admin → Settings.");
 
   const agentName = adminSettings.default_agent_name || "Alex";
-  const fullPrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
+  const basePrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
+  const ragRules = chatbotId ? `
+
+## RAG TOOL — STRICT RULES
+You have a tool called \`search_knowledge_base(query)\`.
+- BEFORE answering ANY factual question (services, pricing, hours, properties, menu, policies),
+  CALL search_knowledge_base FIRST with the user's question.
+- Speak ONLY from the tool's returned text. Never invent facts.
+- If the tool returns "Let me check with our team on that." or empty results,
+  say exactly: "Let me check with our team on that."
+` : "";
+  const fullPrompt = basePrompt + ragRules;
+
   const voiceProvider = adminSettings.voice_provider || "azure";
   const voiceId = adminSettings.voice_id || "andrew";
   const modelProvider = adminSettings.ai_model_provider || "openai";
   const model = adminSettings.ai_model || "gpt-4o";
   const endCallMessage = injectVars(adminSettings.default_end_call_message || "Thanks for calling {business_name}! Have a great one. 👋", { business_name: businessName });
+
+  const kbTool = chatbotId ? {
+    type: "function",
+    async: false,
+    function: {
+      name: "search_knowledge_base",
+      description: "Search the business knowledge base for facts, pricing, properties, services, hours, or any specific information. ALWAYS call this before answering factual questions.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "User's question or search query" },
+          top_k: { type: "number", description: "Number of results", default: 5 },
+          chatbotId: { type: "string", description: "Knowledge base scope id", default: chatbotId },
+        },
+        required: ["query"],
+      },
+    },
+    server: { url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-knowledge-base` },
+  } : null;
 
   const res = await fetchWithTimeout("https://api.vapi.ai/assistant", {
     method: "POST",
@@ -883,12 +914,10 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
         messages: [{ role: "system", content: fullPrompt }],
         maxTokens: 150,
         temperature: 0.7,
+        ...(kbTool ? { tools: [kbTool] } : {}),
       },
-      voice: {
-        provider: voiceProvider,
-        voiceId,
-        speed: 1.1,
-      },
+      voice: { provider: voiceProvider, voiceId, speed: 1.1 },
+      ...(chatbotId ? { metadata: { chatbot_id: chatbotId } } : {}),
       endCallMessage,
       maxDurationSeconds: 600,
       firstMessageMode: "assistant-speaks-first",
@@ -1083,10 +1112,13 @@ Deno.serve(async (req) => {
       templateVars
     );
 
+    // Pre-generate chatbot id so the voice assistant can carry it as metadata for KB queries
+    const preChatbotId = crypto.randomUUID();
+
     // Step 5: Create VAPI voice assistant
     let assistantId: string;
     try {
-      assistantId = await createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData);
+      assistantId = await createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData, preChatbotId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "VAPI creation failed";
       await log(supabase, "error", `VAPI failed: ${msg}`, { business_name });
@@ -1149,6 +1181,7 @@ Deno.serve(async (req) => {
     const chatbotSystemPrompt = `${systemPrompt}\n\n## Knowledge Base\n${knowledgeBase}`;
 
     const { error: chatErr } = await supabase.from("chatbots").insert({
+      id: preChatbotId,
       business_name,
       website_url: formattedUrl,
       slug: chatbotSlug,
