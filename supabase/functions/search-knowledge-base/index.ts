@@ -47,16 +47,70 @@ export async function searchKB(chatbotId: string, query: string, limit = 5) {
   return data || [];
 }
 
+// Vapi tool-call shape: { message: { toolCalls: [{ id, function: { name, arguments } }], assistant: {...}, ... } }
+function extractVapiCall(body: any): { chatbotId?: string; query?: string; topK?: number; toolCallId?: string } | null {
+  const tc = body?.message?.toolCalls?.[0] || body?.toolCalls?.[0];
+  if (!tc) return null;
+  let args: any = tc?.function?.arguments;
+  if (typeof args === "string") {
+    try { args = JSON.parse(args); } catch { args = {}; }
+  }
+  const meta = body?.message?.assistant?.metadata || body?.message?.call?.assistantOverrides?.metadata || body?.metadata || {};
+  return {
+    chatbotId: args?.chatbotId || meta?.chatbot_id || meta?.chatbotId,
+    query: args?.query || args?.q,
+    topK: args?.top_k || args?.topK || 5,
+    toolCallId: tc?.id,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
-    const { chatbotId, query, limit } = await req.json();
+    const body = await req.json();
+
+    // Try Vapi tool-call shape first
+    const vapi = extractVapiCall(body);
+    let chatbotId: string | undefined;
+    let query: string | undefined;
+    let limit = 5;
+    let toolCallId: string | undefined;
+
+    if (vapi && vapi.query) {
+      chatbotId = vapi.chatbotId;
+      query = vapi.query;
+      limit = vapi.topK || 5;
+      toolCallId = vapi.toolCallId;
+    } else {
+      chatbotId = body.chatbotId;
+      query = body.query;
+      limit = body.limit || 5;
+    }
+
     if (!chatbotId || !query) {
+      // Vapi expects a results array even on error so the agent can speak fallback
+      if (toolCallId) {
+        return new Response(JSON.stringify({
+          results: [{ toolCallId, result: "Let me check with our team on that." }],
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
       return new Response(JSON.stringify({ error: "chatbotId and query required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const results = await searchKB(chatbotId, query, limit || 5);
+
+    const results = await searchKB(chatbotId, query, limit);
+
+    // Vapi tool-call response format
+    if (toolCallId) {
+      const text = (results && results.length > 0)
+        ? results.map((r: any) => `${r.title ? r.title + ": " : ""}${r.content}`).join("\n\n").slice(0, 4000)
+        : "Let me check with our team on that.";
+      return new Response(JSON.stringify({
+        results: [{ toolCallId, result: text }],
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     return new Response(JSON.stringify({ results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -13,32 +13,35 @@ function injectVars(t: string, v: Record<string, string>) {
 }
 
 const FALLBACK = {
-  not_tried: {
-    subject: "Quick follow-up about {Company}",
-    body: `<p>Hi {FirstName},</p><p>I noticed you opened the demo for {Company} but didn't get a chance to try it. Worth a 30-second look?</p><p><a href="{DemoURL}">Open the demo →</a></p>`,
+  case1: {
+    subject: "Still looking, {FirstName}?",
+    body: `<p>Hi {FirstName},</p><p>You visited the demo for {Company} but didn't get a chance to try the AI assistant.</p><p><a href="{DemoURL}">Try it now →</a></p>`,
   },
-  tried_voice_agent: {
-    subject: "Thoughts on the AI voice agent, {FirstName}?",
-    body: `<p>Hi {FirstName},</p><p>Saw you tested the voice agent for {Company}. What did you think? Happy to tweak it for {Industry}.</p>`,
-  },
-  tried_chatbot: {
-    subject: "How did the chatbot feel for {Company}?",
-    body: `<p>Hi {FirstName},</p><p>Thanks for trying the AI chatbot. Curious if it answered the way you'd want for your customers — reply and I'll fine-tune it.</p>`,
+  case2: {
+    subject: "How did the AI agent do, {FirstName}?",
+    body: `<p>Hi {FirstName},</p><p>Thanks for trying the AI agent for {Company}. Did it answer the way you'd want?</p><p><a href="{FeedbackURL}?r=yes&lead={LeadID}">Yes, helpful ✓</a> · <a href="{FeedbackURL}?r=no&lead={LeadID}">Not quite</a></p>`,
   },
 } as const;
 
-function pickCondition(lead: any): "not_tried" | "tried_voice_agent" | "tried_chatbot" {
-  if (!lead.demo_tried) return "not_tried";
-  if (lead.demo_type_tried === "voice") return "tried_voice_agent";
-  if (lead.demo_type_tried === "chatbot") return "tried_chatbot";
-  return "not_tried";
+type Case = "case1" | "case2";
+
+function pickCase(lead: any, override?: string): Case {
+  if (override === "case1" || override === "case2") return override;
+  if (lead.tried_voice || lead.tried_chat) return "case2";
+  return "case1";
+}
+
+// Map legacy condition names to new cases for backward-compatible templates
+function resolveTemplateConditionKey(c: Case): string[] {
+  if (c === "case1") return ["case1", "not_tried"];
+  return ["case2", "tried_voice_agent", "tried_chatbot"];
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { lead_id } = await req.json();
+    const { lead_id, case: caseOverride } = await req.json();
     if (!lead_id) return new Response(JSON.stringify({ error: "lead_id required" }), { status: 400, headers: corsHeaders });
 
     const { data: lead, error } = await supabase.from("demo_leads").select("*").eq("id", lead_id).maybeSingle();
@@ -47,9 +50,16 @@ Deno.serve(async (req) => {
     }
 
     if (!lead.is_complete) return new Response(JSON.stringify({ skipped: "incomplete" }), { headers: corsHeaders });
-    if (lead.follow_up_sent_at) return new Response(JSON.stringify({ skipped: "already_sent" }), { headers: corsHeaders });
 
-    // Re-check country
+    const condition = pickCase(lead, caseOverride);
+    if (condition === "case1" && lead.followup_case1_sent) {
+      return new Response(JSON.stringify({ skipped: "case1_already_sent" }), { headers: corsHeaders });
+    }
+    if (condition === "case2" && lead.followup_case2_sent) {
+      return new Response(JSON.stringify({ skipped: "case2_already_sent" }), { headers: corsHeaders });
+    }
+
+    // Country re-check
     const { data: rules } = await supabase.from("site_settings").select("key,value").in("key", ["country_allowlist", "country_blocklist"]);
     const allow: string[] = []; const block: string[] = [];
     for (const r of rules || []) {
@@ -75,11 +85,16 @@ Deno.serve(async (req) => {
       Industry: lead.industry || "",
       LeadSource: lead.lead_source || "",
       DemoURL: siteUrl ? `${siteUrl}/${lead.slug}` : `/${lead.slug}`,
+      FeedbackURL: siteUrl ? `${siteUrl}/feedback` : `/feedback`,
+      LeadID: lead.id,
       VisitorCountry: lead.country_code || "",
     };
 
-    const condition = pickCondition(lead);
-    const { data: tpl } = await supabase.from("follow_up_templates").select("subject,body").eq("condition", condition).maybeSingle();
+    // Fetch template — try new key first, fall back to legacy keys
+    const keys = resolveTemplateConditionKey(condition);
+    const { data: tplRows } = await supabase.from("follow_up_templates").select("condition,subject,body").in("condition", keys);
+    const tpl = (tplRows || []).sort((a: any, b: any) => keys.indexOf(a.condition) - keys.indexOf(b.condition))[0];
+
     const subjectTpl = (tpl?.subject?.trim()) || FALLBACK[condition].subject;
     const bodyTpl = (tpl?.body?.trim()) || FALLBACK[condition].body;
     const subject = injectVars(subjectTpl, variables);
@@ -95,14 +110,7 @@ Deno.serve(async (req) => {
       body,
       variables,
       campaignId: lead.campaign_id,
-      metadata: {
-        slug: lead.slug,
-        lead_score: lead.lead_score,
-        score_tier: lead.score_tier,
-        demo_tried: lead.demo_tried,
-        demo_type: lead.demo_type_tried,
-        condition,
-      },
+      metadata: { slug: lead.slug, lead_score: lead.lead_score, condition },
     };
 
     const apiKey = Deno.env.get("MANYREACH_API_KEY");
@@ -132,14 +140,17 @@ Deno.serve(async (req) => {
     });
 
     if (status === "sent") {
-      await supabase.from("demo_leads").update({
+      const patch: any = {
         follow_up_sent_at: new Date().toISOString(),
         follow_up_message_id: responseJson?.messageId || responseJson?.id || null,
         status: "followed_up",
-      }).eq("id", lead.id);
+      };
+      if (condition === "case1") patch.followup_case1_sent = true;
+      if (condition === "case2") { patch.followup_case2_sent = true; patch.feedback_requested = true; }
+      await supabase.from("demo_leads").update(patch).eq("id", lead.id);
     }
 
-    return new Response(JSON.stringify({ ok: status === "sent", status, error: errorMessage }), {
+    return new Response(JSON.stringify({ ok: status === "sent", status, condition, error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
