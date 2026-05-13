@@ -51,12 +51,30 @@ async function loadCountryRules() {
   return map;
 }
 
+async function getDelayHours(key: string, fallback: number): Promise<number> {
+  const { data } = await supabase.from("followup_settings").select("value").eq("key", key).maybeSingle();
+  const v = parseFloat(data?.value || "");
+  return Number.isFinite(v) && v >= 0 ? v : fallback;
+}
+
+async function enqueueIfMissing(leadId: string, type: "case1" | "case2", scheduledAt: Date, replaceOtherPending = false) {
+  // Check existing pending of same type
+  const { data: existing } = await supabase.from("email_queue").select("id").eq("lead_id", leadId).eq("type", type).eq("status", "pending").limit(1);
+  if (existing && existing.length > 0) return;
+  if (replaceOtherPending && type === "case2") {
+    // Cancel any pending case1
+    await supabase.from("email_queue").update({ status: "cancelled", cancelled_reason: "switched_to_case2", updated_at: new Date().toISOString() })
+      .eq("lead_id", leadId).eq("type", "case1").eq("status", "pending");
+  }
+  await supabase.from("email_queue").insert({ lead_id: leadId, type, scheduled_at: scheduledAt.toISOString() });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const body = await req.json();
-    const { slug, session_id, event_type, metadata = {} } = body;
+    const { slug, session_id, event_type, metadata = {}, fingerprint } = body;
     if (!slug || !event_type) {
       return new Response(JSON.stringify({ error: "slug and event_type required" }), { status: 400, headers: corsHeaders });
     }
@@ -66,7 +84,6 @@ Deno.serve(async (req) => {
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("cf-connecting-ip") || "unknown";
 
-    // Country gate
     let countryCode: string | null = null;
     if (ip && ip !== "unknown" && ip !== "127.0.0.1") {
       try {
@@ -83,10 +100,8 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, filtered: "country_not_allowed" }), { headers: corsHeaders });
     }
 
-    // Find lead row (only proceed if one exists for this slug — created at demo creation)
     const { data: lead } = await supabase.from("demo_leads").select("*").eq("slug", slug).maybeSingle();
     if (!lead) {
-      // No follow-up lead attached; nothing to update
       return new Response(JSON.stringify({ ok: true, filtered: "no_lead" }), { headers: corsHeaders });
     }
 
@@ -111,11 +126,29 @@ Deno.serve(async (req) => {
 
     let demoTried = lead.demo_tried;
     let demoTypeTried = lead.demo_type_tried;
+    let triedVoice = lead.tried_voice;
+    let triedChat = lead.tried_chat;
+    let voiceFirstAt = lead.voice_first_at;
+    let chatFirstAt = lead.chat_first_at;
+    let voiceJustTried = false;
+    let chatJustTried = false;
+
     if (event_type === "voice_call_started" || event_type === "voice_interaction") {
       demoTried = true; demoTypeTried = "voice"; eng.demo_tried = true;
+      if (!triedVoice) { triedVoice = true; voiceFirstAt = new Date().toISOString(); voiceJustTried = true; }
     }
     if (event_type === "chatbot_message_sent" || event_type === "chatbot_interaction") {
       demoTried = true; demoTypeTried = demoTypeTried || "chatbot"; eng.demo_tried = true;
+      if (!triedChat) { triedChat = true; chatFirstAt = new Date().toISOString(); chatJustTried = true; }
+    }
+
+    // Feedback link tracking
+    let fbClicked = lead.feedback_link_clicked;
+    let fbClickedAt = lead.feedback_link_clicked_at;
+    let fbVisits = lead.feedback_link_visit_count || 0;
+    if (event_type === "feedback_clicked") {
+      fbVisits++;
+      if (!fbClicked) { fbClicked = true; fbClickedAt = new Date().toISOString(); }
     }
 
     const { score, tier } = computeScore(eng);
@@ -129,26 +162,38 @@ Deno.serve(async (req) => {
       last_visit_at: new Date().toISOString(),
       demo_tried: demoTried,
       demo_type_tried: demoTypeTried,
+      tried_voice: triedVoice,
+      tried_chat: triedChat,
+      voice_first_at: voiceFirstAt,
+      chat_first_at: chatFirstAt,
+      feedback_link_clicked: fbClicked,
+      feedback_link_clicked_at: fbClickedAt,
+      feedback_link_visit_count: fbVisits,
     };
+    if (fingerprint && !lead.fingerprint) updates.fingerprint = fingerprint;
     if (lead.status === "pending" || lead.status === "visited_no_demo") {
       updates.status = demoTried ? "visited_demo_tried" : "visited_no_demo";
     }
 
     await supabase.from("demo_leads").update(updates).eq("id", lead.id);
 
-    // Trigger follow-up on session_end (or explicit signal), only once
-    if ((event_type === "session_end" || event_type === "trigger_follow_up") && !lead.follow_up_sent_at) {
-      try {
-        const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/trigger-follow-up`;
-        await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({ lead_id: lead.id }),
-        }).catch(() => {});
-      } catch { /* fire-and-forget */ }
+    // ── Queue follow-ups ──
+    // CASE 1: page visit, no agent tried, has email, not yet sent → schedule
+    if (
+      !triedVoice && !triedChat &&
+      !lead.followup_case1_sent &&
+      (lead.sender_email || lead.first_name) // has identity
+    ) {
+      const delay = await getDelayHours("case1_delay_hours", 24);
+      const scheduled = new Date(Date.now() + delay * 3600_000);
+      await enqueueIfMissing(lead.id, "case1", scheduled, false);
+    }
+
+    // CASE 2: agent just tried for the first time → schedule (and cancel pending case1)
+    if ((voiceJustTried || chatJustTried) && !lead.followup_case2_sent) {
+      const delay = await getDelayHours("case2_delay_hours", 1);
+      const scheduled = new Date(Date.now() + delay * 3600_000);
+      await enqueueIfMissing(lead.id, "case2", scheduled, true);
     }
 
     return new Response(JSON.stringify({ ok: true, score, tier, demo_tried: demoTried }), {
