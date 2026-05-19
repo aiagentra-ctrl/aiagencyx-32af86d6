@@ -127,7 +127,10 @@ export type Database = {
           faq_topics: Json | null
           id: string
           industry: string | null
+          kb_chatbot_md: string | null
+          kb_voice_text: string | null
           logo_url: string | null
+          prompt_core: Json | null
           research_data: Json | null
           services: Json | null
           slug: string
@@ -147,7 +150,10 @@ export type Database = {
           faq_topics?: Json | null
           id?: string
           industry?: string | null
+          kb_chatbot_md?: string | null
+          kb_voice_text?: string | null
           logo_url?: string | null
+          prompt_core?: Json | null
           research_data?: Json | null
           services?: Json | null
           slug: string
@@ -167,7 +173,10 @@ export type Database = {
           faq_topics?: Json | null
           id?: string
           industry?: string | null
+          kb_chatbot_md?: string | null
+          kb_voice_text?: string | null
           logo_url?: string | null
+          prompt_core?: Json | null
           research_data?: Json | null
           services?: Json | null
           slug?: string
