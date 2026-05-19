@@ -447,7 +447,16 @@ Deno.serve(async (req) => {
       console.warn("KB lookup failed", e);
     }
 
-    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl, scrapedData) + kbContext;
+    // Inject prompt_core (top facts answered instantly without KB lookup)
+    let coreFactsBlock = "";
+    if (chatbot.prompt_core) {
+      try {
+        coreFactsBlock = "\n\n## CORE FACTS (answer these instantly without searching the KB)\n```json\n" +
+          JSON.stringify(chatbot.prompt_core, null, 2) + "\n```\n";
+      } catch { /* noop */ }
+    }
+
+    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl, scrapedData) + coreFactsBlock + kbContext;
 
     const aiMessages = [
       { role: "system", content: systemPrompt },

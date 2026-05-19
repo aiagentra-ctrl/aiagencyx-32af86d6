@@ -384,20 +384,41 @@ Deno.serve(async (req) => {
       structured_data || {}
     );
 
+    // Load architected core facts + voice KB from chatbots row (if available)
+    let coreFactsBlock = "";
+    let voiceKbBlock = "";
+    if (chatbot_id) {
+      const { data: cb } = await supabase
+        .from("chatbots")
+        .select("prompt_core, kb_voice_text")
+        .eq("id", chatbot_id)
+        .maybeSingle();
+      if (cb?.prompt_core) {
+        try {
+          coreFactsBlock = `\n\n## CORE FACTS — answer these instantly, no KB lookup needed\n${JSON.stringify(cb.prompt_core, null, 2)}\n`;
+        } catch { /* noop */ }
+      }
+      if (cb?.kb_voice_text) {
+        voiceKbBlock = `\n\n## VOICE KB (spoken-language reference for deeper questions)\n${cb.kb_voice_text}\n`;
+      }
+    }
+
     // RAG tool rules — always inject so voice agent uses search_knowledge_base first
     const ragRules = chatbot_id ? `
 
 ## RAG TOOL — STRICT RULES
 You have a tool called \`search_knowledge_base(query)\`.
-- BEFORE answering ANY factual question (services, pricing, hours, properties, menu, policies),
-  CALL search_knowledge_base FIRST with the user's question as the query.
-- Speak ONLY from the tool's returned text. Never invent facts.
+- The CORE FACTS section above already covers greetings, basic services, pricing structure,
+  common objections, hours, and escalation. Answer those INSTANTLY without calling the tool.
+- ONLY call search_knowledge_base when the caller asks something not covered in CORE FACTS or VOICE KB
+  (specific edge cases, deep FAQs, policy specifics, individual properties or products).
+- Speak ONLY from CORE FACTS, VOICE KB, or the tool's returned text. Never invent facts.
 - If the tool returns "Let me check with our team on that." or empty results,
   say exactly: "Let me check with our team on that."
 - The chatbot_id for this assistant is: ${chatbot_id}
 ` : "";
 
-    const fullPrompt = basePrompt + ragRules;
+    const fullPrompt = basePrompt + coreFactsBlock + voiceKbBlock + ragRules;
 
     // Vapi tool definition for KB search
     const kbTool = chatbot_id ? {

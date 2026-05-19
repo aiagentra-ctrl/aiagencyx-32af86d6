@@ -75,11 +75,90 @@ function classify(url: string, title?: string): string {
   return "page";
 }
 
+// ── KB Architect: LLM generates dual KBs + core facts from scraped content ──
+async function architectKnowledgeBase(
+  businessName: string,
+  websiteUrl: string,
+  industry: string,
+  combinedMarkdown: string,
+): Promise<{ chatbot_kb_md: string; voice_kb_text: string; prompt_core: any } | null> {
+  if (!LOVABLE_KEY) return null;
+
+  const systemPrompt = `You are a Knowledge Base Architect. Using the scraped business website data, produce a JSON object with three fields:
+
+1. "chatbot_kb_md" — structured markdown for a chatbot RAG pipeline. Sections in this order:
+   ## Business Overview
+   ## Services / Products (with prices if found)
+   ## FAQs (at least 20 Q&A pairs — infer realistic questions for this industry)
+   ## Pricing & Packages
+   ## Policies (cancellation, refund, hours, etc.)
+   ## Common Objections & Responses (at least 5)
+   ## Contact Information
+   Fill gaps logically based on industry norms. Mark any unverifiable facts with [DATA NEEDED].
+
+2. "voice_kb_text" — conversational spoken-language plain text for a voice agent. NO markdown, NO bullets, NO headers. Flowing paragraphs only. Must include: caller intent handling, escalation rules, tone guide, key facts spoken naturally, and a "things the agent must never say" paragraph.
+
+3. "prompt_core" — compact JSON of TOP business facts for instant in-prompt answers (no retrieval needed). Shape:
+{
+  "business": "name",
+  "location": "city/area or address",
+  "services": ["top 5"],
+  "pricing_summary": "1-2 sentence summary",
+  "hours": "spoken-friendly hours string",
+  "contact": { "phone": "...", "email": "..." },
+  "top_objections": [{ "objection": "...", "response": "..." }],
+  "escalation": "when/how to escalate to human",
+  "tone": "warm, professional, conversational, etc.",
+  "top_intents": ["book appointment", "check pricing", "ask hours", ...]
+}
+
+Use [DATA NEEDED] strings inside prompt_core for missing fields. Return ONLY raw JSON, no markdown code fences.`;
+
+  const userPrompt = `BUSINESS: ${businessName}
+WEBSITE: ${websiteUrl}
+INDUSTRY: ${industry || "general"}
+
+SCRAPED CONTENT:
+${combinedMarkdown.slice(0, 60000)}`;
+
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-pro",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!res.ok) {
+      console.error("Architect call failed", res.status, await res.text());
+      return null;
+    }
+    const data = await res.json();
+    const raw = data?.choices?.[0]?.message?.content || "";
+    const cleaned = raw.replace(/^```json\s*|```$/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+    if (!parsed.chatbot_kb_md || !parsed.voice_kb_text || !parsed.prompt_core) return null;
+    return parsed;
+  } catch (e) {
+    console.error("Architect parse error", e);
+    return null;
+  }
+}
+
 async function runJob(jobId: string, chatbotId: string, websiteUrl: string) {
   try {
     await supabase.from("knowledge_base_jobs").update({ status: "scraping" }).eq("id", jobId);
 
     if (!FIRECRAWL_KEY) throw new Error("FIRECRAWL_API_KEY missing");
+
+    // Fetch chatbot meta for architect phase
+    const { data: cbMeta } = await supabase
+      .from("chatbots").select("business_name, industry").eq("id", chatbotId).single();
 
     const urls = await fcMap(websiteUrl);
     if (urls.length === 0) urls.push(websiteUrl);
@@ -89,6 +168,7 @@ async function runJob(jobId: string, chatbotId: string, websiteUrl: string) {
 
     let pagesScraped = 0;
     let entriesCreated = 0;
+    const allPagesMd: string[] = [];
 
     // Scrape concurrently in batches of 5
     const batchSize = 5;
@@ -100,6 +180,7 @@ async function runJob(jobId: string, chatbotId: string, websiteUrl: string) {
         const url = batch[j];
         if (!s) continue;
         pagesScraped++;
+        allPagesMd.push(`# ${s.title || url}\n${s.markdown}`);
         const chunks = chunkText(s.markdown);
         const contentType = classify(url, s.title);
         for (const chunk of chunks) {
@@ -119,6 +200,42 @@ async function runJob(jobId: string, chatbotId: string, websiteUrl: string) {
       await supabase.from("knowledge_base_jobs").update({
         pages_scraped: pagesScraped, entries_created: entriesCreated, status: "embedding",
       }).eq("id", jobId);
+    }
+
+    // ── Architect phase: generate dual KBs + core facts ──
+    await supabase.from("knowledge_base_jobs").update({ status: "architecting" }).eq("id", jobId);
+
+    const combined = allPagesMd.join("\n\n---\n\n");
+    const architected = await architectKnowledgeBase(
+      cbMeta?.business_name || "the business",
+      websiteUrl,
+      cbMeta?.industry || "",
+      combined,
+    );
+
+    if (architected) {
+      // Save dual KBs + prompt_core to chatbots row
+      await supabase.from("chatbots").update({
+        kb_chatbot_md: architected.chatbot_kb_md,
+        kb_voice_text: architected.voice_kb_text,
+        prompt_core: architected.prompt_core,
+      }).eq("id", chatbotId);
+
+      // Also chunk + embed the high-quality chatbot_kb_md for better RAG retrieval
+      const kbChunks = chunkText(architected.chatbot_kb_md, 1500);
+      for (const chunk of kbChunks) {
+        const emb = await embed(chunk);
+        if (!emb) continue;
+        const { error } = await supabase.from("knowledge_base_entries").insert({
+          chatbot_id: chatbotId,
+          source_url: websiteUrl,
+          content_type: "architected",
+          title: "Curated KB",
+          content: chunk,
+          embedding: emb as any,
+        });
+        if (!error) entriesCreated++;
+      }
     }
 
     await supabase.from("knowledge_base_jobs").update({

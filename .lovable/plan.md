@@ -1,132 +1,92 @@
-# Voice Agent RAG + Simplified Follow-Up System
+# Auto Knowledge Base Generator
 
-Two additive workstreams. No existing endpoints destroyed. Existing chatbot RAG, dental/real-estate templates, and current `demo_leads` flow stay intact.
-
----
-
-## Part 1 — Voice Agent RAG Tool (Vapi tool-calling)
-
-### Goal
-Vapi voice assistant calls `search_knowledge_base(query)` on every user turn, speaks ONLY from KB results, falls back to "Let me check with our team on that." when empty.
-
-### Backend
-- Reuse existing `search-knowledge-base` edge function (already deployed, vector-searches `knowledge_base_entries`).
-- Add a thin Vapi-friendly response shape: `{ results: [{ title, content, source_url }] }` — already returned, just formalize.
-- `chatbotId` field reused as `assistantId → chatbot mapping`. Add lookup: voice assistant's `metadata.chatbot_id` → KB scope.
-
-### Vapi assistant config (in `create-voice-agent` / `create-ai-system`)
-Register a custom tool on the assistant:
-```
-{
-  type: "function",
-  function: {
-    name: "search_knowledge_base",
-    description: "Search the business knowledge base. ALWAYS call this before answering any factual question.",
-    parameters: { query: string, top_k: number }
-  },
-  server: { url: "{SUPABASE_URL}/functions/v1/search-knowledge-base" }
-}
-```
-- Inject into system prompt: rule "ALWAYS call search_knowledge_base FIRST. Speak only from results. If empty → say: Let me check with our team on that."
-- Pass `chatbotId` via Vapi `serverMessages.metadata` so the function knows which KB to query.
-- Set `tool_choice: "auto"` and `modelOutputEnabled: true` for streaming.
-
-### Files touched
-- `supabase/functions/create-voice-agent/index.ts` — add tool registration block
-- `supabase/functions/create-ai-system/index.ts` — same
-- `supabase/functions/search-knowledge-base/index.ts` — accept Vapi's tool-call payload shape (`message.toolCalls[].function.arguments`) in addition to current `{chatbotId, query}`
-- `industry_templates` real_estate row — append voice prompt rules
+Additive internal processing step. No new public endpoints. Plugs into existing `create-chatbot` and `create-voice-agent` pipelines.
 
 ---
 
-## Part 2 — Simplified 2-Case Follow-Up System
+## Architecture: Two-Layer Speed Design
 
-Replace current 3-condition (`not_tried` / `tried_voice_agent` / `tried_chatbot`) with **2 cases only**: Case 1 (no agent tried) + Case 2 (any agent tried). Existing `follow_up_templates` table reused — seed only `case1` and `case2` rows.
+**Layer 1 — System Prompt (instant, no lookup):**
+Top business facts injected directly: name, location, top 5 services, pricing summary, hours, contact, top 5 objections + responses, escalation rules, tone. Handles ~80% of routine questions with zero latency.
 
-### Database changes (migration)
+**Layer 2 — KB Retrieval (deep, on-demand):**
+Full chunks + embeddings in `knowledge_base_entries`. Queried via existing `search_knowledge_base` tool only when user asks something the prompt doesn't already cover.
 
-**Extend `demo_leads`** (additive columns only):
-- `fingerprint text` — SHA-256 of UA+screen+tz+lang
-- `tried_voice boolean default false`
-- `tried_chat boolean default false`
-- `voice_first_at timestamptz`
-- `chat_first_at timestamptz`
-- `followup_case1_sent boolean default false`
-- `followup_case2_sent boolean default false`
-- `feedback_requested boolean default false`
-- `feedback_link_clicked boolean default false`
-- `feedback_link_clicked_at timestamptz`
-- `feedback_link_visit_count int default 0`
+---
 
-**New table `email_queue`**:
-```
-id, lead_id, type ('case1'|'case2'),
-scheduled_at, sent_at, status ('pending'|'sent'|'cancelled'),
-cancelled_reason
-```
-RLS: service-role full; anon/auth read.
+## Flow (runs internally, triggered on agent setup)
 
-**New table `followup_settings`** (single row, key/value):
-- `case1_delay_hours` (default 24)
-- `case2_delay_hours` (default 1)
-- `from_name`, `from_email`
-- (Email provider stays ManyReach — already configured)
-
-**Realtime**: `ALTER PUBLICATION supabase_realtime ADD TABLE demo_leads, email_queue;`
-
-### Edge functions
-
-**`track-visitor`** (modify, additive):
-- Accept optional `fingerprint` from client
-- On `voice_call_started` → if `!tried_voice`: set `tried_voice=true`, `voice_first_at=now()`, enqueue case2 if `!followup_case2_sent`
-- On `chatbot_message_sent` → mirror for chat
-- On `session_start`/`page_view` (after 1st visit, has email, no agent tried) → enqueue case1 if not already queued/sent
-- Enqueue = insert into `email_queue` with `scheduled_at = now() + delay`, cancel any pending case1 if case2 fires
-
-**New `process-email-queue`** (cron every 5 min):
-- Select `pending` rows where `scheduled_at <= now()`
-- Re-validate conditions (lead state may have changed)
-- If case1 but lead now `tried_any_agent` → mark `cancelled` (`reason: 'switched_to_case2'`) and enqueue case2
-- Otherwise call existing `trigger-follow-up` logic to send via ManyReach using the `case1`/`case2` template
-- Mark `sent` + flip `followup_caseN_sent` on lead
-
-**Cron setup** via `pg_cron` + `pg_net` (insert tool, not migration — contains URLs/keys):
-```sql
-select cron.schedule('process-email-queue-5min', '*/5 * * * *',
-  $$ select net.http_post(url:='.../process-email-queue', headers:='...', body:='{}'::jsonb) $$);
+```text
+website URL
+   ↓
+[1] Firecrawl map + scrape (existing build-knowledge-base logic, expanded)
+   ↓ clean markdown (nav/footer stripped, onlyMainContent:true)
+[2] LLM Architect call (Lovable AI gateway, google/gemini-2.5-pro)
+   ↓ returns JSON: { chatbot_kb_md, voice_kb_text, prompt_core }
+[3] Store:
+     - knowledge_base_entries (chunked + embedded for RAG)
+     - chatbots.kb_chatbot_md      (full markdown, for inspection/export)
+     - chatbots.kb_voice_text      (spoken-language KB)
+     - chatbots.prompt_core         (top facts injected into system prompt)
+[4] Inject prompt_core into:
+     - chatbot system_prompt (create-chatbot / chatbot-conversation)
+     - Vapi assistant system prompt (create-voice-agent)
 ```
 
-**`trigger-follow-up`** (modify): switch condition picker to 2-case logic only.
+---
 
-### Frontend (admin)
+## Backend changes
 
-**New `FollowUpsPanel.tsx`** (new tab in `AdminDashboard`):
-- Metrics row: total leads, case1 sent, case2 sent, feedback yes/no, pending in queue
-- Leads table with filters (All / No agent / Agent tried / Feedback received)
-- Lead drawer: event timeline (from `link_events`), emails sent, manual force-send/cancel buttons
-- Email queue table with cancel action
-- Settings card (delays, from name/email)
+### Migration
+Add 3 columns to `chatbots`:
+- `kb_chatbot_md text`
+- `kb_voice_text text`
+- `prompt_core jsonb` — `{ business, location, services[], pricing_summary, hours, contact, top_objections[], escalation, tone, top_intents[] }`
 
-**Update `FollowUpTemplatesPanel.tsx`**: collapse 3 tabs → 2 tabs (`case1`, `case2`). Migration seeds the 2 rows from existing copy.
+### Modified: `supabase/functions/build-knowledge-base/index.ts`
+After existing scrape + chunk + embed loop, add an "Architect" phase:
+1. Concatenate all cleaned page markdown (cap ~60k chars).
+2. Call Lovable AI `google/gemini-2.5-pro` with strict JSON schema:
+   - `chatbot_kb_md` — structured markdown (overview, services, 20+ FAQs, pricing, policies, objections, contact). Mark unknown as `[DATA NEEDED]`.
+   - `voice_kb_text` — flowing spoken-language paragraphs (no bullets/markdown), intent handling, escalation rules, tone, never-say list.
+   - `prompt_core` — compact JSON of top facts (see above).
+3. Save all three to `chatbots` row.
+4. Also chunk `chatbot_kb_md` and re-embed into `knowledge_base_entries` (replaces raw-scrape chunks for higher-quality retrieval). Raw scrape chunks kept too, tagged `content_type='raw'`.
 
-**Client tracking** (`src/lib/tracking.ts`):
-- Add `getFingerprint()` — SHA-256 of UA+screen.width+timezone+language using SubtleCrypto
-- Pass `fingerprint` on every `track-visitor` call
-- Add `feedback_clicked` event firing on feedback URL pages
+### Modified: `supabase/functions/create-chatbot/index.ts`
+- After insert, if `website_url`, fire-and-forget invoke `build-knowledge-base` (already does this — confirmed). No change beyond reading new fields if present.
 
-### Files
-- New migration: extend demo_leads, create email_queue, followup_settings
-- Insert tool: seed templates, schedule cron
-- New edge function: `process-email-queue`
-- Modified: `track-visitor`, `trigger-follow-up`, `create-voice-agent`, `create-ai-system`, `search-knowledge-base`, `tracking.ts`, `FollowUpTemplatesPanel.tsx`, `AdminDashboard.tsx`
-- New: `FollowUpsPanel.tsx`, `LeadTimelineDrawer.tsx`
+### Modified: `supabase/functions/create-voice-agent/index.ts`
+- Before building Vapi assistant prompt, load chatbot's `prompt_core` + `kb_voice_text` (if exist) and inject into the system prompt under `## CORE FACTS` and `## VOICE KB` sections.
+
+### Modified: `supabase/functions/chatbot-conversation/index.ts`
+- Inject `prompt_core` block at top of system prompt for instant answers; existing RAG `match_kb_entries` stays as fallback for deeper questions.
+
+### Modified: `supabase/functions/search-knowledge-base/index.ts`
+- No change. Existing vector search already covers the embedded chunks (now higher quality).
+
+### Modified: `supabase/functions/create-demo/index.ts`
+- After voice + chatbot created, ensure KB build is triggered once for the chatbot (already happens via `create-chatbot`). Add 5s wait + best-effort fetch of `prompt_core` to inject into voice assistant on first build (otherwise voice agent picks it up on next invocation).
+
+---
+
+## Frontend changes
+
+### `src/components/admin/KnowledgeBasePanel.tsx`
+Add tabs to show generated KBs:
+- **Chatbot KB** (rendered markdown, with `[DATA NEEDED]` highlighted)
+- **Voice Agent KB** (plain text preview)
+- **Core Facts** (JSON viewer)
+- **Embeddings** (existing entries count + jobs table)
+
+Add "Regenerate KB" button (calls existing `build-knowledge-base`).
 
 ---
 
 ## Guarantees
-- No destructive changes. Existing 3-condition templates archived (kept in DB), UI shows only case1/case2.
-- Voice RAG only activates when KB entries exist for the chatbot — fallback "Let me check…" otherwise.
-- Cron re-validates conditions before send → no duplicate emails.
-- All new tables RLS-enabled.
+- Per-business isolation: every KB scoped by `chatbot_id`. No cross-tenant queries.
+- No new public endpoints. Internal step inside existing `build-knowledge-base`.
+- Backward compatible: if Architect call fails, raw-scrape embeddings still work (current behavior preserved).
+- Fast: routine questions answered from system prompt; KB lookups only for edge cases.
 
 Approve to implement.
