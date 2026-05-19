@@ -20,7 +20,7 @@ const KnowledgeBasePanel = () => {
   const [building, setBuilding] = useState(false);
 
   const fetchAll = async () => {
-    const { data: cbs } = await supabase.from("chatbots").select("id,business_name,website_url").order("created_at", { ascending: false });
+    const { data: cbs } = await supabase.from("chatbots").select("id,business_name,website_url,kb_chatbot_md,kb_voice_text,prompt_core").order("created_at", { ascending: false });
     setChatbots((cbs as Chatbot[]) || []);
     if (cbs && cbs.length > 0 && !selected) setSelected(cbs[0].id);
   };
@@ -28,12 +28,16 @@ const KnowledgeBasePanel = () => {
   const refresh = async (chatbotId: string) => {
     if (!chatbotId) return;
     setLoading(true);
-    const [{ count }, { data: jobsData }] = await Promise.all([
+    const [{ count }, { data: jobsData }, { data: cbRow }] = await Promise.all([
       supabase.from("knowledge_base_entries").select("*", { count: "exact", head: true }).eq("chatbot_id", chatbotId),
       supabase.from("knowledge_base_jobs").select("*").eq("chatbot_id", chatbotId).order("created_at", { ascending: false }).limit(5),
+      supabase.from("chatbots").select("id,business_name,website_url,kb_chatbot_md,kb_voice_text,prompt_core").eq("id", chatbotId).maybeSingle(),
     ]);
     setEntryCount(count || 0);
     setJobs((jobsData as Job[]) || []);
+    if (cbRow) {
+      setChatbots((prev) => prev.map((c) => (c.id === chatbotId ? { ...c, ...(cbRow as Chatbot) } : c)));
+    }
     setLoading(false);
   };
 
