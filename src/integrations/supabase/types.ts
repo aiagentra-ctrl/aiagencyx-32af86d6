@@ -130,11 +130,14 @@ export type Database = {
           kb_chatbot_md: string | null
           kb_voice_text: string | null
           logo_url: string | null
+          product_count: number
           prompt_core: Json | null
           research_data: Json | null
           services: Json | null
           slug: string
           status: string
+          store_name: string | null
+          store_platform: string | null
           system_prompt: string
           website_url: string | null
           widget_config: Json | null
@@ -153,11 +156,14 @@ export type Database = {
           kb_chatbot_md?: string | null
           kb_voice_text?: string | null
           logo_url?: string | null
+          product_count?: number
           prompt_core?: Json | null
           research_data?: Json | null
           services?: Json | null
           slug: string
           status?: string
+          store_name?: string | null
+          store_platform?: string | null
           system_prompt?: string
           website_url?: string | null
           widget_config?: Json | null
@@ -176,11 +182,14 @@ export type Database = {
           kb_chatbot_md?: string | null
           kb_voice_text?: string | null
           logo_url?: string | null
+          product_count?: number
           prompt_core?: Json | null
           research_data?: Json | null
           services?: Json | null
           slug?: string
           status?: string
+          store_name?: string | null
+          store_platform?: string | null
           system_prompt?: string
           website_url?: string | null
           widget_config?: Json | null
@@ -791,6 +800,57 @@ export type Database = {
         }
         Relationships: []
       }
+      products: {
+        Row: {
+          category: string | null
+          chatbot_id: string
+          created_at: string
+          currency: string | null
+          description: string | null
+          embedding: string | null
+          id: string
+          image_url: string | null
+          name: string
+          price: number | null
+          product_url: string | null
+          sku: string | null
+          tags: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          chatbot_id: string
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          embedding?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          price?: number | null
+          product_url?: string | null
+          sku?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          chatbot_id?: string
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          embedding?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          price?: number | null
+          product_url?: string | null
+          sku?: string | null
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       scraped_data: {
         Row: {
           expires_at: string | null
@@ -864,6 +924,25 @@ export type Database = {
           source_url: string
           structured: Json
           title: string
+        }[]
+      }
+      match_products: {
+        Args: {
+          p_chatbot_id: string
+          p_match_count?: number
+          p_query_embedding: string
+        }
+        Returns: {
+          category: string
+          currency: string
+          description: string
+          id: string
+          image_url: string
+          name: string
+          price: number
+          product_url: string
+          similarity: number
+          sku: string
         }[]
       }
     }

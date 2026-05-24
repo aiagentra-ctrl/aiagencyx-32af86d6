@@ -158,7 +158,26 @@ async function runJob(jobId: string, chatbotId: string, websiteUrl: string) {
 
     // Fetch chatbot meta for architect phase
     const { data: cbMeta } = await supabase
-      .from("chatbots").select("business_name, industry").eq("id", chatbotId).single();
+      .from("chatbots").select("business_name, industry, store_platform").eq("id", chatbotId).single();
+
+    const isEcommerce = ((cbMeta?.industry || "").toLowerCase().includes("ecommerce")
+      || (cbMeta?.industry || "").toLowerCase().includes("shop")
+      || (cbMeta?.industry || "").toLowerCase().includes("store")
+      || (cbMeta?.industry || "").toLowerCase().includes("retail"));
+
+    // Fire ecommerce product scraper in parallel (fire-and-forget — it has its own DB writes)
+    if (isEcommerce) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        // Don't await — runs alongside KB scraping
+        fetch(`${supabaseUrl}/functions/v1/scrape-ecommerce-products`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ chatbotId, websiteUrl, platform: cbMeta?.store_platform }),
+        }).catch((e) => console.warn("product scrape failed", e));
+      } catch (e) { console.warn("product scrape dispatch failed", e); }
+    }
 
     const urls = await fcMap(websiteUrl);
     if (urls.length === 0) urls.push(websiteUrl);

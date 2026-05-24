@@ -27,6 +27,11 @@ const DentalWhyClinicSection = lazy(() => import("@/components/demo/DentalWhyCli
 const PropertyShowcaseSection = lazy(() => import("@/components/demo/realestate/PropertyShowcaseSection"));
 const RealEstateValueSection = lazy(() => import("@/components/demo/realestate/RealEstateValueSection"));
 
+// Ecommerce specific sections
+const ProductGridSection = lazy(() => import("@/components/demo/ecommerce/ProductGridSection"));
+const EcommerceValueSection = lazy(() => import("@/components/demo/ecommerce/EcommerceValueSection"));
+const EcommerceChatWidget = lazy(() => import("@/components/chatbot/EcommerceChatWidget"));
+
 interface DemoPageData {
   id: string;
   slug: string;
@@ -233,6 +238,8 @@ const DemoPage = () => {
     .some(k => (page.industry || "").toLowerCase().includes(k));
   const isRealEstate = ["real estate", "real_estate", "realestate", "property", "realty"]
     .some(k => (page.industry || "").toLowerCase().includes(k));
+  const isEcommerce = ["ecommerce", "e-commerce", "shop", "store", "retail"]
+    .some(k => (page.industry || "").toLowerCase().includes(k));
   const wt = dc.website_template || {};
 
   return (
@@ -291,6 +298,11 @@ const DemoPage = () => {
             />
             <RealEstateValueSection />
           </>
+        ) : isEcommerce ? (
+          <>
+            <ProductGridSection chatbotId={linkedChatbot?.id} companyName={companyName} onOpenChat={openChatbot} />
+            <EcommerceValueSection />
+          </>
         ) : (
           <>
             <ProblemSection companyName={companyName} problems={dc.problem_statements} industry={page.industry || undefined} />
@@ -321,17 +333,30 @@ const DemoPage = () => {
         />
 
         {linkedChatbot && (
-          <ChatWidget
-            chatbotId={linkedChatbot.id}
-            greeting={linkedChatbot.widget_config?.greeting}
-            logoUrl={logoUrl}
-            businessName={companyName}
-            calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
-            externalOpen={chatOpen}
-            onExternalOpenChange={setChatOpen}
-            navItems={chatbotNavItems}
-            industry={page.industry || undefined}
-          />
+          isEcommerce ? (
+            <EcommerceChatWidget
+              chatbotId={linkedChatbot.id}
+              greeting={linkedChatbot.widget_config?.greeting}
+              logoUrl={logoUrl}
+              businessName={companyName}
+              externalOpen={chatOpen}
+              onExternalOpenChange={setChatOpen}
+              vapiKey={page.vapi_key}
+              assistantId={page.assistant_id}
+            />
+          ) : (
+            <ChatWidget
+              chatbotId={linkedChatbot.id}
+              greeting={linkedChatbot.widget_config?.greeting}
+              logoUrl={logoUrl}
+              businessName={companyName}
+              calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
+              externalOpen={chatOpen}
+              onExternalOpenChange={setChatOpen}
+              navItems={chatbotNavItems}
+              industry={page.industry || undefined}
+            />
+          )
         )}
       </Suspense>
     </div>

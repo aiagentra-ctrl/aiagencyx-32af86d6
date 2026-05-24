@@ -1,92 +1,112 @@
-# Auto Knowledge Base Generator
+# E-Commerce AI Integration Module
 
-Additive internal processing step. No new public endpoints. Plugs into existing `create-chatbot` and `create-voice-agent` pipelines.
+A new industry template + scraping pipeline + unified chat/voice UI tailored for digital-product stores.
 
----
+## 1. Detection & Activation
 
-## Architecture: Two-Layer Speed Design
+- Add `ecommerce` industry template in `industry_templates` (seeded via migration).
+- In `CreateChatbotDialog` / API settings, add a dedicated **E-Commerce** section:
+  - Fields: `store_name`, `store_url`, `platform` (Shopify / WooCommerce / Gumroad / Lemon Squeezy / Custom).
+  - Toggling industry = "E-Commerce" unlocks this section.
+- Auto-detection on scrape: in `scrape-and-analyze`, sniff for Shopify (`cdn.shopify.com`, `/products.json`), Woo (`wp-content`, `wc-`), Gumroad, Stripe checkout, Lemon Squeezy markers → auto-set industry to `ecommerce`.
 
-**Layer 1 — System Prompt (instant, no lookup):**
-Top business facts injected directly: name, location, top 5 services, pricing summary, hours, contact, top 5 objections + responses, escalation rules, tone. Handles ~80% of routine questions with zero latency.
+## 2. Advanced Product Scraper (extends `build-knowledge-base`)
 
-**Layer 2 — KB Retrieval (deep, on-demand):**
-Full chunks + embeddings in `knowledge_base_entries`. Queried via existing `search_knowledge_base` tool only when user asks something the prompt doesn't already cover.
+New phase before the Architect step:
+- **Sitemap pull** via Firecrawl `/v2/map` (already used) — filter URLs matching `/product`, `/products`, `/p/`, `/item`, `/shop`, `/store`.
+- For Shopify stores, fetch `/{store}/products.json` directly (fast path, structured).
+- For others, Firecrawl `/v2/scrape` each product URL with `formats: ["markdown", { type: "json", schema: ProductSchema }]`.
+- `ProductSchema`: `{ name, description, price, currency, image_url, product_url, sku?, category?, tags? }`.
+- Cap at 20+ products (configurable, default 30).
+- Store in new `products` table (per-chatbot), linked to KB.
+- Also scrape About / Contact / Policy / FAQ pages and feed into existing KB pipeline.
 
----
+## 3. Database Changes
 
-## Flow (runs internally, triggered on agent setup)
-
-```text
-website URL
-   ↓
-[1] Firecrawl map + scrape (existing build-knowledge-base logic, expanded)
-   ↓ clean markdown (nav/footer stripped, onlyMainContent:true)
-[2] LLM Architect call (Lovable AI gateway, google/gemini-2.5-pro)
-   ↓ returns JSON: { chatbot_kb_md, voice_kb_text, prompt_core }
-[3] Store:
-     - knowledge_base_entries (chunked + embedded for RAG)
-     - chatbots.kb_chatbot_md      (full markdown, for inspection/export)
-     - chatbots.kb_voice_text      (spoken-language KB)
-     - chatbots.prompt_core         (top facts injected into system prompt)
-[4] Inject prompt_core into:
-     - chatbot system_prompt (create-chatbot / chatbot-conversation)
-     - Vapi assistant system prompt (create-voice-agent)
+```sql
+CREATE TABLE products (
+  id uuid PK,
+  chatbot_id uuid,
+  name text, description text,
+  price numeric, currency text,
+  image_url text, product_url text,
+  sku text, category text, tags text[],
+  embedding vector(1536),
+  created_at timestamptz
+);
+-- RLS: public read, service write
+-- Index: ivfflat on embedding
 ```
 
+Add to `chatbots`: `store_name`, `store_platform`, `product_count`.
+
+## 4. Product Recommendation Engine
+
+- New edge function `recommend-products`: takes user query + chatbotId → embeds query → returns top-5 products via pgvector similarity.
+- `chatbot-conversation` registers a new tool `recommend_products(query)` alongside `search_knowledge_base`.
+- System prompt updated to: "For product/buy/recommend intents → call `recommend_products`. For policy/shipping/about → call `search_knowledge_base`."
+- Response renders as **product cards** (existing `RecommendationCards.tsx` extended to show image, price, "Buy Now" → product_url).
+
+## 5. Unified Chat + Voice UI (single interface)
+
+Redesign `ChatWindow.tsx` for e-commerce:
+- One unified panel — no separate voice page.
+- Bottom bar: text input + **mic button** (tap to start, tap to stop) using Vapi Web SDK.
+- Mic state: idle → listening (pulse ring) → speaking (waveform).
+- Voice transcripts stream into the same chat thread as messages.
+- Product cards render inline whether triggered by chat or voice.
+
+Components:
+- `EcommerceChatWindow.tsx` — variant of ChatWindow with voice toggle.
+- `VoiceMicButton.tsx` — Vapi start/stop, animated states.
+- `ProductCard.tsx` — image, name, price, CTA.
+
+## 6. E-Commerce Landing Page Template
+
+New `src/components/demo/ecommerce/` sections:
+- `EcommerceHero.tsx` — pitches the AI chatbot as core product (not the store).
+- `UnifiedChatVoiceShowcase.tsx` — big embedded chatbot demo, voice + chat in one.
+- `ProductGridPreview.tsx` — shows scraped products as proof.
+- `EcommerceValueSection.tsx` — "Recover lost sales", "24/7 product expert", "Voice shopping".
+- Footer + CTA.
+
+Wire into `DemoPage.tsx` when `industry === 'ecommerce'`.
+
+## 7. Backend Functions Touched
+
+- **NEW** `scrape-ecommerce-products` — product extraction phase
+- **NEW** `recommend-products` — pgvector similarity search tool
+- **EDIT** `build-knowledge-base` — call product scraper when industry=ecommerce, embed products
+- **EDIT** `scrape-and-analyze` — platform auto-detection
+- **EDIT** `chatbot-conversation` — register `recommend_products` tool, render product cards
+- **EDIT** `create-voice-agent` — register `recommend_products` Vapi tool + e-commerce persona
+- **EDIT** `create-chatbot` / `create-demo` — accept store fields, pass through
+
+## 8. System Prompt (E-Commerce Persona)
+
+Injected via `industry_templates.system_prompt_template`:
+```
+You are {AGENT_NAME} for {STORE_NAME}, a {PLATFORM} store.
+TOOLS: recommend_products(query), search_knowledge_base(query)
+RULES:
+- Product/buy/looking-for intent → recommend_products FIRST, show 3-5 cards.
+- Policy/shipping/refund/about → search_knowledge_base.
+- Never invent prices or SKUs — only speak from tool results.
+- Offer "Buy Now" link from product_url. Don't guess stock.
+- Voice mode: short sentences, suggest 1-2 products max per turn.
+```
+
+## 9. Admin UI
+
+- `KnowledgeBasePanel`: new "Products" tab — table of scraped products with image, price, edit/delete.
+- `CreateChatbotDialog`: E-Commerce section (store name, URL, platform dropdown).
+- "Re-scrape products" button per chatbot.
+
+## Out of Scope (this round)
+- Actual checkout / cart inside chatbot (just deep-links to store).
+- Multi-currency conversion.
+- Inventory sync webhooks.
+
 ---
 
-## Backend changes
-
-### Migration
-Add 3 columns to `chatbots`:
-- `kb_chatbot_md text`
-- `kb_voice_text text`
-- `prompt_core jsonb` — `{ business, location, services[], pricing_summary, hours, contact, top_objections[], escalation, tone, top_intents[] }`
-
-### Modified: `supabase/functions/build-knowledge-base/index.ts`
-After existing scrape + chunk + embed loop, add an "Architect" phase:
-1. Concatenate all cleaned page markdown (cap ~60k chars).
-2. Call Lovable AI `google/gemini-2.5-pro` with strict JSON schema:
-   - `chatbot_kb_md` — structured markdown (overview, services, 20+ FAQs, pricing, policies, objections, contact). Mark unknown as `[DATA NEEDED]`.
-   - `voice_kb_text` — flowing spoken-language paragraphs (no bullets/markdown), intent handling, escalation rules, tone, never-say list.
-   - `prompt_core` — compact JSON of top facts (see above).
-3. Save all three to `chatbots` row.
-4. Also chunk `chatbot_kb_md` and re-embed into `knowledge_base_entries` (replaces raw-scrape chunks for higher-quality retrieval). Raw scrape chunks kept too, tagged `content_type='raw'`.
-
-### Modified: `supabase/functions/create-chatbot/index.ts`
-- After insert, if `website_url`, fire-and-forget invoke `build-knowledge-base` (already does this — confirmed). No change beyond reading new fields if present.
-
-### Modified: `supabase/functions/create-voice-agent/index.ts`
-- Before building Vapi assistant prompt, load chatbot's `prompt_core` + `kb_voice_text` (if exist) and inject into the system prompt under `## CORE FACTS` and `## VOICE KB` sections.
-
-### Modified: `supabase/functions/chatbot-conversation/index.ts`
-- Inject `prompt_core` block at top of system prompt for instant answers; existing RAG `match_kb_entries` stays as fallback for deeper questions.
-
-### Modified: `supabase/functions/search-knowledge-base/index.ts`
-- No change. Existing vector search already covers the embedded chunks (now higher quality).
-
-### Modified: `supabase/functions/create-demo/index.ts`
-- After voice + chatbot created, ensure KB build is triggered once for the chatbot (already happens via `create-chatbot`). Add 5s wait + best-effort fetch of `prompt_core` to inject into voice assistant on first build (otherwise voice agent picks it up on next invocation).
-
----
-
-## Frontend changes
-
-### `src/components/admin/KnowledgeBasePanel.tsx`
-Add tabs to show generated KBs:
-- **Chatbot KB** (rendered markdown, with `[DATA NEEDED]` highlighted)
-- **Voice Agent KB** (plain text preview)
-- **Core Facts** (JSON viewer)
-- **Embeddings** (existing entries count + jobs table)
-
-Add "Regenerate KB" button (calls existing `build-knowledge-base`).
-
----
-
-## Guarantees
-- Per-business isolation: every KB scoped by `chatbot_id`. No cross-tenant queries.
-- No new public endpoints. Internal step inside existing `build-knowledge-base`.
-- Backward compatible: if Architect call fails, raw-scrape embeddings still work (current behavior preserved).
-- Fast: routine questions answered from system prompt; KB lookups only for edge cases.
-
-Approve to implement.
+**Confirm and I'll build:** migration → product scraper → recommendation tool → unified chat+voice UI → e-commerce landing template → admin wiring.
