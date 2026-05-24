@@ -456,7 +456,45 @@ Deno.serve(async (req) => {
       } catch { /* noop */ }
     }
 
-    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl, scrapedData) + coreFactsBlock + kbContext;
+    // E-commerce: inject relevant products (semantic search on products table)
+    let productsBlock = "";
+    const industryLower = (chatbot.industry || "").toLowerCase();
+    const isEcom = industryLower.includes("ecommerce") || industryLower.includes("shop")
+      || industryLower.includes("store") || industryLower.includes("retail");
+    if (isEcom) {
+      try {
+        const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+        if (lovableKey) {
+          const embRes = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/embeddings", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "openai/text-embedding-3-small", input: message.slice(0, 1000) }),
+          }, 5000);
+          if (embRes.ok) {
+            const emb = (await embRes.json())?.data?.[0]?.embedding;
+            if (emb) {
+              const { data: prods } = await supabase.rpc("match_products", {
+                p_chatbot_id: chatbotId, p_query_embedding: emb as any, p_match_count: 5,
+              });
+              if (prods && prods.length > 0) {
+                productsBlock = "\n\n## RELEVANT PRODUCTS — render these as recommendation cards if user asks to buy/browse/recommend\n" +
+                  "Use the `<!--recommendations:[...]-->` format. Each product:\n" +
+                  prods.map((p: any) => `- ${p.name} | ${p.currency || "$"}${p.price || "?"} | ${p.description || ""} | image: ${p.image_url || ""} | url: ${p.product_url || ""}`).join("\n") +
+                  "\n\nWhen recommending products, output:\n" +
+                  `<!--recommendations:[${prods.slice(0, 3).map((p: any) => JSON.stringify({
+                    name: p.name, price: `${p.currency === "USD" || !p.currency ? "$" : p.currency}${p.price || ""}`,
+                    description: (p.description || "").slice(0, 120), image_url: p.image_url || "",
+                    category: p.category || "Product",
+                    actions: p.product_url ? [{ label: "Buy Now", value: "", url: p.product_url }] : [{ label: "Tell me more", value: `Tell me more about ${p.name}` }],
+                  })).join(",")}]-->\n`;
+              }
+            }
+          }
+        }
+      } catch (e) { console.warn("Product RAG failed", e); }
+    }
+
+    const systemPrompt = buildSystemPrompt(chatbot, calendarUrl, scrapedData) + coreFactsBlock + productsBlock + kbContext;
 
     const aiMessages = [
       { role: "system", content: systemPrompt },
