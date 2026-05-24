@@ -442,6 +442,35 @@ You have a tool called \`search_knowledge_base(query)\`.
       },
     } : null;
 
+    // E-commerce product recommendation tool
+    const isEcommerce = (resolvedIndustry || "").toLowerCase().includes("ecommerce")
+      || (resolvedIndustry || "").toLowerCase().includes("shop")
+      || (resolvedIndustry || "").toLowerCase().includes("store")
+      || (resolvedIndustry || "").toLowerCase().includes("retail");
+
+    const productTool = (chatbot_id && isEcommerce) ? {
+      type: "function",
+      async: false,
+      function: {
+        name: "recommend_products",
+        description: "Search the store catalog and recommend products by name, category, use case, or description. ALWAYS call this when the caller asks about products, what to buy, looking for something, or wants a recommendation.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "What the customer is looking for" },
+            top_k: { type: "number", description: "Number of products to return", default: 3 },
+            chatbotId: { type: "string", description: "Store id", default: chatbot_id },
+          },
+          required: ["query"],
+        },
+      },
+      server: {
+        url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/recommend-products`,
+      },
+    } : null;
+
+    const tools = [kbTool, productTool].filter(Boolean);
+
     const firstMessage = injectVars(
       adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
       templateVars
@@ -468,7 +497,7 @@ You have a tool called \`search_knowledge_base(query)\`.
           messages: [{ role: "system", content: fullPrompt }],
           maxTokens: 150,
           temperature: 0.7,
-          ...(kbTool ? { tools: [kbTool] } : {}),
+          ...(tools.length > 0 ? { tools } : {}),
         },
         ...(chatbot_id ? { metadata: { chatbot_id } } : {}),
         voice: {
