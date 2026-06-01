@@ -76,6 +76,9 @@ const CreateChatbotDialog = ({ onCreated }: CreateChatbotDialogProps) => {
       setStep("input");
       setBusinessName("");
       setWebsiteUrl("");
+      setIsEcom(false);
+      setStoreName("");
+      setStorePlatform("");
       setResult(null);
     }, 200);
   };
