@@ -8,8 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "@/hooks/use-toast";
 import { Database, RefreshCw, Loader2, Trash2, Sparkles } from "lucide-react";
 
-interface Chatbot { id: string; business_name: string; website_url: string | null; kb_chatbot_md?: string | null; kb_voice_text?: string | null; prompt_core?: any; }
+interface Chatbot { id: string; business_name: string; website_url: string | null; kb_chatbot_md?: string | null; kb_voice_text?: string | null; prompt_core?: any; industry?: string | null; store_platform?: string | null; product_count?: number; }
 interface Job { id: string; chatbot_id: string; status: string; pages_scraped: number; entries_created: number; error: string | null; created_at: string; completed_at: string | null; }
+interface Product { id: string; name: string; description: string | null; price: number | null; currency: string | null; image_url: string | null; product_url: string | null; category: string | null; }
 
 const KnowledgeBasePanel = () => {
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
