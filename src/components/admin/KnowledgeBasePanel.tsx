@@ -35,7 +35,7 @@ const KnowledgeBasePanel = () => {
       supabase.from("knowledge_base_entries").select("*", { count: "exact", head: true }).eq("chatbot_id", chatbotId),
       supabase.from("knowledge_base_jobs").select("*").eq("chatbot_id", chatbotId).order("created_at", { ascending: false }).limit(5),
       supabase.from("chatbots").select("id,business_name,website_url,kb_chatbot_md,kb_voice_text,prompt_core,industry,store_platform,product_count").eq("id", chatbotId).maybeSingle(),
-      supabase.from("products").select("id,name,description,price,currency,image_url,product_url,category").eq("chatbot_id", chatbotId).order("created_at", { ascending: false }).limit(100),
+      supabase.from("products").select("id,name,description,price,compare_at_price,currency,image_url,product_url,category,vendor,in_stock,handle").eq("chatbot_id", chatbotId).order("created_at", { ascending: false }).limit(200),
     ]);
     setEntryCount(count || 0);
     setJobs((jobsData as Job[]) || []);
