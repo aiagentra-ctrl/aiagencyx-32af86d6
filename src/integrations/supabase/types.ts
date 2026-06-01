@@ -804,50 +804,74 @@ export type Database = {
         Row: {
           category: string | null
           chatbot_id: string
+          compare_at_price: number | null
           created_at: string
           currency: string | null
           description: string | null
           embedding: string | null
+          handle: string | null
           id: string
           image_url: string | null
+          images: string[] | null
+          in_stock: boolean | null
+          metadata: Json | null
           name: string
+          options: Json | null
           price: number | null
           product_url: string | null
           sku: string | null
           tags: string[] | null
           updated_at: string
+          variants: Json | null
+          vendor: string | null
         }
         Insert: {
           category?: string | null
           chatbot_id: string
+          compare_at_price?: number | null
           created_at?: string
           currency?: string | null
           description?: string | null
           embedding?: string | null
+          handle?: string | null
           id?: string
           image_url?: string | null
+          images?: string[] | null
+          in_stock?: boolean | null
+          metadata?: Json | null
           name: string
+          options?: Json | null
           price?: number | null
           product_url?: string | null
           sku?: string | null
           tags?: string[] | null
           updated_at?: string
+          variants?: Json | null
+          vendor?: string | null
         }
         Update: {
           category?: string | null
           chatbot_id?: string
+          compare_at_price?: number | null
           created_at?: string
           currency?: string | null
           description?: string | null
           embedding?: string | null
+          handle?: string | null
           id?: string
           image_url?: string | null
+          images?: string[] | null
+          in_stock?: boolean | null
+          metadata?: Json | null
           name?: string
+          options?: Json | null
           price?: number | null
           product_url?: string | null
           sku?: string | null
           tags?: string[] | null
           updated_at?: string
+          variants?: Json | null
+          vendor?: string | null
         }
         Relationships: []
       }

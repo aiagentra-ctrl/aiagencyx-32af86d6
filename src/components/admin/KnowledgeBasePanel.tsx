@@ -10,7 +10,7 @@ import { Database, RefreshCw, Loader2, Trash2, Sparkles } from "lucide-react";
 
 interface Chatbot { id: string; business_name: string; website_url: string | null; kb_chatbot_md?: string | null; kb_voice_text?: string | null; prompt_core?: any; industry?: string | null; store_platform?: string | null; product_count?: number; }
 interface Job { id: string; chatbot_id: string; status: string; pages_scraped: number; entries_created: number; error: string | null; created_at: string; completed_at: string | null; }
-interface Product { id: string; name: string; description: string | null; price: number | null; currency: string | null; image_url: string | null; product_url: string | null; category: string | null; }
+interface Product { id: string; name: string; description: string | null; price: number | null; compare_at_price?: number | null; currency: string | null; image_url: string | null; product_url: string | null; category: string | null; vendor?: string | null; in_stock?: boolean; handle?: string | null; }
 
 const KnowledgeBasePanel = () => {
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
@@ -35,7 +35,7 @@ const KnowledgeBasePanel = () => {
       supabase.from("knowledge_base_entries").select("*", { count: "exact", head: true }).eq("chatbot_id", chatbotId),
       supabase.from("knowledge_base_jobs").select("*").eq("chatbot_id", chatbotId).order("created_at", { ascending: false }).limit(5),
       supabase.from("chatbots").select("id,business_name,website_url,kb_chatbot_md,kb_voice_text,prompt_core,industry,store_platform,product_count").eq("id", chatbotId).maybeSingle(),
-      supabase.from("products").select("id,name,description,price,currency,image_url,product_url,category").eq("chatbot_id", chatbotId).order("created_at", { ascending: false }).limit(100),
+      supabase.from("products").select("id,name,description,price,compare_at_price,currency,image_url,product_url,category,vendor,in_stock,handle").eq("chatbot_id", chatbotId).order("created_at", { ascending: false }).limit(200),
     ]);
     setEntryCount(count || 0);
     setJobs((jobsData as Job[]) || []);
