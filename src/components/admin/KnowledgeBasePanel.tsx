@@ -8,19 +8,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "@/hooks/use-toast";
 import { Database, RefreshCw, Loader2, Trash2, Sparkles } from "lucide-react";
 
-interface Chatbot { id: string; business_name: string; website_url: string | null; kb_chatbot_md?: string | null; kb_voice_text?: string | null; prompt_core?: any; }
+interface Chatbot { id: string; business_name: string; website_url: string | null; kb_chatbot_md?: string | null; kb_voice_text?: string | null; prompt_core?: any; industry?: string | null; store_platform?: string | null; product_count?: number; }
 interface Job { id: string; chatbot_id: string; status: string; pages_scraped: number; entries_created: number; error: string | null; created_at: string; completed_at: string | null; }
+interface Product { id: string; name: string; description: string | null; price: number | null; currency: string | null; image_url: string | null; product_url: string | null; category: string | null; }
 
 const KnowledgeBasePanel = () => {
   const [chatbots, setChatbots] = useState<Chatbot[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [entryCount, setEntryCount] = useState<number>(0);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [building, setBuilding] = useState(false);
+  const [rescrapingProducts, setRescrapingProducts] = useState(false);
 
   const fetchAll = async () => {
-    const { data: cbs } = await supabase.from("chatbots").select("id,business_name,website_url,kb_chatbot_md,kb_voice_text,prompt_core").order("created_at", { ascending: false });
+    const { data: cbs } = await supabase.from("chatbots").select("id,business_name,website_url,kb_chatbot_md,kb_voice_text,prompt_core,industry,store_platform,product_count").order("created_at", { ascending: false });
     setChatbots((cbs as Chatbot[]) || []);
     if (cbs && cbs.length > 0 && !selected) setSelected(cbs[0].id);
   };
@@ -28,13 +31,15 @@ const KnowledgeBasePanel = () => {
   const refresh = async (chatbotId: string) => {
     if (!chatbotId) return;
     setLoading(true);
-    const [{ count }, { data: jobsData }, { data: cbRow }] = await Promise.all([
+    const [{ count }, { data: jobsData }, { data: cbRow }, { data: prodData }] = await Promise.all([
       supabase.from("knowledge_base_entries").select("*", { count: "exact", head: true }).eq("chatbot_id", chatbotId),
       supabase.from("knowledge_base_jobs").select("*").eq("chatbot_id", chatbotId).order("created_at", { ascending: false }).limit(5),
-      supabase.from("chatbots").select("id,business_name,website_url,kb_chatbot_md,kb_voice_text,prompt_core").eq("id", chatbotId).maybeSingle(),
+      supabase.from("chatbots").select("id,business_name,website_url,kb_chatbot_md,kb_voice_text,prompt_core,industry,store_platform,product_count").eq("id", chatbotId).maybeSingle(),
+      supabase.from("products").select("id,name,description,price,currency,image_url,product_url,category").eq("chatbot_id", chatbotId).order("created_at", { ascending: false }).limit(100),
     ]);
     setEntryCount(count || 0);
     setJobs((jobsData as Job[]) || []);
+    setProducts((prodData as Product[]) || []);
     if (cbRow) {
       setChatbots((prev) => prev.map((c) => (c.id === chatbotId ? { ...c, ...(cbRow as Chatbot) } : c)));
     }
@@ -43,6 +48,23 @@ const KnowledgeBasePanel = () => {
 
   useEffect(() => { fetchAll(); }, []);
   useEffect(() => { if (selected) refresh(selected); }, [selected]);
+
+  const handleRescrapeProducts = async () => {
+    const cb = chatbots.find((c) => c.id === selected);
+    if (!cb || !cb.website_url) return;
+    setRescrapingProducts(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("scrape-ecommerce-products", {
+        body: { chatbotId: cb.id, websiteUrl: cb.website_url, platform: cb.store_platform || undefined },
+      });
+      if (error) throw error;
+      toast({ title: "Products re-scraped", description: `${data?.saved || 0} products saved.` });
+      refresh(cb.id);
+    } catch (e: any) {
+      toast({ title: "Re-scrape failed", description: e.message, variant: "destructive" });
+    } finally { setRescrapingProducts(false); }
+  };
+
 
   const handleBuild = async () => {
     const cb = chatbots.find((c) => c.id === selected);
@@ -170,6 +192,58 @@ const KnowledgeBasePanel = () => {
           </Card>
         );
       })()}
+
+      {selected && (() => {
+        const cb = chatbots.find((c) => c.id === selected);
+        if (!cb) return null;
+        const isEcom = cb.industry === "ecommerce" || !!cb.store_platform || products.length > 0;
+        if (!isEcom) return null;
+        return (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle>Products {cb.store_platform ? <Badge variant="secondary" className="ml-2">{cb.store_platform}</Badge> : null}</CardTitle>
+                  <CardDescription>Scraped product catalog used by the product recommendation tool.</CardDescription>
+                </div>
+                <Button onClick={handleRescrapeProducts} disabled={rescrapingProducts || !cb.website_url} variant="outline" size="sm">
+                  {rescrapingProducts ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Re-scrape products
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {products.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No products yet. Click <strong>Re-scrape products</strong> to fetch.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16"></TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Price</TableHead>
+                      <TableHead>Link</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {products.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell>{p.image_url ? <img src={p.image_url} alt={p.name} className="h-10 w-10 rounded object-cover" /> : null}</TableCell>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{p.category || "—"}</TableCell>
+                        <TableCell>{p.price != null ? `${p.currency || "USD"} ${p.price}` : "—"}</TableCell>
+                        <TableCell>{p.product_url ? <a className="text-xs text-primary underline" href={p.product_url} target="_blank" rel="noreferrer">Open</a> : "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
 
       {jobs.length > 0 && (
         <Card>

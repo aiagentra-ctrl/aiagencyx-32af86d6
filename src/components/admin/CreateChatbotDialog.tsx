@@ -19,6 +19,9 @@ const CreateChatbotDialog = ({ onCreated }: CreateChatbotDialogProps) => {
   const [step, setStep] = useState<"input" | "analyzing" | "result">("input");
   const [businessName, setBusinessName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [isEcom, setIsEcom] = useState(false);
+  const [storeName, setStoreName] = useState("");
+  const [storePlatform, setStorePlatform] = useState("");
   const [result, setResult] = useState<any>(null);
 
   const handleAnalyze = async () => {
@@ -33,7 +36,10 @@ const CreateChatbotDialog = ({ onCreated }: CreateChatbotDialogProps) => {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/scrape-and-analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, websiteUrl }),
+        body: JSON.stringify({
+          businessName, websiteUrl,
+          ...(isEcom ? { storeName: storeName || businessName, storePlatform: storePlatform || undefined } : {}),
+        }),
       });
 
       const data = await res.json();
@@ -70,6 +76,9 @@ const CreateChatbotDialog = ({ onCreated }: CreateChatbotDialogProps) => {
       setStep("input");
       setBusinessName("");
       setWebsiteUrl("");
+      setIsEcom(false);
+      setStoreName("");
+      setStorePlatform("");
       setResult(null);
     }, 200);
   };
@@ -116,6 +125,46 @@ const CreateChatbotDialog = ({ onCreated }: CreateChatbotDialogProps) => {
                   placeholder="https://abcdental.com"
                 />
               </div>
+            </div>
+
+            <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isEcom}
+                  onChange={(e) => setIsEcom(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                This is an E-Commerce store
+              </label>
+              {isEcom && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-xs">Store name</Label>
+                    <Input
+                      value={storeName}
+                      onChange={(e) => setStoreName(e.target.value)}
+                      placeholder="My Store"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Platform</Label>
+                    <select
+                      value={storePlatform}
+                      onChange={(e) => setStorePlatform(e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">Auto-detect</option>
+                      <option value="shopify">Shopify</option>
+                      <option value="woocommerce">WooCommerce</option>
+                      <option value="gumroad">Gumroad</option>
+                      <option value="lemonsqueezy">Lemon Squeezy</option>
+                      <option value="bigcommerce">BigCommerce</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
