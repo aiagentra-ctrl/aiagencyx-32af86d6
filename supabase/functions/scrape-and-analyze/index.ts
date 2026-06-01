@@ -352,6 +352,12 @@ Deno.serve(async (req) => {
       analysis.industry = "ecommerce";
       (analysis as any)._store_platform = detectedPlatform;
     }
+    // Manual override from request
+    if (storePlatform) {
+      analysis.industry = "ecommerce";
+      (analysis as any)._store_platform = storePlatform;
+    }
+    if (storeName) (analysis as any)._store_name = storeName;
 
 
     // Build structured data for cache
