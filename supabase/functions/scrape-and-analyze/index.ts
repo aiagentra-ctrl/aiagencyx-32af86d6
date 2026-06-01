@@ -288,7 +288,7 @@ Deno.serve(async (req) => {
   const supabase = supabaseClient;
 
   try {
-    const { businessName, websiteUrl, forceRefresh, calendarUrl, origin } = await req.json();
+    const { businessName, websiteUrl, forceRefresh, calendarUrl, origin, storeName, storePlatform } = await req.json();
 
     if (!businessName || !websiteUrl) {
       return new Response(
