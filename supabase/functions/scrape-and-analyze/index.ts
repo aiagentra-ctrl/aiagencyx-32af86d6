@@ -339,6 +339,21 @@ Deno.serve(async (req) => {
     // Step 2: AI Analysis
     const analysis = await analyzeWithAI(supabase, businessName, formattedUrl, websiteContent!);
 
+    // Platform sniff for e-commerce auto-detection
+    const lc = (websiteContent || "").toLowerCase();
+    let detectedPlatform: string | null = null;
+    if (lc.includes("cdn.shopify.com") || lc.includes("shopify.theme") || lc.includes("/products.json")) detectedPlatform = "shopify";
+    else if (lc.includes("woocommerce") || lc.includes("wc-block") || lc.includes("wp-content/plugins/woocommerce")) detectedPlatform = "woocommerce";
+    else if (lc.includes("gumroad.com")) detectedPlatform = "gumroad";
+    else if (lc.includes("lemonsqueezy") || lc.includes("lemon.squeezy")) detectedPlatform = "lemonsqueezy";
+    else if (lc.includes("bigcommerce")) detectedPlatform = "bigcommerce";
+    else if (lc.includes("checkout.stripe.com") && (lc.includes("buy now") || lc.includes("add to cart"))) detectedPlatform = "stripe";
+    if (detectedPlatform) {
+      analysis.industry = "ecommerce";
+      (analysis as any)._store_platform = detectedPlatform;
+    }
+
+
     // Build structured data for cache
     const structuredData = {
       menu_items: analysis.menu_items || cachedStructuredData?.menu_items || [],
