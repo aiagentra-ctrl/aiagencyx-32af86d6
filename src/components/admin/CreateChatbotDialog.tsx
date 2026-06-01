@@ -36,7 +36,10 @@ const CreateChatbotDialog = ({ onCreated }: CreateChatbotDialogProps) => {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/scrape-and-analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName, websiteUrl }),
+        body: JSON.stringify({
+          businessName, websiteUrl,
+          ...(isEcom ? { storeName: storeName || businessName, storePlatform: storePlatform || undefined } : {}),
+        }),
       });
 
       const data = await res.json();
