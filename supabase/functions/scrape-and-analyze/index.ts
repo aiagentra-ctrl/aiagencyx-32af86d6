@@ -402,7 +402,7 @@ Deno.serve(async (req) => {
       logo_url: logoUrl || null,
       widget_config: widgetConfig,
       store_platform: (analysis as any)._store_platform || null,
-      store_name: (analysis as any)._store_platform ? businessName : null,
+      store_name: (analysis as any)._store_name || ((analysis as any)._store_platform ? businessName : null),
       research_data: {
         ...structuredData,
         website_content_preview: websiteContent!.substring(0, 2000),
