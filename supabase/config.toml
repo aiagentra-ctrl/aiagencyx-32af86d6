@@ -45,3 +45,9 @@ verify_jwt = false
 [functions.search-knowledge-base]
 verify_jwt = false
 
+[functions.scrape-ecommerce-products]
+verify_jwt = false
+
+[functions.recommend-products]
+verify_jwt = false
+
