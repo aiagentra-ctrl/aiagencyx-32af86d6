@@ -193,6 +193,58 @@ const KnowledgeBasePanel = () => {
         );
       })()}
 
+      {selected && (() => {
+        const cb = chatbots.find((c) => c.id === selected);
+        if (!cb) return null;
+        const isEcom = cb.industry === "ecommerce" || !!cb.store_platform || products.length > 0;
+        if (!isEcom) return null;
+        return (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle>Products {cb.store_platform ? <Badge variant="secondary" className="ml-2">{cb.store_platform}</Badge> : null}</CardTitle>
+                  <CardDescription>Scraped product catalog used by the product recommendation tool.</CardDescription>
+                </div>
+                <Button onClick={handleRescrapeProducts} disabled={rescrapingProducts || !cb.website_url} variant="outline" size="sm">
+                  {rescrapingProducts ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Re-scrape products
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {products.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No products yet. Click <strong>Re-scrape products</strong> to fetch.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16"></TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Price</TableHead>
+                      <TableHead>Link</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {products.map((p) => (
+                      <TableRow key={p.id}>
+                        <TableCell>{p.image_url ? <img src={p.image_url} alt={p.name} className="h-10 w-10 rounded object-cover" /> : null}</TableCell>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{p.category || "—"}</TableCell>
+                        <TableCell>{p.price != null ? `${p.currency || "USD"} ${p.price}` : "—"}</TableCell>
+                        <TableCell>{p.product_url ? <a className="text-xs text-primary underline" href={p.product_url} target="_blank" rel="noreferrer">Open</a> : "—"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+
       {jobs.length > 0 && (
         <Card>
           <CardHeader><CardTitle>Recent jobs</CardTitle></CardHeader>
