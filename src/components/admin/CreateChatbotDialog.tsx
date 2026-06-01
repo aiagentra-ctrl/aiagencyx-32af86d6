@@ -19,6 +19,9 @@ const CreateChatbotDialog = ({ onCreated }: CreateChatbotDialogProps) => {
   const [step, setStep] = useState<"input" | "analyzing" | "result">("input");
   const [businessName, setBusinessName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [isEcom, setIsEcom] = useState(false);
+  const [storeName, setStoreName] = useState("");
+  const [storePlatform, setStorePlatform] = useState("");
   const [result, setResult] = useState<any>(null);
 
   const handleAnalyze = async () => {
