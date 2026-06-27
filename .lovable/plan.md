@@ -1,112 +1,102 @@
-# E-Commerce AI Integration Module
 
-A new industry template + scraping pipeline + unified chat/voice UI tailored for digital-product stores.
+# AI Inbox Manager — Build Plan
 
-## 1. Detection & Activation
-
-- Add `ecommerce` industry template in `industry_templates` (seeded via migration).
-- In `CreateChatbotDialog` / API settings, add a dedicated **E-Commerce** section:
-  - Fields: `store_name`, `store_url`, `platform` (Shopify / WooCommerce / Gumroad / Lemon Squeezy / Custom).
-  - Toggling industry = "E-Commerce" unlocks this section.
-- Auto-detection on scrape: in `scrape-and-analyze`, sniff for Shopify (`cdn.shopify.com`, `/products.json`), Woo (`wp-content`, `wc-`), Gumroad, Stripe checkout, Lemon Squeezy markers → auto-set industry to `ecommerce`.
-
-## 2. Advanced Product Scraper (extends `build-knowledge-base`)
-
-New phase before the Architect step:
-- **Sitemap pull** via Firecrawl `/v2/map` (already used) — filter URLs matching `/product`, `/products`, `/p/`, `/item`, `/shop`, `/store`.
-- For Shopify stores, fetch `/{store}/products.json` directly (fast path, structured).
-- For others, Firecrawl `/v2/scrape` each product URL with `formats: ["markdown", { type: "json", schema: ProductSchema }]`.
-- `ProductSchema`: `{ name, description, price, currency, image_url, product_url, sku?, category?, tags? }`.
-- Cap at 20+ products (configurable, default 30).
-- Store in new `products` table (per-chatbot), linked to KB.
-- Also scrape About / Contact / Policy / FAQ pages and feed into existing KB pipeline.
-
-## 3. Database Changes
-
-```sql
-CREATE TABLE products (
-  id uuid PK,
-  chatbot_id uuid,
-  name text, description text,
-  price numeric, currency text,
-  image_url text, product_url text,
-  sku text, category text, tags text[],
-  embedding vector(1536),
-  created_at timestamptz
-);
--- RLS: public read, service write
--- Index: ivfflat on embedding
-```
-
-Add to `chatbots`: `store_name`, `store_platform`, `product_count`.
-
-## 4. Product Recommendation Engine
-
-- New edge function `recommend-products`: takes user query + chatbotId → embeds query → returns top-5 products via pgvector similarity.
-- `chatbot-conversation` registers a new tool `recommend_products(query)` alongside `search_knowledge_base`.
-- System prompt updated to: "For product/buy/recommend intents → call `recommend_products`. For policy/shipping/about → call `search_knowledge_base`."
-- Response renders as **product cards** (existing `RecommendationCards.tsx` extended to show image, price, "Buy Now" → product_url).
-
-## 5. Unified Chat + Voice UI (single interface)
-
-Redesign `ChatWindow.tsx` for e-commerce:
-- One unified panel — no separate voice page.
-- Bottom bar: text input + **mic button** (tap to start, tap to stop) using Vapi Web SDK.
-- Mic state: idle → listening (pulse ring) → speaking (waveform).
-- Voice transcripts stream into the same chat thread as messages.
-- Product cards render inline whether triggered by chat or voice.
-
-Components:
-- `EcommerceChatWindow.tsx` — variant of ChatWindow with voice toggle.
-- `VoiceMicButton.tsx` — Vapi start/stop, animated states.
-- `ProductCard.tsx` — image, name, price, CTA.
-
-## 6. E-Commerce Landing Page Template
-
-New `src/components/demo/ecommerce/` sections:
-- `EcommerceHero.tsx` — pitches the AI chatbot as core product (not the store).
-- `UnifiedChatVoiceShowcase.tsx` — big embedded chatbot demo, voice + chat in one.
-- `ProductGridPreview.tsx` — shows scraped products as proof.
-- `EcommerceValueSection.tsx` — "Recover lost sales", "24/7 product expert", "Voice shopping".
-- Footer + CTA.
-
-Wire into `DemoPage.tsx` when `industry === 'ecommerce'`.
-
-## 7. Backend Functions Touched
-
-- **NEW** `scrape-ecommerce-products` — product extraction phase
-- **NEW** `recommend-products` — pgvector similarity search tool
-- **EDIT** `build-knowledge-base` — call product scraper when industry=ecommerce, embed products
-- **EDIT** `scrape-and-analyze` — platform auto-detection
-- **EDIT** `chatbot-conversation` — register `recommend_products` tool, render product cards
-- **EDIT** `create-voice-agent` — register `recommend_products` Vapi tool + e-commerce persona
-- **EDIT** `create-chatbot` / `create-demo` — accept store fields, pass through
-
-## 8. System Prompt (E-Commerce Persona)
-
-Injected via `industry_templates.system_prompt_template`:
-```
-You are {AGENT_NAME} for {STORE_NAME}, a {PLATFORM} store.
-TOOLS: recommend_products(query), search_knowledge_base(query)
-RULES:
-- Product/buy/looking-for intent → recommend_products FIRST, show 3-5 cards.
-- Policy/shipping/refund/about → search_knowledge_base.
-- Never invent prices or SKUs — only speak from tool results.
-- Offer "Buy Now" link from product_url. Don't guess stock.
-- Voice mode: short sentences, suggest 1-2 products max per turn.
-```
-
-## 9. Admin UI
-
-- `KnowledgeBasePanel`: new "Products" tab — table of scraped products with image, price, edit/delete.
-- `CreateChatbotDialog`: E-Commerce section (store name, URL, platform dropdown).
-- "Re-scrape products" button per chatbot.
-
-## Out of Scope (this round)
-- Actual checkout / cart inside chatbot (just deep-links to store).
-- Multi-currency conversion.
-- Inventory sync webhooks.
+A new, **fully additive** feature. Nothing in the existing system (create-demo, tracking, follow-ups, knowledge base, ecommerce, real estate, admin panel) is touched. New tables, new edge functions, new admin tab.
 
 ---
 
-**Confirm and I'll build:** migration → product scraper → recommendation tool → unified chat+voice UI → e-commerce landing template → admin wiring.
+## 1. Database (new tables only)
+
+All in `public` schema with proper GRANTs + RLS (admins read/write via service role from edge functions; authenticated users can read for the dashboard).
+
+**`prospects`**
+- email (unique), firstname, company, website_url
+- campaign_id, campaign_name, sender_email, reply_to_email
+- automation_paused (bool, default false)
+- last_message_at (for sort), last_classification
+
+**`inbox_messages`**
+- prospect_id → prospects
+- manyreach_message_id (for reply threading)
+- direction ('incoming' | 'outgoing')
+- source ('email' default)
+- subject, body
+- classification ('Positive' | 'Negative' | 'Objection' | null)
+- classified_by ('ai' | 'human' | null)
+
+**`inbox_demos`**
+- prospect_id → prospects
+- demo_url, business_name
+- Links a generated demo to a prospect (separate from existing `demo_pages` — we just store the resulting URL here for quick lookup)
+
+Realtime enabled on `inbox_messages` and `prospects` for live UI updates.
+
+---
+
+## 2. Edge Functions (all new, none modified)
+
+1. **`webhook-manyreach-reply`** (public, no JWT) — receives ManyReach webhook, upserts prospect by email, inserts incoming message row, returns 200 immediately, then async-invokes `inbox-process-incoming`.
+2. **`inbox-process-incoming`** — orchestrator. If `automation_paused`, stop. Otherwise: call classify → if Positive/Negative and no demo → call existing `/create-demo` and store in `inbox_demos` → call generate-reply → call send-reply.
+3. **`inbox-classify`** — pulls full thread history, computes `demo_sent` flag (scans outgoing messages for `aiagentfor.lovable.app`), calls Lovable AI (`google/gemini-3-flash-preview`) with classification system prompt, returns one of Positive/Negative/Objection. Saves to message row.
+4. **`inbox-generate-reply`** — picks template by classification (Positive / Negative / Objection prompts stored in new `inbox_prompts` admin-editable table, seeded with sensible defaults including the new Objection prompt), injects demo_url + firstname + company, calls Lovable AI, returns reply text.
+5. **`inbox-send-reply`** — POSTs to `https://api.manyreach.com/api/v2/messages/reply` using existing `MANYREACH_API_KEY` secret, then inserts outgoing message row.
+6. **`inbox-manual-reply`** — same send path but invoked from the dashboard with a user-typed body; marks `classified_by='human'`.
+7. **`inbox-actions`** — small endpoint for toggling `automation_paused`, manually re-classifying a message, regenerating an AI draft (returns text, does NOT auto-send), and manually triggering demo generation for a prospect.
+
+All functions are new. Existing `/create-demo` is **called** (HTTP) by the orchestrator — not modified.
+
+---
+
+## 3. Admin UI
+
+New sidebar/tab entry in `AdminDashboard.tsx`: **"Inbox"** (added alongside existing tabs, nothing removed).
+
+New file `src/pages/admin/InboxManagerPage.tsx` (or component under `src/components/admin/inbox/`), structured as:
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  Stats bar: Today/Week · %Pos · %Neg · %Obj · Demos · Reply Rate │
+├──────────────┬──────────────────────────────────────────┤
+│ Search +     │  Header: name · company · email · campaign │
+│ filter chips │  [Pause Automation ▢]                     │
+│ (All/Pos/    │  ──────────────────────────────────────── │
+│ Neg/Obj/     │  Demo card: URL+copy OR "Generate Demo"   │
+│ Paused)      │  ──────────────────────────────────────── │
+│              │  Thread bubbles (incoming gray / outgoing │
+│ Conversation │   blue), classification badge + relabel    │
+│ rows with    │   pencil on each incoming                  │
+│ dot, name,   │  ──────────────────────────────────────── │
+│ snippet,     │  [textarea] [Send] [Regenerate AI Reply]  │
+│ time         │                                           │
+└──────────────┴──────────────────────────────────────────┘
+```
+
+Components:
+- `InboxStatsBar.tsx` — 6 metric cards via aggregate queries.
+- `ConversationList.tsx` — search, filter chips, Supabase Realtime subscription on `inbox_messages`.
+- `ThreadView.tsx` — header, pause toggle, demo card, message bubbles, classification badge + relabel dropdown.
+- `ReplyComposer.tsx` — textarea, Send (manual-reply), Regenerate AI Reply (calls `inbox-actions` → fills textarea, does not auto-send).
+- `InboxPromptsPanel.tsx` (small sub-section) — edit the 3 reply prompt templates.
+
+States: loading skeletons, empty state, error toasts with retry, optimistic send (revert on failure). Responsive: panels stack on mobile with back button from thread → list.
+
+---
+
+## 4. Build Order
+
+1. Migration: `prospects`, `inbox_messages`, `inbox_demos`, `inbox_prompts` (+ GRANTs, RLS, realtime, seed prompts).
+2. Edge functions in order: `webhook-manyreach-reply`, `inbox-classify`, `inbox-generate-reply`, `inbox-send-reply`, `inbox-process-incoming`, `inbox-manual-reply`, `inbox-actions`.
+3. Admin UI read-only (list + thread + stats).
+4. Manual controls (pause, relabel, manual reply, regenerate, manual demo).
+5. End-to-end test by POSTing a sample ManyReach payload to the webhook.
+
+---
+
+## 5. Open Questions (will use sensible defaults unless you say otherwise)
+
+- **Objection flow**: by default I will **also** auto-generate a demo if none exists, then send a non-pushy reply that addresses the concern and includes the demo link. Say "objection = reply only, no demo" if you'd prefer.
+- **Re-classify on every reply**: yes (matches your current n8n behavior).
+- **Webhook auth**: ManyReach doesn't sign payloads, so the webhook will be public + protected by a shared secret query param (`?key=...`) stored in Supabase secrets. I'll generate this secret.
+- **Prompts**: I'll seed Positive/Negative with the same intent you've used in n8n (you can paste the exact text afterwards into the admin editor) and write an Objection prompt from scratch.
+
+Nothing in the existing app (create-demo, tracking, follow-ups, KB, ecommerce templates, real estate template, current admin tabs) will be modified.
