@@ -486,6 +486,106 @@ export type Database = {
         }
         Relationships: []
       }
+      inbox_demos: {
+        Row: {
+          business_name: string | null
+          created_at: string
+          demo_url: string
+          id: string
+          prospect_id: string
+        }
+        Insert: {
+          business_name?: string | null
+          created_at?: string
+          demo_url: string
+          id?: string
+          prospect_id: string
+        }
+        Update: {
+          business_name?: string | null
+          created_at?: string
+          demo_url?: string
+          id?: string
+          prospect_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbox_demos_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inbox_messages: {
+        Row: {
+          body: string
+          classification: string | null
+          classified_by: string | null
+          created_at: string
+          direction: string
+          id: string
+          manyreach_message_id: string | null
+          prospect_id: string
+          source: string
+          subject: string | null
+        }
+        Insert: {
+          body: string
+          classification?: string | null
+          classified_by?: string | null
+          created_at?: string
+          direction: string
+          id?: string
+          manyreach_message_id?: string | null
+          prospect_id: string
+          source?: string
+          subject?: string | null
+        }
+        Update: {
+          body?: string
+          classification?: string | null
+          classified_by?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          manyreach_message_id?: string | null
+          prospect_id?: string
+          source?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbox_messages_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inbox_prompts: {
+        Row: {
+          classification: string
+          id: string
+          system_prompt: string
+          updated_at: string
+        }
+        Insert: {
+          classification: string
+          id?: string
+          system_prompt: string
+          updated_at?: string
+        }
+        Update: {
+          classification?: string
+          id?: string
+          system_prompt?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       industry_templates: {
         Row: {
           chatbot_config: Json
@@ -872,6 +972,57 @@ export type Database = {
           updated_at?: string
           variants?: Json | null
           vendor?: string | null
+        }
+        Relationships: []
+      }
+      prospects: {
+        Row: {
+          automation_paused: boolean
+          campaign_id: string | null
+          campaign_name: string | null
+          company: string | null
+          created_at: string
+          email: string
+          firstname: string | null
+          id: string
+          last_classification: string | null
+          last_message_at: string | null
+          reply_to_email: string | null
+          sender_email: string | null
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          automation_paused?: boolean
+          campaign_id?: string | null
+          campaign_name?: string | null
+          company?: string | null
+          created_at?: string
+          email: string
+          firstname?: string | null
+          id?: string
+          last_classification?: string | null
+          last_message_at?: string | null
+          reply_to_email?: string | null
+          sender_email?: string | null
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          automation_paused?: boolean
+          campaign_id?: string | null
+          campaign_name?: string | null
+          company?: string | null
+          created_at?: string
+          email?: string
+          firstname?: string | null
+          id?: string
+          last_classification?: string | null
+          last_message_at?: string | null
+          reply_to_email?: string | null
+          sender_email?: string | null
+          updated_at?: string
+          website_url?: string | null
         }
         Relationships: []
       }
