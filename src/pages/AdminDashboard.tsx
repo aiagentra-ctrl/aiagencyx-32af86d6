@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3, Layers, Lock, UserCheck, Mail, Database } from "lucide-react";
+import { Copy, ExternalLink, Check, Pencil, Bot, Trash2, Activity, Cog, Zap, Code, BarChart3, Layers, Lock, UserCheck, Mail, Database, Inbox } from "lucide-react";
 import EditPageDialog from "@/components/admin/EditPageDialog";
 import AnalyticsPanel from "@/components/admin/AnalyticsPanel";
 import EditChatbotDialog from "@/components/admin/EditChatbotDialog";
@@ -18,7 +18,9 @@ import TemplatesPanel from "@/components/admin/TemplatesPanel";
 import LeadsPanel from "@/components/admin/LeadsPanel";
 import FollowUpTemplatesPanel from "@/components/admin/FollowUpTemplatesPanel";
 import KnowledgeBasePanel from "@/components/admin/KnowledgeBasePanel";
+import InboxManagerPanel from "@/components/admin/InboxManagerPanel";
 import { Input } from "@/components/ui/input";
+
 
 const ADMIN_EMAIL = "aiagentron@gmail.com";
 const ADMIN_PASSWORD = "Abhiraj@123";
@@ -191,11 +193,16 @@ const AdminDashboard = () => {
               <Database className="mr-1.5 h-3.5 w-3.5" />
               Knowledge Base
             </TabsTrigger>
+            <TabsTrigger value="inbox">
+              <Inbox className="mr-1.5 h-3.5 w-3.5" />
+              Inbox
+            </TabsTrigger>
             <TabsTrigger value="logs">
               <Activity className="mr-1.5 h-3.5 w-3.5" />
               Logs
             </TabsTrigger>
           </TabsList>
+
 
           {/* Demos Tab — shows both pages and chatbots */}
           <TabsContent value="demos" className="space-y-6">
@@ -339,11 +346,17 @@ const AdminDashboard = () => {
             <FollowUpTemplatesPanel />
           </TabsContent>
 
+          {/* Inbox Manager Tab */}
+          <TabsContent value="inbox">
+            <InboxManagerPanel />
+          </TabsContent>
+
           {/* Logs Tab */}
           <TabsContent value="logs">
             <ActivityLogViewer />
           </TabsContent>
         </Tabs>
+
       </main>
 
       <EditPageDialog page={editPage} open={editOpen} onOpenChange={setEditOpen} onUpdated={fetchData} />
