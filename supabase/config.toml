@@ -51,3 +51,25 @@ verify_jwt = false
 [functions.recommend-products]
 verify_jwt = false
 
+[functions.webhook-manyreach-reply]
+verify_jwt = false
+
+[functions.inbox-classify]
+verify_jwt = false
+
+[functions.inbox-generate-reply]
+verify_jwt = false
+
+[functions.inbox-send-reply]
+verify_jwt = false
+
+[functions.inbox-process-incoming]
+verify_jwt = false
+
+[functions.inbox-manual-reply]
+verify_jwt = false
+
+[functions.inbox-actions]
+verify_jwt = false
+
+
