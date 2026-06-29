@@ -1,5 +1,6 @@
 // Send a reply via ManyReach and log it as an outgoing message.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logError } from "../_shared/observability.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
