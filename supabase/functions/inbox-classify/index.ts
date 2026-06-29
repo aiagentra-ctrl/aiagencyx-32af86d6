@@ -1,5 +1,6 @@
 // Classify the latest incoming message: Positive | Negative | Objection
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { traceStep, logError } from "../_shared/observability.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
