@@ -53,9 +53,13 @@ Deno.serve(async (req) => {
         });
         manyreachResponse = await r.text();
         manyreachOk = r.ok;
-        if (!r.ok) console.error("ManyReach reply failed:", r.status, manyreachResponse);
+        if (!r.ok) {
+          console.error("ManyReach reply failed:", r.status, manyreachResponse);
+          await logError("send", `ManyReach ${r.status}: ${String(manyreachResponse).slice(0, 500)}`, { prospect_id });
+        }
       } catch (err) {
         console.error("ManyReach send error:", err);
+        await logError("send", String((err as any)?.message || err), { prospect_id, stack: (err as any)?.stack });
       }
     } else {
       console.warn("ManyReach send skipped: missing key or messageId");
