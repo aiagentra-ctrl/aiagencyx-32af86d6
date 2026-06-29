@@ -62,26 +62,41 @@ Deno.serve(async (req) => {
     if (!res.ok) {
       const t = await res.text();
       console.error("classifier LLM error:", res.status, t);
+      await logError("classify", `LLM ${res.status}: ${t}`, { prospect_id, message_id });
+      await traceStep(prospect_id, message_id, "classified", "failed", { status: res.status, body: t }, `LLM ${res.status}`);
       return new Response(JSON.stringify({ error: "llm_failed", status: res.status }), { status: 502, headers: corsHeaders });
     }
     const j = await res.json();
     const raw: string = j?.choices?.[0]?.message?.content || "";
     const clean = raw.replace(/[^A-Za-z]/g, "");
     let classification: "Positive" | "Negative" | "Objection" = "Objection";
+    let ruleFired = "ai_classification";
     if (/^positive$/i.test(clean)) classification = "Positive";
     else if (/^negative$/i.test(clean)) classification = "Negative";
-    else classification = "Objection";
+    else { classification = "Objection"; ruleFired = "default_objection_fallback"; }
+
+    if (demoSent && classification === "Positive") {
+      // Per v2 rules: demo already sent -> Positive stays Positive (post-demo)
+      ruleFired = "demo_sent=true → post_demo Positive";
+    }
 
     await supabase.from("inbox_messages")
       .update({ classification, classified_by: "ai" }).eq("id", message_id);
     await supabase.from("prospects")
       .update({ last_classification: classification }).eq("id", prospect_id);
 
-    return new Response(JSON.stringify({ classification }), {
+    await traceStep(prospect_id, message_id, "classified", "ok", {
+      classification, raw_output: raw, rule_fired: ruleFired,
+      demo_sent: demoSent, model: "google/gemini-3-flash-preview",
+    });
+
+    return new Response(JSON.stringify({ classification, raw_output: raw, rule_fired: ruleFired }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("inbox-classify error:", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), { status: 500, headers: corsHeaders });
+    const m = String((e as any)?.message || e);
+    await logError("classify", m, { prospect_id: null, message_id: null, stack: (e as any)?.stack });
+    return new Response(JSON.stringify({ error: m }), { status: 500, headers: corsHeaders });
   }
 });
