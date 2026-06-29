@@ -1,102 +1,222 @@
+# Inbox Page v2 — Developer Tools, Error Alerts & Smart Reply Editor
 
-# AI Inbox Manager — Build Plan
+Purely additive on top of the existing Inbox Manager. No existing endpoints/logic change.
 
-A new, **fully additive** feature. Nothing in the existing system (create-demo, tracking, follow-ups, knowledge base, ecommerce, real estate, admin panel) is touched. New tables, new edge functions, new admin tab.
+## 1. Data layer (additive)
 
----
+New tables:
 
-## 1. Database (new tables only)
+- `webhook_logs` — every webhook hit
+  - `id, endpoint, method, status` (`success` | `failed`), `status_code, response_ms, payload jsonb, response jsonb, error text, created_at`
+- `pipeline_events` — per-message pipeline tracer
+  - `id, message_id (FK inbox_messages), prospect_id, step` (`webhook_received` | `stored` | `classified` | `demo` | `reply_generated` | `sent`), `status` (`ok` | `skipped` | `failed`), `details jsonb` (raw AI output, rule fired, model, confidence, reasoning), `error text, created_at`
+- `error_events` — failures-only feed (denormalized for fast UI)
+  - `id, source` (webhook/classify/demo/send), `message_id, prospect_id, message text, stack text, acknowledged bool, created_at`
+- `reply_templates` — editable templates with locked variables
+  - `id, classification` (Positive/Negative/Objection), `body text` (uses `{{demo_url}}`, `{{firstname}}`, `{{company}}`, `{{sender_name}}`, `{{sender_email}}`), `locked_vars text[]`, `updated_at`
 
-All in `public` schema with proper GRANTs + RLS (admins read/write via service role from edge functions; authenticated users can read for the dashboard).
+All four tables: RLS enabled, GRANT to `authenticated` + `service_role`, added to `supabase_realtime` publication. Seed `reply_templates` with the current 3 default bodies.
 
-**`prospects`**
-- email (unique), firstname, company, website_url
-- campaign_id, campaign_name, sender_email, reply_to_email
-- automation_paused (bool, default false)
-- last_message_at (for sort), last_classification
+## 2. Edge function instrumentation (additive wrappers)
 
-**`inbox_messages`**
-- prospect_id → prospects
-- manyreach_message_id (for reply threading)
-- direction ('incoming' | 'outgoing')
-- source ('email' default)
-- subject, body
-- classification ('Positive' | 'Negative' | 'Objection' | null)
-- classified_by ('ai' | 'human' | null)
+Add a shared helper `_shared/observability.ts` with:
 
-**`inbox_demos`**
-- prospect_id → prospects
-- demo_url, business_name
-- Links a generated demo to a prospect (separate from existing `demo_pages` — we just store the resulting URL here for quick lookup)
+- `logWebhook({endpoint, status, status_code, response_ms, payload, response, error})`
+- `traceStep(message_id, prospect_id, step, status, details?, error?)`
+- `logError(source, message_id, prospect_id, message, stack)` → also inserts into `error_events`
 
-Realtime enabled on `inbox_messages` and `prospects` for live UI updates.
+Wire it into existing functions WITHOUT changing their behavior:
 
----
+- `webhook-manyreach-reply` — logs every hit + `webhook_received` step
+- `inbox-process-incoming` — `stored`, `classified` (with raw AI JSON + rule fired e.g. `"demo_sent=true → forced Objection"`), `demo`, `reply_generated`, `sent`
+- `inbox-classify` — returns raw model output + reasoning/confidence (already extracted, just persisted into `pipeline_events.details`)
+- `inbox-send-reply`, `inbox-manual-reply` — `sent` step + error capture
+- `inbox-actions` (regenerate/generate_demo) — traces
 
-## 2. Edge Functions (all new, none modified)
+New function `inbox-dev-test-webhook` — POSTs a sample ManyReach payload to `webhook-manyreach-reply?key=<INBOX_WEBHOOK_SECRET>` from server-side, returns `{ status, ms, body }` to the UI.
 
-1. **`webhook-manyreach-reply`** (public, no JWT) — receives ManyReach webhook, upserts prospect by email, inserts incoming message row, returns 200 immediately, then async-invokes `inbox-process-incoming`.
-2. **`inbox-process-incoming`** — orchestrator. If `automation_paused`, stop. Otherwise: call classify → if Positive/Negative and no demo → call existing `/create-demo` and store in `inbox_demos` → call generate-reply → call send-reply.
-3. **`inbox-classify`** — pulls full thread history, computes `demo_sent` flag (scans outgoing messages for `aiagentfor.lovable.app`), calls Lovable AI (`google/gemini-3-flash-preview`) with classification system prompt, returns one of Positive/Negative/Objection. Saves to message row.
-4. **`inbox-generate-reply`** — picks template by classification (Positive / Negative / Objection prompts stored in new `inbox_prompts` admin-editable table, seeded with sensible defaults including the new Objection prompt), injects demo_url + firstname + company, calls Lovable AI, returns reply text.
-5. **`inbox-send-reply`** — POSTs to `https://api.manyreach.com/api/v2/messages/reply` using existing `MANYREACH_API_KEY` secret, then inserts outgoing message row.
-6. **`inbox-manual-reply`** — same send path but invoked from the dashboard with a user-typed body; marks `classified_by='human'`.
-7. **`inbox-actions`** — small endpoint for toggling `automation_paused`, manually re-classifying a message, regenerating an AI draft (returns text, does NOT auto-send), and manually triggering demo generation for a prospect.
+## 3. UI — `InboxManagerPanel.tsx`
 
-All functions are new. Existing `/create-demo` is **called** (HTTP) by the orchestrator — not modified.
+Top of panel: segmented control **User View | Developer View** (persisted in `localStorage`).
 
----
+### Shared header
 
-## 3. Admin UI
+- Bell icon with unread error count (live, from `error_events` realtime). Dropdown lists recent errors; clicking jumps to that message and opens the Pipeline Tracer drawer.
+- Red toast (sonner) auto-fires on new `error_events` rows.
 
-New sidebar/tab entry in `AdminDashboard.tsx`: **"Inbox"** (added alongside existing tabs, nothing removed).
+### User View
 
-New file `src/pages/admin/InboxManagerPage.tsx` (or component under `src/components/admin/inbox/`), structured as:
+Existing UI unchanged. Classification shown as the friendly badge only (🟢/🔴/🟡).
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│  Stats bar: Today/Week · %Pos · %Neg · %Obj · Demos · Reply Rate │
-├──────────────┬──────────────────────────────────────────┤
-│ Search +     │  Header: name · company · email · campaign │
-│ filter chips │  [Pause Automation ▢]                     │
-│ (All/Pos/    │  ──────────────────────────────────────── │
-│ Neg/Obj/     │  Demo card: URL+copy OR "Generate Demo"   │
-│ Paused)      │  ──────────────────────────────────────── │
-│              │  Thread bubbles (incoming gray / outgoing │
-│ Conversation │   blue), classification badge + relabel    │
-│ rows with    │   pencil on each incoming                  │
-│ dot, name,   │  ──────────────────────────────────────── │
-│ snippet,     │  [textarea] [Send] [Regenerate AI Reply]  │
-│ time         │                                           │
-└──────────────┴──────────────────────────────────────────┘
+### Developer View
+
+Adds, inside the existing thread pane, a collapsible **Pipeline Tracer** strip for the selected conversation:
+
+```
+Webhook ✅ 12:04:01 → Stored ✅ → Classified ✅ Positive (0.92) → Demo ✅ → Reply ✅ → Sent ✅
 ```
 
-Components:
-- `InboxStatsBar.tsx` — 6 metric cards via aggregate queries.
-- `ConversationList.tsx` — search, filter chips, Supabase Realtime subscription on `inbox_messages`.
-- `ThreadView.tsx` — header, pause toggle, demo card, message bubbles, classification badge + relabel dropdown.
-- `ReplyComposer.tsx` — textarea, Send (manual-reply), Regenerate AI Reply (calls `inbox-actions` → fills textarea, does not auto-send).
-- `InboxPromptsPanel.tsx` (small sub-section) — edit the 3 reply prompt templates.
+Each node expands to show raw JSON (collapsible viewer).
 
-States: loading skeletons, empty state, error toasts with retry, optimistic send (revert on failure). Responsive: panels stack on mobile with back button from thread → list.
+Adds new tabs alongside Inbox/Reply Prompts:
+
+- **Webhook Logs** — table (timestamp, endpoint, status, ms, payload preview), row click → raw JSON viewer. "Send Test Webhook" button calls `inbox-dev-test-webhook` and renders status + body inline.
+- **Error Log** — failures feed with stack excerpt + "Jump to message" link + acknowledge button.
+- **Reply Templates** — new tab to edit the 3 templates (separate from the existing classification system-prompt editor).
+
+Incoming messages in Developer View also show, under the badge: raw AI output, rule fired, confidence.
+
+### Smart Reply Editor (replaces the plain `<Textarea>` composer)
+
+New component `SmartReplyEditor.tsx` built on `contentEditable` (no new dependency):
+
+- Renders `{{var}}` tokens as locked pill chips (non-editable, deletable as a unit) using `contenteditable="false"` spans
+- Plain text around them is freely editable
+- "Insert variable" dropdown: `{{firstname}}`, `{{company}}`, `{{sender_name}}`, `{{sender_email}}`, `{{demo_url}}`
+- "Load template" dropdown loads the current classification's `reply_templates.body` with chips already locked
+- On Send/Regenerate, serializes back to a string with `{{var}}` markers; existing `inbox-manual-reply` / send pipeline performs variable substitution server-side (extend the existing substitution map; add `{{sender_name}}` derived from `sender_email` local-part if not provided)
+
+### Animations / polish
+
+- `animate-fade-in` on tracer nodes, `animate-scale-in` on bell badge, subtle pulse on failed nodes
+- Skeletons for logs, smooth tab transitions, status dots use the same semantic color tokens already in the panel
+- Mobile: tracer collapses to a vertical timeline
+
+## 4. Files
+
+New:
+
+- `supabase/functions/_shared/observability.ts`
+- `supabase/functions/inbox-dev-test-webhook/index.ts`
+- `src/components/admin/inbox/DevToolsView.tsx`
+- `src/components/admin/inbox/PipelineTracer.tsx`
+- `src/components/admin/inbox/WebhookLogsTab.tsx`
+- `src/components/admin/inbox/ErrorLogTab.tsx`
+- `src/components/admin/inbox/ReplyTemplatesTab.tsx`
+- `src/components/admin/inbox/SmartReplyEditor.tsx`
+- `src/components/admin/inbox/ErrorBell.tsx`
+- DB migration for the 4 new tables, RLS, GRANTs, realtime publication, seed templates
+
+Modified (additive only):
+
+- `src/components/admin/InboxManagerPanel.tsx` — view toggle, bell, dev tabs, swap composer to `SmartReplyEditor`
+- `webhook-manyreach-reply`, `inbox-process-incoming`, `inbox-classify`, `inbox-send-reply`, `inbox-manual-reply`, `inbox-actions` — add tracing/error-log calls (no logic changes)
+- `supabase/config.toml` — register `inbox-dev-test-webhook` with `verify_jwt = false` (internal callable via supabase.functions.invoke from authed admin only; checks admin in code)
+
+## 5. Optional (off by default)
+
+Slack/email alert hook in `logError`: if `SLACK_WEBHOOK_URL` secret exists, post a one-line alert. Will prompt for the secret only if you confirm you want it.
+
+## Smart Reply Logic v2 — Template-First with AI Fallback + "Demo Sent Once" Rule
+
+This fixes the core logic gap: right now your system could risk re-sending the demo link or re-generating it every time. Here's the proper rule set + the smart fallback chain (Template → AI → never break).
 
 ---
 
-## 4. Build Order
+### 1. The Core Rule: Demo Link Sent ONCE, Ever
 
-1. Migration: `prospects`, `inbox_messages`, `inbox_demos`, `inbox_prompts` (+ GRANTs, RLS, realtime, seed prompts).
-2. Edge functions in order: `webhook-manyreach-reply`, `inbox-classify`, `inbox-generate-reply`, `inbox-send-reply`, `inbox-process-incoming`, `inbox-manual-reply`, `inbox-actions`.
-3. Admin UI read-only (list + thread + stats).
-4. Manual controls (pause, relabel, manual reply, regenerate, manual demo).
-5. End-to-end test by POSTing a sample ManyReach payload to the webhook.
+Per prospect, across their entire history:
+
+- **First positive/negative reply** → generate demo (if not exists) → send reply WITH `{{demo_url}}` → mark `demos.sent_to_prospect = true` (or just check `demos` table exists for that prospect — same thing)
+- **Every reply after that** → demo already exists, link already sent → **never regenerate, never resend the link again** unless the prospect explicitly asks for it again (e.g. "can you resend the link")
+- After the link is sent once, ALL future replies fall into one of these three buckets, full stop:
+
+
+| Their reply                                                  | Meaning                              | Reply category       | Demo link?                                         |
+| ------------------------------------------------------------ | ------------------------------------ | -------------------- | -------------------------------------------------- |
+| "yes this looks great" / "I like it" / "let's talk"          | They liked the demo → still Positive | Positive (post-demo) | No — don't resend                                  |
+| "not for us" / "no thanks"                                   | They didn't like it → Negative       | Negative (post-demo) | No                                                 |
+| "how does the voice agent work?" / "price?" / "can it do X?" | Unsure / question                    | Objection            | No (unless they explicitly ask for the link again) |
+
+
+So really there are **two phases** in the conversation:
+
+- **Phase 1 (pre-demo):** Positive or Negative only → triggers demo creation + first link send
+- **Phase 2 (post-demo):** Positive, Negative, or Objection → never triggers demo creation again, just a contextual reply
+
+This is the part your classifier already half-does (the `demo_sent` check) — we're just making sure the *reply generation* and *demo creation* steps respect it the same way, every time, with no exceptions.
 
 ---
 
-## 5. Open Questions (will use sensible defaults unless you say otherwise)
+### 2. Template-First, AI-Fallback Logic (the "if/else" that can't collapse)
 
-- **Objection flow**: by default I will **also** auto-generate a demo if none exists, then send a non-pushy reply that addresses the concern and includes the demo link. Say "objection = reply only, no demo" if you'd prefer.
-- **Re-classify on every reply**: yes (matches your current n8n behavior).
-- **Webhook auth**: ManyReach doesn't sign payloads, so the webhook will be public + protected by a shared secret query param (`?key=...`) stored in Supabase secrets. I'll generate this secret.
-- **Prompts**: I'll seed Positive/Negative with the same intent you've used in n8n (you can paste the exact text afterwards into the admin editor) and write an Objection prompt from scratch.
+For every reply being generated, the system checks in this order:
 
-Nothing in the existing app (create-demo, tracking, follow-ups, KB, ecommerce templates, real estate template, current admin tabs) will be modified.
+```
+1. Determine classification (Positive / Negative / Objection) 
+   AND phase (pre-demo / post-demo) — using full history, always.
+
+2. Look up: is there a template marked as_default=true for this 
+   exact (classification + phase) combination?
+
+   IF YES → use that template:
+      - Fill in {{firstname}}, {{company}}, {{sender_name}}
+      - Fill in {{demo_url}} ONLY if phase = pre-demo (first send)
+      - If phase = post-demo, strip/skip the {{demo_url}} chip 
+        entirely from the template (even if the template has it — 
+        post-demo templates should just not include it in the 
+        first place, but this is a safety check)
+      - Send this. AI is NOT called. Done.
+
+   IF NO template exists for this combination →
+      - Fall back to AI generation:
+        - Call ai-generate-reply with full conversation history, 
+          classification, phase, and demo_url (if pre-demo)
+        - AI writes the reply
+        - Same rule applies: AI is instructed never to include a 
+          demo link if phase = post-demo
+      - Send this.
+
+3. Either path MUST produce a reply. If template lookup fails AND 
+   AI call fails (e.g. API error) → do NOT send nothing. Fall back 
+   to a hardcoded safe generic reply ("Thanks for your message — 
+   I'll get back to you shortly") and flag this conversation in the 
+   Developer error log as "fallback used" so you know to check it.
+```
+
+This guarantees: **template if available → AI if not → safe generic message if both fail.** Nothing ever silently breaks or sends nothing.
+
+---
+
+### 3. Full History Check, Every Time
+
+No classification or reply decision should ever look at just the latest message. Every single time:
+
+- Pull the entire message thread for that prospect
+- Check: does any `demos` row exist for this prospect? → determines phase (pre/post-demo)
+- Check: what was the last classification on record? (useful for context, e.g. "this person already said Negative once before, now they're asking a question")
+- Pass this full context into both the classifier AND the reply generator/template filler — so even template-filled replies aren't generic, they're aware of where in the journey this person is.
+
+---
+
+### 4. Updated Database Pieces
+
+Add to `prospects` (or compute live from `demos` table — your choice, but explicit is safer):
+
+```
+demo_sent_at (timestamp, nullable)   -- null = pre-demo phase, 
+                                          set = post-demo phase
+```
+
+Add to `templates`:
+
+```
+phase (text: 'pre_demo' | 'post_demo')   -- combined with category 
+                                             (Positive/Negative/Objection) 
+                                             this gives 6 possible 
+                                             template slots total
+```
+
+So your template matrix becomes:
+
+
+| &nbsp;    | Pre-demo                                                      | Post-demo                                      |
+| --------- | ------------------------------------------------------------- | ---------------------------------------------- |
+| Positive  | ✅ includes demo_url                                           | ✅ no demo_url                                  |
+| Negative  | ✅ includes demo_url                                           | ✅ no demo_url                                  |
+| Objection | N/A (objection only exists post-demo per your original rules) | ✅ no demo_url (unless explicit resend request) |
+
+
+---
+
+Confirm and I'll build it. Want the optional Slack/email alert wired in now, or skip for v2?
