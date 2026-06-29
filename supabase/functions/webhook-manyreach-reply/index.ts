@@ -31,23 +31,37 @@ function pick<T = string>(obj: any, ...keys: string[]): T | undefined {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const t0 = Date.now();
+  let payload: any = {};
+  let prospectId: string | null = null;
+  let messageId: string | null = null;
+  const finalize = async (status: "success" | "failed", code: number, response: unknown, error?: string) => {
+    await logWebhook({
+      endpoint: "webhook-manyreach-reply",
+      method: "POST",
+      status, status_code: code,
+      response_ms: Date.now() - t0,
+      payload, response, error: error ?? null,
+      source: "manyreach",
+    });
+  };
+
   try {
     const url = new URL(req.url);
     const key = url.searchParams.get("key") || req.headers.get("x-webhook-key");
     if (!WEBHOOK_SECRET || key !== WEBHOOK_SECRET) {
-      return new Response(JSON.stringify({ error: "unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const r = { error: "unauthorized" };
+      await finalize("failed", 401, r, "unauthorized");
+      return new Response(JSON.stringify(r), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const payload = await req.json().catch(() => ({}));
+    payload = await req.json().catch(() => ({}));
 
     // ManyReach payloads vary; try common locations.
     const email = pick<string>(payload, "prospect.email", "email", "from", "fromEmail", "sender", "data.email");
     const body = pick<string>(payload, "body", "message", "text", "reply", "data.body", "data.message") || "";
     const subject = pick<string>(payload, "subject", "data.subject") || "";
-    const messageId = pick<string>(payload, "messageId", "message_id", "id", "data.messageId");
+    const manyMessageId = pick<string>(payload, "messageId", "message_id", "id", "data.messageId");
     const firstname = pick<string>(payload, "prospect.firstName", "firstname", "firstName", "first_name", "data.firstName");
     const company = pick<string>(payload, "prospect.company", "company", "data.company");
     const website = pick<string>(payload, "prospect.website", "website", "website_url", "data.website");
@@ -57,20 +71,17 @@ Deno.serve(async (req) => {
     const replyToEmail = pick<string>(payload, "replyToEmail", "reply_to", "data.replyToEmail") || senderEmail;
 
     if (!email) {
-      return new Response(JSON.stringify({ error: "missing email", payload }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const r = { error: "missing email", payload };
+      await finalize("failed", 400, r, "missing email");
+      return new Response(JSON.stringify(r), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Upsert prospect by email
     const { data: existing } = await supabase
       .from("prospects").select("*").eq("email", email).maybeSingle();
 
-    let prospectId: string;
     if (existing) {
       prospectId = existing.id;
-      // Only fill empty fields
       const update: Record<string, any> = { last_message_at: new Date().toISOString() };
       if (!existing.firstname && firstname) update.firstname = firstname;
       if (!existing.company && company) update.company = company;
@@ -96,30 +107,40 @@ Deno.serve(async (req) => {
     const { data: msg, error: msgErr } = await supabase
       .from("inbox_messages").insert({
         prospect_id: prospectId,
-        manyreach_message_id: messageId,
+        manyreach_message_id: manyMessageId,
         direction: "incoming",
         source: "email",
         subject,
         body,
       }).select("id").single();
     if (msgErr) throw msgErr;
+    messageId = msg.id;
+
+    await traceStep(prospectId, messageId, "webhook_received", "ok", {
+      email, subject, has_body: !!body, manyreach_message_id: manyMessageId,
+    });
+    await traceStep(prospectId, messageId, "stored", "ok", { message_id: messageId });
 
     // Fire-and-forget orchestrator
     fetch(`${SUPABASE_URL}/functions/v1/inbox-process-incoming`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${SERVICE_KEY}`,
-      },
-      body: JSON.stringify({ prospect_id: prospectId, message_id: msg.id }),
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SERVICE_KEY}` },
+      body: JSON.stringify({ prospect_id: prospectId, message_id: messageId }),
     }).catch((e) => console.error("orchestrator dispatch failed:", e));
 
-    return new Response(JSON.stringify({ ok: true, prospect_id: prospectId, message_id: msg.id }), {
+    const r = { ok: true, prospect_id: prospectId, message_id: messageId };
+    await finalize("success", 200, r);
+    return new Response(JSON.stringify(r), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("webhook-manyreach-reply error:", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
+    const msg = String((e as any)?.message || e);
+    const stack = (e as any)?.stack || null;
+    await finalize("failed", 500, { error: msg }, msg);
+    await logError("webhook", msg, { prospect_id: prospectId, message_id: messageId, stack });
+    await traceStep(prospectId, messageId, "webhook_received", "failed", null, msg);
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
