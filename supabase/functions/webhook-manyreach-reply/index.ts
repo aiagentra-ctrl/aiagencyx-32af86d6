@@ -1,6 +1,7 @@
 // Public webhook for ManyReach reply events.
 // Protected by a shared secret query param: ?key=<INBOX_WEBHOOK_SECRET>
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { logWebhook, traceStep, logError } from "../_shared/observability.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
