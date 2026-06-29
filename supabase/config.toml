@@ -72,4 +72,8 @@ verify_jwt = false
 [functions.inbox-actions]
 verify_jwt = false
 
+[functions.inbox-dev-test-webhook]
+verify_jwt = false
+
+
 

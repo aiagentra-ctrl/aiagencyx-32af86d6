@@ -438,6 +438,39 @@ export type Database = {
         }
         Relationships: []
       }
+      error_events: {
+        Row: {
+          acknowledged: boolean
+          created_at: string
+          id: string
+          message: string
+          message_id: string | null
+          prospect_id: string | null
+          source: string
+          stack: string | null
+        }
+        Insert: {
+          acknowledged?: boolean
+          created_at?: string
+          id?: string
+          message: string
+          message_id?: string | null
+          prospect_id?: string | null
+          source: string
+          stack?: string | null
+        }
+        Update: {
+          acknowledged?: boolean
+          created_at?: string
+          id?: string
+          message?: string
+          message_id?: string | null
+          prospect_id?: string | null
+          source?: string
+          stack?: string | null
+        }
+        Relationships: []
+      }
       follow_up_templates: {
         Row: {
           body: string
@@ -900,6 +933,54 @@ export type Database = {
         }
         Relationships: []
       }
+      pipeline_events: {
+        Row: {
+          created_at: string
+          details: Json | null
+          error: string | null
+          id: string
+          message_id: string | null
+          prospect_id: string | null
+          status: string
+          step: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          error?: string | null
+          id?: string
+          message_id?: string | null
+          prospect_id?: string | null
+          status: string
+          step: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          error?: string | null
+          id?: string
+          message_id?: string | null
+          prospect_id?: string | null
+          status?: string
+          step?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_events_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "inbox_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_events_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           category: string | null
@@ -982,6 +1063,7 @@ export type Database = {
           campaign_name: string | null
           company: string | null
           created_at: string
+          demo_sent_at: string | null
           email: string
           firstname: string | null
           id: string
@@ -998,6 +1080,7 @@ export type Database = {
           campaign_name?: string | null
           company?: string | null
           created_at?: string
+          demo_sent_at?: string | null
           email: string
           firstname?: string | null
           id?: string
@@ -1014,6 +1097,7 @@ export type Database = {
           campaign_name?: string | null
           company?: string | null
           created_at?: string
+          demo_sent_at?: string | null
           email?: string
           firstname?: string | null
           id?: string
@@ -1023,6 +1107,39 @@ export type Database = {
           sender_email?: string | null
           updated_at?: string
           website_url?: string | null
+        }
+        Relationships: []
+      }
+      reply_templates: {
+        Row: {
+          body: string
+          classification: string
+          created_at: string
+          id: string
+          is_default: boolean
+          locked_vars: string[]
+          phase: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          classification: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          locked_vars?: string[]
+          phase?: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          classification?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          locked_vars?: string[]
+          phase?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1077,6 +1194,48 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: string | null
+        }
+        Relationships: []
+      }
+      webhook_logs: {
+        Row: {
+          created_at: string
+          endpoint: string
+          error: string | null
+          id: string
+          method: string | null
+          payload: Json | null
+          response: Json | null
+          response_ms: number | null
+          source: string | null
+          status: string
+          status_code: number | null
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          error?: string | null
+          id?: string
+          method?: string | null
+          payload?: Json | null
+          response?: Json | null
+          response_ms?: number | null
+          source?: string | null
+          status: string
+          status_code?: number | null
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          error?: string | null
+          id?: string
+          method?: string | null
+          payload?: Json | null
+          response?: Json | null
+          response_ms?: number | null
+          source?: string | null
+          status?: string
+          status_code?: number | null
         }
         Relationships: []
       }
