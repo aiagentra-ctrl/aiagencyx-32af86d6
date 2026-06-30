@@ -1,26 +1,34 @@
 // Read-only Webhook URL with copy + test buttons.
+// The full URL (with the secret query param) is fetched from a server-side
+// edge function so the secret never ships in the frontend bundle.
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Send, Loader2, Webhook } from "lucide-react";
+import { Copy, Send, Loader2, Webhook, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export default function WebhookUrlCard() {
   const [url, setUrl] = useState<string>("");
+  const [reveal, setReveal] = useState(false);
   const [testing, setTesting] = useState(false);
   const [last, setLast] = useState<{ ok: boolean; status?: number; ms?: number } | null>(null);
 
   useEffect(() => {
-    // The publishable client exposes the project URL; the secret query param
-    // is intentionally not embedded client-side — the user pastes the URL
-    // they were given separately. We still show the function endpoint so they
-    // know where to point ManyReach.
-    const base = (supabase as any).supabaseUrl || `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.functions.supabase.co`;
-    setUrl(`${base.replace(/\/$/, "")}/functions/v1/webhook-manyreach-reply`);
+    (async () => {
+      const { data, error } = await supabase.functions.invoke("get-webhook-url", { body: {} });
+      if (error) {
+        toast.error("Could not load webhook URL");
+        return;
+      }
+      setUrl(data?.url || "");
+      if (!data?.has_secret) toast.error("INBOX_WEBHOOK_SECRET is not set on the server");
+    })();
   }, []);
+
+  const masked = url.replace(/(secret=)[^&]+/i, "$1••••••••");
 
   const copy = () => {
     navigator.clipboard.writeText(url);
