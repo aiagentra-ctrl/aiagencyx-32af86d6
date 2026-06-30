@@ -73,7 +73,20 @@ Deno.serve(async (req) => {
     let ruleFired = "ai_classification";
     if (/^positive$/i.test(clean)) classification = "Positive";
     else if (/^negative$/i.test(clean)) classification = "Negative";
-    else { classification = "Objection"; ruleFired = "default_objection_fallback"; }
+    else if (/^objection$/i.test(clean)) { classification = "Objection"; }
+    else {
+      // n8n rule: if demo NOT sent yet, never default to Objection.
+      // Bias unclear replies to Negative pre-demo (won't auto-send anything pushy),
+      // and to Objection post-demo (matches n8n switch fallthrough).
+      classification = demoSent ? "Objection" : "Negative";
+      ruleFired = demoSent ? "fallback_post_demo→Objection" : "fallback_pre_demo→Negative";
+    }
+
+    // n8n rule enforcement: pre-demo can never be Objection.
+    if (!demoSent && classification === "Objection") {
+      classification = "Negative";
+      ruleFired = "enforced_pre_demo_no_objection";
+    }
 
     if (demoSent && classification === "Positive") {
       // Per v2 rules: demo already sent -> Positive stays Positive (post-demo)

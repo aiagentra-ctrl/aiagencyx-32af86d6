@@ -1,1 +1,4 @@
 project_id = "kurcsodbvfjdzliorgvv"
+
+[functions.webhook-manyreach-reply]
+verify_jwt = false

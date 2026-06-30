@@ -48,7 +48,11 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const key = url.searchParams.get("key") || req.headers.get("x-webhook-key");
+    // Accept the secret under any of these names so existing wiring
+    // (?key=) AND new ManyReach wiring (?secret=) both work.
+    const key = url.searchParams.get("key")
+      || url.searchParams.get("secret")
+      || req.headers.get("x-webhook-key");
     if (!WEBHOOK_SECRET || key !== WEBHOOK_SECRET) {
       const r = { error: "unauthorized" };
       await finalize("failed", 401, r, "unauthorized");
@@ -57,18 +61,23 @@ Deno.serve(async (req) => {
 
     payload = await req.json().catch(() => ({}));
 
-    // ManyReach payloads vary; try common locations.
-    const email = pick<string>(payload, "prospect.email", "email", "from", "fromEmail", "sender", "data.email");
-    const body = pick<string>(payload, "body", "message", "text", "reply", "data.body", "data.message") || "";
-    const subject = pick<string>(payload, "subject", "data.subject") || "";
-    const manyMessageId = pick<string>(payload, "messageId", "message_id", "id", "data.messageId");
-    const firstname = pick<string>(payload, "prospect.firstName", "firstname", "firstName", "first_name", "data.firstName");
-    const company = pick<string>(payload, "prospect.company", "company", "data.company");
-    const website = pick<string>(payload, "prospect.website", "website", "website_url", "data.website");
-    const campaignId = pick<string>(payload, "campaignId", "campaign_id", "data.campaignId");
-    const campaignName = pick<string>(payload, "campaignName", "campaign_name", "data.campaignName");
-    const senderEmail = pick<string>(payload, "senderEmail", "sender_email", "fromAccount", "data.senderEmail");
-    const replyToEmail = pick<string>(payload, "replyToEmail", "reply_to", "data.replyToEmail") || senderEmail;
+    // ManyReach payloads can arrive either flat or nested under `body`
+    // (as shown in the n8n workflow — body.prospect.*, body.message, etc.)
+    const root: any = payload?.body && typeof payload.body === "object" ? payload.body : payload;
+    const email = pick<string>(root, "prospect.email", "email", "from", "fromEmail", "sender", "data.email");
+    const body = pick<string>(root, "message", "body", "text", "reply", "data.body", "data.message") || "";
+    const subject = pick<string>(root, "subject", "data.subject") || "";
+    const manyMessageId = pick<string>(root, "messageId", "message_id", "id", "data.messageId");
+    const firstname = pick<string>(root, "prospect.firstname", "prospect.firstName", "firstname", "firstName", "first_name", "data.firstName");
+    const company = pick<string>(root, "prospect.company", "company", "data.company");
+    const website = pick<string>(root, "prospect.www", "prospect.website", "website", "website_url", "data.website");
+    const campaignId = pick<string>(root, "campaign.campaignID", "campaignId", "campaign_id", "data.campaignId");
+    const campaignName = pick<string>(root, "campaign.campaignTitle", "campaignName", "campaign_name", "data.campaignName");
+    const senderEmail = pick<string>(root, "sender_email", "senderEmail", "fromAccount", "data.senderEmail");
+    const replyToEmail = pick<string>(root, "replyToEmail", "reply_to", "data.replyToEmail") || senderEmail;
+
+    // Mark health-check / test traffic so it doesn't pollute the real inbox.
+    const isTest = !!email && /^healthcheck-test@|@example\.com$/i.test(email);
 
     if (!email) {
       const r = { error: "missing email", payload };
@@ -98,6 +107,7 @@ Deno.serve(async (req) => {
           campaign_id: campaignId, campaign_name: campaignName,
           sender_email: senderEmail, reply_to_email: replyToEmail,
           last_message_at: new Date().toISOString(),
+          is_test_data: isTest,
         }).select("id").single();
       if (insErr) throw insErr;
       prospectId = inserted.id;
@@ -112,6 +122,7 @@ Deno.serve(async (req) => {
         source: "email",
         subject,
         body,
+        is_test_data: isTest,
       }).select("id").single();
     if (msgErr) throw msgErr;
     messageId = msg.id;

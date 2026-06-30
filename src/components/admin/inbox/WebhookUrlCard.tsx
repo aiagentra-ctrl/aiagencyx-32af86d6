@@ -1,26 +1,34 @@
 // Read-only Webhook URL with copy + test buttons.
+// The full URL (with the secret query param) is fetched from a server-side
+// edge function so the secret never ships in the frontend bundle.
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Send, Loader2, Webhook } from "lucide-react";
+import { Copy, Send, Loader2, Webhook, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export default function WebhookUrlCard() {
   const [url, setUrl] = useState<string>("");
+  const [reveal, setReveal] = useState(false);
   const [testing, setTesting] = useState(false);
   const [last, setLast] = useState<{ ok: boolean; status?: number; ms?: number } | null>(null);
 
   useEffect(() => {
-    // The publishable client exposes the project URL; the secret query param
-    // is intentionally not embedded client-side — the user pastes the URL
-    // they were given separately. We still show the function endpoint so they
-    // know where to point ManyReach.
-    const base = (supabase as any).supabaseUrl || `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.functions.supabase.co`;
-    setUrl(`${base.replace(/\/$/, "")}/functions/v1/webhook-manyreach-reply`);
+    (async () => {
+      const { data, error } = await supabase.functions.invoke("get-webhook-url", { body: {} });
+      if (error) {
+        toast.error("Could not load webhook URL");
+        return;
+      }
+      setUrl(data?.url || "");
+      if (!data?.has_secret) toast.error("INBOX_WEBHOOK_SECRET is not set on the server");
+    })();
   }, []);
+
+  const masked = url.replace(/(secret=)[^&]+/i, "$1••••••••");
 
   const copy = () => {
     navigator.clipboard.writeText(url);
@@ -64,7 +72,15 @@ export default function WebhookUrlCard() {
           )}
         </div>
         <div className="flex gap-2">
-          <Input readOnly value={url} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+          <Input
+            readOnly
+            value={reveal ? url : masked}
+            className="font-mono text-xs"
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <Button size="sm" variant="ghost" onClick={() => setReveal((v) => !v)} aria-label="Show/hide secret">
+            {reveal ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </Button>
           <Button size="sm" variant="outline" onClick={copy} aria-label="Copy webhook URL">
             <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy
           </Button>
@@ -74,7 +90,8 @@ export default function WebhookUrlCard() {
           </Button>
         </div>
         <div className="text-[10px] text-muted-foreground">
-          Append your <code className="px-1 rounded bg-muted">?key=…</code> secret when pasting into ManyReach.
+          Paste this exact URL (including the <code className="px-1 rounded bg-muted">?secret=…</code> query string) into
+          ManyReach → Settings → Webhooks → Reply Webhook.
         </div>
       </CardContent>
     </Card>
