@@ -281,7 +281,7 @@ const InboxManagerPanel = () => {
         <TabsList>
           <TabsTrigger value="inbox"><Inbox className="mr-1.5 h-3.5 w-3.5" /> Inbox</TabsTrigger>
           <TabsTrigger value="prompts"><Sparkles className="mr-1.5 h-3.5 w-3.5" /> Prompts</TabsTrigger>
-          <TabsTrigger value="templates"><FileText className="mr-1.5 h-3.5 w-3.5" /> Templates</TabsTrigger>
+          
           {isDev && <TabsTrigger value="webhooks"><Webhook className="mr-1.5 h-3.5 w-3.5" /> Webhook Logs</TabsTrigger>}
           {isDev && <TabsTrigger value="errors"><AlertCircle className="mr-1.5 h-3.5 w-3.5" /> Error Log</TabsTrigger>}
         </TabsList>
