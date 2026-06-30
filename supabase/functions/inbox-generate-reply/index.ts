@@ -28,19 +28,26 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "prospect not found" }), { status: 404, headers: corsHeaders });
     }
 
-    const systemPrompt = promptRow?.system_prompt || "Reply briefly and politely.";
     const usableDemoUrl = demo_url || existingDemo?.demo_url || "";
+    const rawPrompt = promptRow?.system_prompt || "Reply briefly and politely.";
+    // Substitute {{demo_url}} inside the agent's system prompt so the model
+    // always has the exact URL available even if it ignores the user context.
+    const systemPrompt = rawPrompt.replace(/\{\{\s*demo_url\s*\}\}/gi, usableDemoUrl);
 
+    const lastIncoming = [...(messages || [])].reverse().find((m: any) => m.direction === "incoming");
     const context = `Prospect:
 - firstname: ${prospect.firstname || "there"}
 - company: ${prospect.company || "(unknown)"}
 - email: ${prospect.email}
 demo_url: ${usableDemoUrl || "(none yet)"}
 
+User's last message:
+${lastIncoming?.body || "(no incoming yet)"}
+
 Recent thread (oldest -> newest):
 ${(messages || []).map((m) => `[${m.direction}] ${m.body}`).join("\n\n")}
 
-Write the reply body now.`;
+Write the reply body now. Use the demo_url exactly as given.`;
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
