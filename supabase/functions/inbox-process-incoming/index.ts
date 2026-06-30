@@ -108,15 +108,6 @@ Deno.serve(async (req) => {
 
     // 3) reply: template-first, AI fallback, then safe-generic
     const effectivePhase: "pre_demo" | "post_demo" = demoUrl ? "post_demo" : "pre_demo";
-    const senderName = (prospect.sender_email || "").split("@")[0]?.split(/[._-]/).filter(Boolean).map((p: string) => p[0].toUpperCase() + p.slice(1)).join(" ") || "the team";
-
-    const vars: Record<string, string> = {
-      firstname: prospect.firstname || "there",
-      company: prospect.company || "your team",
-      sender_name: senderName,
-      sender_email: prospect.sender_email || "",
-      demo_url: demoUrl || "",
-    };
 
     let reply = "";
     let replySource: "ai" | "fallback" = "fallback";
