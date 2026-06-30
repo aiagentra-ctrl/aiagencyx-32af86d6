@@ -72,7 +72,15 @@ export default function WebhookUrlCard() {
           )}
         </div>
         <div className="flex gap-2">
-          <Input readOnly value={url} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+          <Input
+            readOnly
+            value={reveal ? url : masked}
+            className="font-mono text-xs"
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <Button size="sm" variant="ghost" onClick={() => setReveal((v) => !v)} aria-label="Show/hide secret">
+            {reveal ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          </Button>
           <Button size="sm" variant="outline" onClick={copy} aria-label="Copy webhook URL">
             <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy
           </Button>
@@ -82,7 +90,8 @@ export default function WebhookUrlCard() {
           </Button>
         </div>
         <div className="text-[10px] text-muted-foreground">
-          Append your <code className="px-1 rounded bg-muted">?key=…</code> secret when pasting into ManyReach.
+          Paste this exact URL (including the <code className="px-1 rounded bg-muted">?secret=…</code> query string) into
+          ManyReach → Settings → Webhooks → Reply Webhook.
         </div>
       </CardContent>
     </Card>
