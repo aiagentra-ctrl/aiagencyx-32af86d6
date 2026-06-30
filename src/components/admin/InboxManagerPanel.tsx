@@ -501,7 +501,7 @@ const InboxManagerPanel = () => {
         </TabsContent>
 
         <TabsContent value="prompts"><PromptsEditor /></TabsContent>
-        <TabsContent value="templates"><ReplyTemplatesTab /></TabsContent>
+        
         <TabsContent value="webhooks"><WebhookLogsTab /></TabsContent>
         <TabsContent value="errors"><ErrorLogTab onJump={jumpToProspect} /></TabsContent>
       </Tabs>
