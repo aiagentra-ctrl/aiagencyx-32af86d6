@@ -559,6 +559,7 @@ export type Database = {
           created_at: string
           direction: string
           id: string
+          is_test_data: boolean
           manyreach_message_id: string | null
           prospect_id: string
           source: string
@@ -571,6 +572,7 @@ export type Database = {
           created_at?: string
           direction: string
           id?: string
+          is_test_data?: boolean
           manyreach_message_id?: string | null
           prospect_id: string
           source?: string
@@ -583,6 +585,7 @@ export type Database = {
           created_at?: string
           direction?: string
           id?: string
+          is_test_data?: boolean
           manyreach_message_id?: string | null
           prospect_id?: string
           source?: string
@@ -1061,12 +1064,14 @@ export type Database = {
           automation_paused: boolean
           campaign_id: string | null
           campaign_name: string | null
+          client_memory: Json
           company: string | null
           created_at: string
           demo_sent_at: string | null
           email: string
           firstname: string | null
           id: string
+          is_test_data: boolean
           last_classification: string | null
           last_message_at: string | null
           reply_to_email: string | null
@@ -1078,12 +1083,14 @@ export type Database = {
           automation_paused?: boolean
           campaign_id?: string | null
           campaign_name?: string | null
+          client_memory?: Json
           company?: string | null
           created_at?: string
           demo_sent_at?: string | null
           email: string
           firstname?: string | null
           id?: string
+          is_test_data?: boolean
           last_classification?: string | null
           last_message_at?: string | null
           reply_to_email?: string | null
@@ -1095,12 +1102,14 @@ export type Database = {
           automation_paused?: boolean
           campaign_id?: string | null
           campaign_name?: string | null
+          client_memory?: Json
           company?: string | null
           created_at?: string
           demo_sent_at?: string | null
           email?: string
           firstname?: string | null
           id?: string
+          is_test_data?: boolean
           last_classification?: string | null
           last_message_at?: string | null
           reply_to_email?: string | null
@@ -1194,6 +1203,36 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: string | null
+        }
+        Relationships: []
+      }
+      system_health_checks: {
+        Row: {
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          response_detail: Json | null
+          status: string
+          step_name: string
+          tested_at: string
+        }
+        Insert: {
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          response_detail?: Json | null
+          status: string
+          step_name: string
+          tested_at?: string
+        }
+        Update: {
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          response_detail?: Json | null
+          status?: string
+          step_name?: string
+          tested_at?: string
         }
         Relationships: []
       }
