@@ -55,6 +55,8 @@ export default function WebhookLogsTab() {
   };
 
   return (
+    <div className="space-y-4">
+      <WebhookUrlCard />
     <Card>
       <CardContent className="p-4 space-y-4">
         <div className="flex items-center justify-between gap-2">
