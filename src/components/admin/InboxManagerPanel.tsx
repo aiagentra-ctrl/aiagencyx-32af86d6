@@ -486,9 +486,6 @@ const InboxManagerPanel = () => {
                             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
                             Regenerate AI
                           </Button>
-                          <Button size="sm" variant="outline" onClick={loadTemplate}>
-                            <FileText className="mr-1.5 h-3.5 w-3.5" /> Load Template
-                          </Button>
                         </div>
                         <Button size="sm" onClick={sendManual} disabled={sending || !draft.trim()}>
                           <Send className="mr-1.5 h-3.5 w-3.5" />
