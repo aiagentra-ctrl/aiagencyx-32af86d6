@@ -65,8 +65,9 @@ Deno.serve(async (req) => {
     let demoUrl: string | undefined = existingDemo?.demo_url;
     const phase: "pre_demo" | "post_demo" = demoUrl ? "post_demo" : "pre_demo";
 
-    // Only create a demo if pre_demo and not Negative and we have a website
-    const shouldCreateDemo = phase === "pre_demo" && prospect.website_url && classification !== "Negative";
+    // n8n parity: all three branches (Positive / Negative / Objection) flow
+    // through `create-demo`. Only skip if we already have a demo or no website.
+    const shouldCreateDemo = phase === "pre_demo" && !!prospect.website_url;
     if (shouldCreateDemo) {
       try {
         const demoRes = await call("create-demo", {
