@@ -24,9 +24,6 @@ async function call(path: string, body: any) {
   return json;
 }
 
-function fillTemplate(body: string, vars: Record<string, string>) {
-  return body.replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, k) => vars[k] ?? "");
-}
 
 const SAFE_FALLBACK = "Thanks for your message — I'll get back to you shortly.";
 
