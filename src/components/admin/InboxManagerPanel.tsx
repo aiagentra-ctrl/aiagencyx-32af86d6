@@ -16,13 +16,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import {
   Search, Send, Sparkles, Pencil, ExternalLink, Copy, ArrowLeft, RefreshCw, Inbox, Globe,
-  Code2, User, Webhook, AlertCircle, FileText, ChevronDown,
+  Code2, User, Webhook, AlertCircle, ChevronDown, Mic, MessageSquare, Eye,
 } from "lucide-react";
 import SmartReplyEditor, { SmartReplyEditorHandle } from "./inbox/SmartReplyEditor";
 import PipelineTracer from "./inbox/PipelineTracer";
 import WebhookLogsTab from "./inbox/WebhookLogsTab";
 import ErrorLogTab from "./inbox/ErrorLogTab";
-import ReplyTemplatesTab from "./inbox/ReplyTemplatesTab";
 import ErrorBell from "./inbox/ErrorBell";
 
 type Prospect = {
@@ -224,18 +223,6 @@ const InboxManagerPanel = () => {
       setRegenerating(false);
     }
   };
-  const loadTemplate = async () => {
-    if (!selected) return;
-    const phase = selectedDemo ? "post_demo" : "pre_demo";
-    const cls = selected.last_classification || "Objection";
-    const { data } = await supabase.from("reply_templates").select("body").eq("classification", cls).eq("phase", phase).maybeSingle();
-    if (data?.body) {
-      editorRef.current?.setValue(data.body);
-      toast.success(`Loaded ${cls} · ${phase.replace("_", "-")} template`);
-    } else {
-      toast.error("No template for this classification + phase");
-    }
-  };
   const generateDemo = async () => {
     if (!selected) return;
     setGenDemo(true);
@@ -282,7 +269,7 @@ const InboxManagerPanel = () => {
         <TabsList>
           <TabsTrigger value="inbox"><Inbox className="mr-1.5 h-3.5 w-3.5" /> Inbox</TabsTrigger>
           <TabsTrigger value="prompts"><Sparkles className="mr-1.5 h-3.5 w-3.5" /> Prompts</TabsTrigger>
-          <TabsTrigger value="templates"><FileText className="mr-1.5 h-3.5 w-3.5" /> Templates</TabsTrigger>
+          
           {isDev && <TabsTrigger value="webhooks"><Webhook className="mr-1.5 h-3.5 w-3.5" /> Webhook Logs</TabsTrigger>}
           {isDev && <TabsTrigger value="errors"><AlertCircle className="mr-1.5 h-3.5 w-3.5" /> Error Log</TabsTrigger>}
         </TabsList>
@@ -346,9 +333,22 @@ const InboxManagerPanel = () => {
                               <div className="text-xs text-muted-foreground truncate mt-0.5">
                                 {last?.body?.slice(0, 80) || p.email}
                               </div>
-                              <div className="flex items-center gap-1 mt-1">
-                                {p.automation_paused && <Badge variant="outline" className="h-4 text-[10px]">Paused</Badge>}
-                                {p.demo_sent_at && <Badge variant="outline" className="h-4 text-[10px] border-emerald-500/40 text-emerald-600">demo-sent</Badge>}
+                              <div className="flex items-center flex-wrap gap-1 mt-1.5">
+                                {p.last_classification === "Objection" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-amber-500/10 text-amber-600 border border-amber-500/20">🟡 Objection</span>
+                                )}
+                                {p.last_classification === "Positive" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">🟢 Positive</span>
+                                )}
+                                {p.last_classification === "Negative" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-red-500/10 text-red-600 border border-red-500/20">🔴 Negative</span>
+                                )}
+                                {p.demo_sent_at && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-primary/10 text-primary border border-primary/20"><Eye className="h-2.5 w-2.5" /> demo sent</span>
+                                )}
+                                {p.automation_paused && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground border">⏸ Paused</span>
+                                )}
                               </div>
                             </button>
                           </li>
@@ -487,9 +487,6 @@ const InboxManagerPanel = () => {
                             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
                             Regenerate AI
                           </Button>
-                          <Button size="sm" variant="outline" onClick={loadTemplate}>
-                            <FileText className="mr-1.5 h-3.5 w-3.5" /> Load Template
-                          </Button>
                         </div>
                         <Button size="sm" onClick={sendManual} disabled={sending || !draft.trim()}>
                           <Send className="mr-1.5 h-3.5 w-3.5" />
@@ -505,7 +502,7 @@ const InboxManagerPanel = () => {
         </TabsContent>
 
         <TabsContent value="prompts"><PromptsEditor /></TabsContent>
-        <TabsContent value="templates"><ReplyTemplatesTab /></TabsContent>
+        
         <TabsContent value="webhooks"><WebhookLogsTab /></TabsContent>
         <TabsContent value="errors"><ErrorLogTab onJump={jumpToProspect} /></TabsContent>
       </Tabs>

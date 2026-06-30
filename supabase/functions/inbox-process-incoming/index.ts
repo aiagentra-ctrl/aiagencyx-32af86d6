@@ -24,9 +24,6 @@ async function call(path: string, body: any) {
   return json;
 }
 
-function fillTemplate(body: string, vars: Record<string, string>) {
-  return body.replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, k) => vars[k] ?? "");
-}
 
 const SAFE_FALLBACK = "Thanks for your message — I'll get back to you shortly.";
 
@@ -108,43 +105,17 @@ Deno.serve(async (req) => {
 
     // 3) reply: template-first, AI fallback, then safe-generic
     const effectivePhase: "pre_demo" | "post_demo" = demoUrl ? "post_demo" : "pre_demo";
-    const senderName = (prospect.sender_email || "").split("@")[0]?.split(/[._-]/).filter(Boolean).map((p: string) => p[0].toUpperCase() + p.slice(1)).join(" ") || "the team";
-
-    const vars: Record<string, string> = {
-      firstname: prospect.firstname || "there",
-      company: prospect.company || "your team",
-      sender_name: senderName,
-      sender_email: prospect.sender_email || "",
-      demo_url: demoUrl || "",
-    };
 
     let reply = "";
-    let replySource: "template" | "ai" | "fallback" = "fallback";
+    let replySource: "ai" | "fallback" = "fallback";
 
-    const { data: tpl } = await supabase
-      .from("reply_templates")
-      .select("body, locked_vars")
-      .eq("classification", classification)
-      .eq("phase", effectivePhase)
-      .eq("is_default", true)
-      .maybeSingle();
-
-    if (tpl?.body) {
-      reply = fillTemplate(tpl.body, vars).trim();
-      // safety: strip stray demo_url chips if post_demo somehow leaked through
-      if (effectivePhase === "post_demo" && !demoUrl) {
-        reply = reply.replace(/https?:\/\/\S*aiagentfor\.lovable\.app\S*/gi, "").trim();
-      }
-      replySource = "template";
-    } else {
-      try {
-        const out = await call("inbox-generate-reply", { prospect_id, classification, demo_url: demoUrl });
-        reply = (out?.reply || "").trim();
-        if (reply) replySource = "ai";
-      } catch (e) {
-        const m = String((e as any)?.message || e);
-        await logError("reply_generation", m, { prospect_id, message_id, stack: (e as any)?.stack });
-      }
+    try {
+      const out = await call("inbox-generate-reply", { prospect_id, classification, demo_url: demoUrl });
+      reply = (out?.reply || "").trim();
+      if (reply) replySource = "ai";
+    } catch (e) {
+      const m = String((e as any)?.message || e);
+      await logError("reply_generation", m, { prospect_id, message_id, stack: (e as any)?.stack });
     }
 
     if (!reply) {
