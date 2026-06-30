@@ -119,32 +119,15 @@ Deno.serve(async (req) => {
     };
 
     let reply = "";
-    let replySource: "template" | "ai" | "fallback" = "fallback";
+    let replySource: "ai" | "fallback" = "fallback";
 
-    const { data: tpl } = await supabase
-      .from("reply_templates")
-      .select("body, locked_vars")
-      .eq("classification", classification)
-      .eq("phase", effectivePhase)
-      .eq("is_default", true)
-      .maybeSingle();
-
-    if (tpl?.body) {
-      reply = fillTemplate(tpl.body, vars).trim();
-      // safety: strip stray demo_url chips if post_demo somehow leaked through
-      if (effectivePhase === "post_demo" && !demoUrl) {
-        reply = reply.replace(/https?:\/\/\S*aiagentfor\.lovable\.app\S*/gi, "").trim();
-      }
-      replySource = "template";
-    } else {
-      try {
-        const out = await call("inbox-generate-reply", { prospect_id, classification, demo_url: demoUrl });
-        reply = (out?.reply || "").trim();
-        if (reply) replySource = "ai";
-      } catch (e) {
-        const m = String((e as any)?.message || e);
-        await logError("reply_generation", m, { prospect_id, message_id, stack: (e as any)?.stack });
-      }
+    try {
+      const out = await call("inbox-generate-reply", { prospect_id, classification, demo_url: demoUrl });
+      reply = (out?.reply || "").trim();
+      if (reply) replySource = "ai";
+    } catch (e) {
+      const m = String((e as any)?.message || e);
+      await logError("reply_generation", m, { prospect_id, message_id, stack: (e as any)?.stack });
     }
 
     if (!reply) {
