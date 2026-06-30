@@ -333,9 +333,22 @@ const InboxManagerPanel = () => {
                               <div className="text-xs text-muted-foreground truncate mt-0.5">
                                 {last?.body?.slice(0, 80) || p.email}
                               </div>
-                              <div className="flex items-center gap-1 mt-1">
-                                {p.automation_paused && <Badge variant="outline" className="h-4 text-[10px]">Paused</Badge>}
-                                {p.demo_sent_at && <Badge variant="outline" className="h-4 text-[10px] border-emerald-500/40 text-emerald-600">demo-sent</Badge>}
+                              <div className="flex items-center flex-wrap gap-1 mt-1.5">
+                                {p.last_classification === "Objection" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-amber-500/10 text-amber-600 border border-amber-500/20">🟡 Objection</span>
+                                )}
+                                {p.last_classification === "Positive" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">🟢 Positive</span>
+                                )}
+                                {p.last_classification === "Negative" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-red-500/10 text-red-600 border border-red-500/20">🔴 Negative</span>
+                                )}
+                                {p.demo_sent_at && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-primary/10 text-primary border border-primary/20"><Eye className="h-2.5 w-2.5" /> demo sent</span>
+                                )}
+                                {p.automation_paused && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground border">⏸ Paused</span>
+                                )}
                               </div>
                             </button>
                           </li>
