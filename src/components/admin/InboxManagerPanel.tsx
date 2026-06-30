@@ -223,18 +223,6 @@ const InboxManagerPanel = () => {
       setRegenerating(false);
     }
   };
-  const loadTemplate = async () => {
-    if (!selected) return;
-    const phase = selectedDemo ? "post_demo" : "pre_demo";
-    const cls = selected.last_classification || "Objection";
-    const { data } = await supabase.from("reply_templates").select("body").eq("classification", cls).eq("phase", phase).maybeSingle();
-    if (data?.body) {
-      editorRef.current?.setValue(data.body);
-      toast.success(`Loaded ${cls} · ${phase.replace("_", "-")} template`);
-    } else {
-      toast.error("No template for this classification + phase");
-    }
-  };
   const generateDemo = async () => {
     if (!selected) return;
     setGenDemo(true);
