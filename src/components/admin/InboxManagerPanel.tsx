@@ -23,6 +23,8 @@ import PipelineTracer from "./inbox/PipelineTracer";
 import WebhookLogsTab from "./inbox/WebhookLogsTab";
 import ErrorLogTab from "./inbox/ErrorLogTab";
 import ErrorBell from "./inbox/ErrorBell";
+import HealthCheckTab from "./inbox/HealthCheckTab";
+import { ShieldCheck } from "lucide-react";
 
 type Prospect = {
   id: string; email: string; firstname: string | null; company: string | null;
@@ -100,8 +102,8 @@ const InboxManagerPanel = () => {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const [{ data: ps }, { data: ms }, { data: ds }, { data: pe }] = await Promise.all([
-      supabase.from("prospects").select("*").order("last_message_at", { ascending: false, nullsFirst: false }),
-      supabase.from("inbox_messages").select("*").order("created_at", { ascending: true }),
+      supabase.from("prospects").select("*").eq("is_test_data", false).order("last_message_at", { ascending: false, nullsFirst: false }),
+      supabase.from("inbox_messages").select("*").eq("is_test_data", false).order("created_at", { ascending: true }),
       supabase.from("inbox_demos").select("*").order("created_at", { ascending: false }),
       supabase.from("pipeline_events").select("id, message_id, step, status, details, created_at").order("created_at", { ascending: false }).limit(500),
     ]);
@@ -272,6 +274,7 @@ const InboxManagerPanel = () => {
           
           {isDev && <TabsTrigger value="webhooks"><Webhook className="mr-1.5 h-3.5 w-3.5" /> Webhook Logs</TabsTrigger>}
           {isDev && <TabsTrigger value="errors"><AlertCircle className="mr-1.5 h-3.5 w-3.5" /> Error Log</TabsTrigger>}
+          {isDev && <TabsTrigger value="health"><ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Health Check</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="inbox" className="space-y-4">
@@ -505,6 +508,7 @@ const InboxManagerPanel = () => {
         
         <TabsContent value="webhooks"><WebhookLogsTab /></TabsContent>
         <TabsContent value="errors"><ErrorLogTab onJump={jumpToProspect} /></TabsContent>
+        <TabsContent value="health"><HealthCheckTab /></TabsContent>
       </Tabs>
     </div>
   );
