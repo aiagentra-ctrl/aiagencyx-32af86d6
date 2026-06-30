@@ -16,13 +16,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import {
   Search, Send, Sparkles, Pencil, ExternalLink, Copy, ArrowLeft, RefreshCw, Inbox, Globe,
-  Code2, User, Webhook, AlertCircle, FileText, ChevronDown,
+  Code2, User, Webhook, AlertCircle, ChevronDown, Mic, MessageSquare, Eye,
 } from "lucide-react";
 import SmartReplyEditor, { SmartReplyEditorHandle } from "./inbox/SmartReplyEditor";
 import PipelineTracer from "./inbox/PipelineTracer";
 import WebhookLogsTab from "./inbox/WebhookLogsTab";
 import ErrorLogTab from "./inbox/ErrorLogTab";
-import ReplyTemplatesTab from "./inbox/ReplyTemplatesTab";
 import ErrorBell from "./inbox/ErrorBell";
 
 type Prospect = {
