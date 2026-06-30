@@ -133,5 +133,6 @@ export default function WebhookLogsTab() {
         </ScrollArea>
       </CardContent>
     </Card>
+    </div>
   );
 }
