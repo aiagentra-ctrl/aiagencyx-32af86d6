@@ -2,3 +2,6 @@ project_id = "kurcsodbvfjdzliorgvv"
 
 [functions.webhook-manyreach-reply]
 verify_jwt = false
+
+[functions.get-webhook-url]
+verify_jwt = false
