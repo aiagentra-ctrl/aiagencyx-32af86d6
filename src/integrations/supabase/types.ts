@@ -471,6 +471,143 @@ export type Database = {
         }
         Relationships: []
       }
+      follow_up_enrollments: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          current_step: number
+          id: string
+          last_error: string | null
+          next_step_at: string | null
+          prospect_id: string
+          retry_count: number
+          sequence_template_id: string
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          id?: string
+          last_error?: string | null
+          next_step_at?: string | null
+          prospect_id: string
+          retry_count?: number
+          sequence_template_id: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          id?: string
+          last_error?: string | null
+          next_step_at?: string | null
+          prospect_id?: string
+          retry_count?: number
+          sequence_template_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_enrollments_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_up_enrollments_sequence_template_id_fkey"
+            columns: ["sequence_template_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_sequences_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      follow_up_sequences_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          trigger_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          trigger_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          trigger_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      follow_up_steps: {
+        Row: {
+          created_at: string
+          delay_unit: string
+          delay_value: number
+          id: string
+          include_demo_link: boolean
+          message_body: string
+          message_subject: string
+          sequence_template_id: string
+          step_number: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delay_unit?: string
+          delay_value?: number
+          id?: string
+          include_demo_link?: boolean
+          message_body?: string
+          message_subject?: string
+          sequence_template_id: string
+          step_number: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delay_unit?: string
+          delay_value?: number
+          id?: string
+          include_demo_link?: boolean
+          message_body?: string
+          message_subject?: string
+          sequence_template_id?: string
+          step_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_steps_sequence_template_id_fkey"
+            columns: ["sequence_template_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_sequences_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       follow_up_templates: {
         Row: {
           body: string
@@ -494,6 +631,104 @@ export type Database = {
           created_at?: string
           id?: string
           subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      followup_events: {
+        Row: {
+          attempt: number
+          created_at: string
+          error: string | null
+          id: string
+          manyreach_message_id: string | null
+          message_body: string | null
+          message_subject: string | null
+          prospect_id: string
+          scheduled_at: string
+          sent_at: string | null
+          sequence_enrollment_id: string | null
+          source: string
+          status: string
+          trigger_key: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          manyreach_message_id?: string | null
+          message_body?: string | null
+          message_subject?: string | null
+          prospect_id: string
+          scheduled_at?: string
+          sent_at?: string | null
+          sequence_enrollment_id?: string | null
+          source?: string
+          status?: string
+          trigger_key: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          manyreach_message_id?: string | null
+          message_body?: string | null
+          message_subject?: string | null
+          prospect_id?: string
+          scheduled_at?: string
+          sent_at?: string | null
+          sequence_enrollment_id?: string | null
+          source?: string
+          status?: string
+          trigger_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "followup_events_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      followup_rules: {
+        Row: {
+          auto_send: boolean
+          created_at: string
+          delay_hours: number
+          enabled: boolean
+          id: string
+          label: string
+          prompt_override: string | null
+          trigger_key: string
+          updated_at: string
+        }
+        Insert: {
+          auto_send?: boolean
+          created_at?: string
+          delay_hours?: number
+          enabled?: boolean
+          id?: string
+          label: string
+          prompt_override?: string | null
+          trigger_key: string
+          updated_at?: string
+        }
+        Update: {
+          auto_send?: boolean
+          created_at?: string
+          delay_hours?: number
+          enabled?: boolean
+          id?: string
+          label?: string
+          prompt_override?: string | null
+          trigger_key?: string
           updated_at?: string
         }
         Relationships: []
@@ -1064,57 +1299,90 @@ export type Database = {
           automation_paused: boolean
           campaign_id: string | null
           campaign_name: string | null
+          chatbot_tried_at: string | null
           client_memory: Json
           company: string | null
           created_at: string
+          demo_link_clicked_at: string | null
+          demo_page_opened_at: string | null
           demo_sent_at: string | null
           email: string
           firstname: string | null
+          followup_attempts: number
+          followup_status: string
           id: string
           is_test_data: boolean
+          last_activity_at: string | null
           last_classification: string | null
           last_message_at: string | null
+          max_followup_attempts: number
+          next_followup_at: string | null
+          next_followup_trigger: string | null
+          original_message_id: string | null
           reply_to_email: string | null
           sender_email: string | null
           updated_at: string
+          voice_tried_at: string | null
           website_url: string | null
         }
         Insert: {
           automation_paused?: boolean
           campaign_id?: string | null
           campaign_name?: string | null
+          chatbot_tried_at?: string | null
           client_memory?: Json
           company?: string | null
           created_at?: string
+          demo_link_clicked_at?: string | null
+          demo_page_opened_at?: string | null
           demo_sent_at?: string | null
           email: string
           firstname?: string | null
+          followup_attempts?: number
+          followup_status?: string
           id?: string
           is_test_data?: boolean
+          last_activity_at?: string | null
           last_classification?: string | null
           last_message_at?: string | null
+          max_followup_attempts?: number
+          next_followup_at?: string | null
+          next_followup_trigger?: string | null
+          original_message_id?: string | null
           reply_to_email?: string | null
           sender_email?: string | null
           updated_at?: string
+          voice_tried_at?: string | null
           website_url?: string | null
         }
         Update: {
           automation_paused?: boolean
           campaign_id?: string | null
           campaign_name?: string | null
+          chatbot_tried_at?: string | null
           client_memory?: Json
           company?: string | null
           created_at?: string
+          demo_link_clicked_at?: string | null
+          demo_page_opened_at?: string | null
           demo_sent_at?: string | null
           email?: string
           firstname?: string | null
+          followup_attempts?: number
+          followup_status?: string
           id?: string
           is_test_data?: boolean
+          last_activity_at?: string | null
           last_classification?: string | null
           last_message_at?: string | null
+          max_followup_attempts?: number
+          next_followup_at?: string | null
+          next_followup_trigger?: string | null
+          original_message_id?: string | null
           reply_to_email?: string | null
           sender_email?: string | null
           updated_at?: string
+          voice_tried_at?: string | null
           website_url?: string | null
         }
         Relationships: []

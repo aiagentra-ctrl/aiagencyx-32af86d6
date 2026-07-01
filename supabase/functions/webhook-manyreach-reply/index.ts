@@ -99,7 +99,16 @@ Deno.serve(async (req) => {
       if (!existing.campaign_name && campaignName) update.campaign_name = campaignName;
       if (!existing.sender_email && senderEmail) update.sender_email = senderEmail;
       if (!existing.reply_to_email && replyToEmail) update.reply_to_email = replyToEmail;
+      if (!existing.original_message_id && manyMessageId) update.original_message_id = manyMessageId;
+      update.last_activity_at = new Date().toISOString();
+      // Prospect replied → cancel any pending follow-ups & mark responded
+      if (existing.followup_status && existing.followup_status !== 'none') {
+        update.followup_status = 'responded';
+      }
       await supabase.from("prospects").update(update).eq("id", prospectId);
+      // Cancel pending followup_events and mark active enrollments responded
+      await supabase.from("followup_events").update({ status: 'cancelled' }).eq("prospect_id", prospectId).eq("status", "pending");
+      await supabase.from("follow_up_enrollments").update({ status: 'responded', completed_at: new Date().toISOString() }).eq("prospect_id", prospectId).eq("status", "active");
     } else {
       const { data: inserted, error: insErr } = await supabase
         .from("prospects").insert({
@@ -107,6 +116,8 @@ Deno.serve(async (req) => {
           campaign_id: campaignId, campaign_name: campaignName,
           sender_email: senderEmail, reply_to_email: replyToEmail,
           last_message_at: new Date().toISOString(),
+          original_message_id: manyMessageId,
+          last_activity_at: new Date().toISOString(),
           is_test_data: isTest,
         }).select("id").single();
       if (insErr) throw insErr;

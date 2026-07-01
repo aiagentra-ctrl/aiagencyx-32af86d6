@@ -19,6 +19,7 @@ import LeadsPanel from "@/components/admin/LeadsPanel";
 import FollowUpTemplatesPanel from "@/components/admin/FollowUpTemplatesPanel";
 import KnowledgeBasePanel from "@/components/admin/KnowledgeBasePanel";
 import InboxManagerPanel from "@/components/admin/InboxManagerPanel";
+import FollowUpsPage from "@/components/admin/FollowUpsPage";
 import { Input } from "@/components/ui/input";
 
 
@@ -197,6 +198,10 @@ const AdminDashboard = () => {
               <Inbox className="mr-1.5 h-3.5 w-3.5" />
               Inbox
             </TabsTrigger>
+            <TabsTrigger value="sequences">
+              <Mail className="mr-1.5 h-3.5 w-3.5" />
+              Sequences
+            </TabsTrigger>
             <TabsTrigger value="logs">
               <Activity className="mr-1.5 h-3.5 w-3.5" />
               Logs
@@ -349,6 +354,11 @@ const AdminDashboard = () => {
           {/* Inbox Manager Tab */}
           <TabsContent value="inbox">
             <InboxManagerPanel />
+          </TabsContent>
+
+          {/* Follow-up Sequences Tab */}
+          <TabsContent value="sequences">
+            <FollowUpsPage />
           </TabsContent>
 
           {/* Logs Tab */}
