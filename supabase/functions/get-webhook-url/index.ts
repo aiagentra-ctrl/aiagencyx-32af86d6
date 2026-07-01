@@ -1,8 +1,6 @@
 // Returns the full ManyReach webhook URL (including the secret query param).
 // Secret is read server-side so it NEVER ships in the frontend bundle —
 // only logged-in dashboard users can fetch this.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
