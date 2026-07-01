@@ -9,6 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Check, X, ChevronDown, Send, Loader2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import WebhookUrlCard from "./WebhookUrlCard";
+import WebhookSecretsCard from "./WebhookSecretsCard";
 
 type Log = {
   id: string; endpoint: string; method: string;
