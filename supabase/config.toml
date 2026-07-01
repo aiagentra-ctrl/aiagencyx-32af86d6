@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.get-webhook-url]
 verify_jwt = false
+
+[functions.get-secret-status]
+verify_jwt = false
