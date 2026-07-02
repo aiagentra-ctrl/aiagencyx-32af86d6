@@ -2,6 +2,7 @@
 // Protected by a shared secret query param: ?key=<INBOX_WEBHOOK_SECRET>
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logWebhook, traceStep, logError } from "../_shared/observability.ts";
+import { recordReply } from "../_shared/memory.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -142,6 +143,9 @@ Deno.serve(async (req) => {
       email, subject, has_body: !!body, manyreach_message_id: manyMessageId,
     });
     await traceStep(prospectId, messageId, "stored", "ok", { message_id: messageId });
+
+    // Memory: record the reply time (day/hour) and increment counters.
+    try { await recordReply(prospectId!, null); } catch (err) { console.error("recordReply failed:", err); }
 
     // Fire-and-forget orchestrator
     fetch(`${SUPABASE_URL}/functions/v1/inbox-process-incoming`, {
