@@ -349,7 +349,7 @@ function AdminSections(props: {
 
           {/* Settings Tab */}
           <TabsContent value="settings">
-            <SiteSettingsPanel />
+            <SettingsPage />
           </TabsContent>
 
           {/* Analytics Tab */}
