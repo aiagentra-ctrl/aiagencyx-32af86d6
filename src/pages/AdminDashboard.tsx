@@ -21,6 +21,10 @@ import KnowledgeBasePanel from "@/components/admin/KnowledgeBasePanel";
 import InboxManagerPanel from "@/components/admin/InboxManagerPanel";
 import FollowUpsPage from "@/components/admin/FollowUpsPage";
 import DashboardHome from "@/components/admin/DashboardHome";
+import LogsPage from "@/components/admin/LogsPage";
+import SettingsPage from "@/components/admin/SettingsPage";
+import HealthPage from "@/components/admin/HealthPage";
+import WorkflowCanvas from "@/components/admin/WorkflowCanvas";
 import { Input } from "@/components/ui/input";
 import { ShellProvider, useShell } from "@/components/shell/ShellContext";
 import { AppShell } from "@/components/shell/AppShell";
@@ -207,6 +211,8 @@ function AdminSections(props: {
       <TabsList className="sr-only">
         <TabsTrigger value="home">Home</TabsTrigger>
         <TabsTrigger value="demos">Demos</TabsTrigger>
+        <TabsTrigger value="workflow">Workflow</TabsTrigger>
+        <TabsTrigger value="health">Health</TabsTrigger>
         <TabsTrigger value="settings">Settings</TabsTrigger>
         <TabsTrigger value="analytics">Analytics</TabsTrigger>
         <TabsTrigger value="leads">Leads</TabsTrigger>
@@ -378,8 +384,20 @@ function AdminSections(props: {
 
           {/* Logs Tab */}
           <TabsContent value="logs">
-            <ActivityLogViewer />
+            <LogsPage />
           </TabsContent>
+
+          {/* Workflow Tab */}
+          <TabsContent value="workflow">
+            <WorkflowCanvas />
+          </TabsContent>
+
+          {/* Health Tab */}
+          <TabsContent value="health">
+            <HealthPage />
+          </TabsContent>
+
+          {/* Settings override */}
     </Tabs>
   );
 }
