@@ -1,4 +1,4 @@
-import { Zap, Cog, BarChart3, UserCheck, Layers, Mail, Database, Inbox, Activity, Workflow, ShieldCheck, HeartPulse, Home, Settings } from "lucide-react";
+import { Zap, Cog, BarChart3, UserCheck, Layers, Mail, Database, Inbox, Activity, Workflow, HeartPulse, Home, Settings } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 export type NavItem = {
@@ -19,6 +19,8 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "analytics", label: "Analytics",     icon: BarChart3,  group: "workspace" },
   { key: "knowledge", label: "Knowledge",     icon: Database,   group: "workspace" },
   { key: "followups", label: "Templates",     icon: Layers,     group: "workspace" },
+  { key: "workflow",  label: "Workflow",      icon: Workflow,   group: "system" },
+  { key: "health",    label: "Health Check",  icon: HeartPulse, group: "system" },
   { key: "logs",      label: "Logs",          icon: Activity,   group: "system" },
   { key: "settings",  label: "Settings",      icon: Cog,        group: "system" },
 ];
