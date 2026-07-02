@@ -177,8 +177,8 @@ function NodeDrawer({ node, onClose, events }: { node: NodeDef | null; onClose: 
   useEffect(() => {
     if (!node) return;
     setPrompt(""); setTestOutput("");
-    supabase.from("node_prompts").select("prompt,model").eq("node_key", node.key).maybeSingle()
-      .then(({ data }: any) => { if (data) { setPrompt(data.prompt ?? ""); setModel(data.model ?? model); } });
+    supabase.from("node_prompts").select("system_prompt,model").eq("node_name", node.key).maybeSingle()
+      .then(({ data }: any) => { if (data) { setPrompt(data.system_prompt ?? ""); setModel(data.model ?? model); } });
   }, [node?.key]);
 
   if (!node) return null;
@@ -187,7 +187,7 @@ function NodeDrawer({ node, onClose, events }: { node: NodeDef | null; onClose: 
   const save = async () => {
     setSaving(true);
     const { error } = await supabase.from("node_prompts").upsert(
-      { node_key: node.key, prompt, model }, { onConflict: "node_key" }
+      { node_name: node.key, system_prompt: prompt, model }, { onConflict: "node_name" }
     );
     setSaving(false);
     if (error) toast.error(error.message); else toast.success("Prompt saved");
