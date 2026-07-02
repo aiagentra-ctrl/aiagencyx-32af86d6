@@ -1,6 +1,7 @@
 // Send a reply via ManyReach and log it as an outgoing message.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logError } from "../_shared/observability.ts";
+import { hasDemoUrl, markDemoLinkSent } from "../_shared/memory.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,6 +78,12 @@ Deno.serve(async (req) => {
     if (insErr) throw insErr;
 
     await supabase.from("prospects").update({ last_message_at: new Date().toISOString() }).eq("id", prospect_id);
+
+    // Memory: if this outgoing message contained a demo link, lock future
+    // sends from including one.
+    if (hasDemoUrl(body)) {
+      try { await markDemoLinkSent(prospect_id, outMsg.id); } catch (_) { /* noop */ }
+    }
 
     return new Response(JSON.stringify({ ok: manyreachOk, message_id: outMsg.id, manyreach: manyreachResponse }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
