@@ -10,8 +10,8 @@ import {
 import { toast } from "sonner";
 
 type Note = {
-  id: string; type: string; title: string; body: string | null;
-  prospect_id: string | null; read_at: string | null; created_at: string;
+  id: string; type: string; message: string;
+  prospect_id: string | null; read: boolean; created_at: string;
 };
 
 export default function NotificationBell({ onJump }: { onJump?: (prospectId: string) => void }) {
@@ -28,7 +28,7 @@ export default function NotificationBell({ onJump }: { onJump?: (prospectId: str
     const ch = supabase.channel("notif-bell")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, (p) => {
         const n = p.new as Note;
-        toast(n.title, { description: n.body?.slice(0, 200), icon: n.type === "hot_lead" ? "🔥" : "🔔" });
+        toast(n.type === "hot_lead" ? "🔥 Hot lead" : "Notification", { description: n.message?.slice(0, 200) });
         load();
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "notifications" }, () => load())
@@ -36,7 +36,7 @@ export default function NotificationBell({ onJump }: { onJump?: (prospectId: str
     return () => { supabase.removeChannel(ch); };
   }, []);
 
-  const unread = notes.filter((n) => !n.read_at).length;
+  const unread = notes.filter((n) => !n.read).length;
 
   const markRead = async (id: string) => {
     await supabase.functions.invoke("mark-notification-read", { body: { id } });
@@ -69,11 +69,10 @@ export default function NotificationBell({ onJump }: { onJump?: (prospectId: str
               <Badge variant={n.type === "hot_lead" ? "default" : "outline"} className="h-4 text-[9px] capitalize">
                 {n.type.replace("_", " ")}
               </Badge>
-              {!n.read_at && <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />}
+              {!n.read && <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />}
               <span className="ml-auto text-[9px] text-muted-foreground">{new Date(n.created_at).toLocaleTimeString()}</span>
             </div>
-            <span className="text-[11px] font-medium truncate w-full">{n.title}</span>
-            {n.body && <span className="text-[10px] text-muted-foreground truncate w-full">{n.body}</span>}
+            <span className="text-[11px] truncate w-full">{n.message}</span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
