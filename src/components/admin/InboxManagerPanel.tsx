@@ -328,7 +328,7 @@ const InboxManagerPanel = () => {
                           <li key={p.id}>
                             <button
                               onClick={() => setSelectedId(p.id)}
-                              className={`w-full text-left p-3 hover:bg-muted/40 transition ${active ? "bg-muted/60" : ""}`}
+                              className={`w-full text-left p-3 hover:bg-muted/40 transition relative ${active ? "bg-muted/60" : ""} ${p.is_hot_lead ? "bg-orange-500/5 border-l-2 border-orange-500" : ""}`}
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0">
@@ -358,6 +358,11 @@ const InboxManagerPanel = () => {
                                 )}
                                 {p.automation_paused && (
                                   <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground border">⏸ Paused</span>
+                                )}
+                                {p.is_hot_lead && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-orange-500/10 text-orange-600 border border-orange-500/30 animate-pulse">
+                                    <Flame className="h-2.5 w-2.5" /> Hot · {p.hot_lead_open_count || 0} opens
+                                  </span>
                                 )}
                               </div>
                             </button>
