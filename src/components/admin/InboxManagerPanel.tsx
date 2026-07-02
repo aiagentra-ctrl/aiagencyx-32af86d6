@@ -23,8 +23,9 @@ import PipelineTracer from "./inbox/PipelineTracer";
 import WebhookLogsTab from "./inbox/WebhookLogsTab";
 import ErrorLogTab from "./inbox/ErrorLogTab";
 import ErrorBell from "./inbox/ErrorBell";
+import NotificationBell from "./inbox/NotificationBell";
 import HealthCheckTab from "./inbox/HealthCheckTab";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Flame } from "lucide-react";
 
 type Prospect = {
   id: string; email: string; firstname: string | null; company: string | null;
@@ -34,6 +35,9 @@ type Prospect = {
   last_classification: "Positive" | "Negative" | "Objection" | null;
   demo_sent_at: string | null;
   created_at: string;
+  is_hot_lead?: boolean | null;
+  hot_lead_open_count?: number | null;
+  hot_lead_detected_at?: string | null;
 };
 type Msg = {
   id: string; prospect_id: string; direction: "incoming" | "outgoing";
@@ -264,7 +268,10 @@ const InboxManagerPanel = () => {
             <Code2 className="h-3.5 w-3.5" /> Developer View
           </button>
         </div>
-        <ErrorBell onJump={jumpToProspect} />
+        <div className="flex items-center gap-1">
+          <NotificationBell onJump={jumpToProspect} />
+          <ErrorBell onJump={jumpToProspect} />
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -321,7 +328,7 @@ const InboxManagerPanel = () => {
                           <li key={p.id}>
                             <button
                               onClick={() => setSelectedId(p.id)}
-                              className={`w-full text-left p-3 hover:bg-muted/40 transition ${active ? "bg-muted/60" : ""}`}
+                              className={`w-full text-left p-3 hover:bg-muted/40 transition relative ${active ? "bg-muted/60" : ""} ${p.is_hot_lead ? "bg-orange-500/5 border-l-2 border-orange-500" : ""}`}
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2 min-w-0">
@@ -351,6 +358,11 @@ const InboxManagerPanel = () => {
                                 )}
                                 {p.automation_paused && (
                                   <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground border">⏸ Paused</span>
+                                )}
+                                {p.is_hot_lead && (
+                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] bg-orange-500/10 text-orange-600 border border-orange-500/30 animate-pulse">
+                                    <Flame className="h-2.5 w-2.5" /> Hot · {p.hot_lead_open_count || 0} opens
+                                  </span>
                                 )}
                               </div>
                             </button>
@@ -391,6 +403,35 @@ const InboxManagerPanel = () => {
                       </label>
                     </div>
 
+                    {selected.is_hot_lead && (
+                      <div className="px-4 py-3 border-b bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent border-orange-500/30 animate-fade-in">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="relative">
+                              <Flame className="h-5 w-5 text-orange-500 relative" />
+                              <span className="absolute inset-0 rounded-full bg-orange-500/30 animate-ping" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-orange-700 dark:text-orange-400">🔥 Hot lead detected</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {selected.hot_lead_open_count || 0} demo opens · sequence auto-paused
+                                {selected.hot_lead_detected_at && ` · ${relTime(selected.hot_lead_detected_at)}`}
+                              </div>
+                            </div>
+                          </div>
+                          <Button size="sm" variant="outline" className="border-orange-500/40 text-orange-600 hover:bg-orange-500/10"
+                            onClick={async () => {
+                              try {
+                                await invoke("resume-hot-lead-sequence", { prospect_id: selected.id });
+                                toast.success("Sequence resumed");
+                                fetchAll();
+                              } catch (e: any) { toast.error(e.message || "Failed"); }
+                            }}>
+                            Resume sequence
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     <div className="px-4 py-3 border-b bg-muted/20">
                       {selectedDemo ? (
                         <div className="flex items-center justify-between gap-2">
