@@ -25,7 +25,7 @@ export default function NotificationBell({ onJump }: { onJump?: (prospectId: str
 
   useEffect(() => {
     load();
-    const ch = supabase.channel("notif-bell")
+    const ch = supabase.channel(`notif-bell-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, (p) => {
         const n = p.new as Note;
         toast(n.type === "hot_lead" ? "🔥 Hot lead" : "Notification", { description: n.message?.slice(0, 200) });
