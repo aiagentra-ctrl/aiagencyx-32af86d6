@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      ab_test_results: {
+        Row: {
+          created_at: string
+          declared_at: string | null
+          enrollments: number
+          id: string
+          response_rate: number
+          responses: number
+          sequence_template_id: string
+          variant: string
+          winner_declared: boolean
+          winner_variant: string | null
+        }
+        Insert: {
+          created_at?: string
+          declared_at?: string | null
+          enrollments?: number
+          id?: string
+          response_rate?: number
+          responses?: number
+          sequence_template_id: string
+          variant: string
+          winner_declared?: boolean
+          winner_variant?: string | null
+        }
+        Update: {
+          created_at?: string
+          declared_at?: string | null
+          enrollments?: number
+          id?: string
+          response_rate?: number
+          responses?: number
+          sequence_template_id?: string
+          variant?: string
+          winner_declared?: boolean
+          winner_variant?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ab_test_results_sequence_template_id_fkey"
+            columns: ["sequence_template_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_sequences_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_logs: {
         Row: {
           created_at: string
@@ -77,6 +124,30 @@ export type Database = {
           name?: string
           priority?: number
           provider_type?: string
+        }
+        Relationships: []
+      }
+      audit_log: {
+        Row: {
+          actor: string | null
+          created_at: string
+          detail: Json
+          event: string
+          id: string
+        }
+        Insert: {
+          actor?: string | null
+          created_at?: string
+          detail?: Json
+          event: string
+          id?: string
+        }
+        Update: {
+          actor?: string | null
+          created_at?: string
+          detail?: Json
+          event?: string
+          id?: string
         }
         Relationships: []
       }
@@ -1221,6 +1292,36 @@ export type Database = {
         }
         Relationships: []
       }
+      node_prompts: {
+        Row: {
+          created_at: string
+          id: string
+          model: string
+          node_name: string
+          system_prompt: string
+          updated_at: string
+          user_prompt_template: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          model?: string
+          node_name: string
+          system_prompt: string
+          updated_at?: string
+          user_prompt_template?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          model?: string
+          node_name?: string
+          system_prompt?: string
+          updated_at?: string
+          user_prompt_template?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -1414,6 +1515,68 @@ export type Database = {
           },
         ]
       }
+      prospect_memory: {
+        Row: {
+          classification_history: string[]
+          conversation_stage: string
+          created_at: string
+          demo_behavior: Json
+          demo_link_sent: boolean
+          demo_link_sent_at: string | null
+          demo_link_sent_in_message_id: string | null
+          id: string
+          last_reply_at: string | null
+          optimal_send_window: Json
+          prospect_id: string
+          reply_times: Json
+          sequence_memory: Json
+          total_replies_received: number
+          updated_at: string
+        }
+        Insert: {
+          classification_history?: string[]
+          conversation_stage?: string
+          created_at?: string
+          demo_behavior?: Json
+          demo_link_sent?: boolean
+          demo_link_sent_at?: string | null
+          demo_link_sent_in_message_id?: string | null
+          id?: string
+          last_reply_at?: string | null
+          optimal_send_window?: Json
+          prospect_id: string
+          reply_times?: Json
+          sequence_memory?: Json
+          total_replies_received?: number
+          updated_at?: string
+        }
+        Update: {
+          classification_history?: string[]
+          conversation_stage?: string
+          created_at?: string
+          demo_behavior?: Json
+          demo_link_sent?: boolean
+          demo_link_sent_at?: string | null
+          demo_link_sent_in_message_id?: string | null
+          id?: string
+          last_reply_at?: string | null
+          optimal_send_window?: Json
+          prospect_id?: string
+          reply_times?: Json
+          sequence_memory?: Json
+          total_replies_received?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospect_memory_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: true
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prospects: {
         Row: {
           automation_paused: boolean
@@ -1579,6 +1742,62 @@ export type Database = {
         }
         Relationships: []
       }
+      sequence_analytics_cache: {
+        Row: {
+          avg_step_to_reply: number | null
+          id: string
+          last_computed_at: string
+          reply_quality: Json
+          response_rate: number
+          sequence_template_id: string
+          step_funnel_data: Json
+          total_active: number
+          total_completed: number
+          total_enrolled: number
+          total_responded: number
+          variant_a_stats: Json | null
+          variant_b_stats: Json | null
+        }
+        Insert: {
+          avg_step_to_reply?: number | null
+          id?: string
+          last_computed_at?: string
+          reply_quality?: Json
+          response_rate?: number
+          sequence_template_id: string
+          step_funnel_data?: Json
+          total_active?: number
+          total_completed?: number
+          total_enrolled?: number
+          total_responded?: number
+          variant_a_stats?: Json | null
+          variant_b_stats?: Json | null
+        }
+        Update: {
+          avg_step_to_reply?: number | null
+          id?: string
+          last_computed_at?: string
+          reply_quality?: Json
+          response_rate?: number
+          sequence_template_id?: string
+          step_funnel_data?: Json
+          total_active?: number
+          total_completed?: number
+          total_enrolled?: number
+          total_responded?: number
+          variant_a_stats?: Json | null
+          variant_b_stats?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sequence_analytics_cache_sequence_template_id_fkey"
+            columns: ["sequence_template_id"]
+            isOneToOne: true
+            referencedRelation: "follow_up_sequences_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_settings: {
         Row: {
           created_at: string
@@ -1632,6 +1851,38 @@ export type Database = {
           tested_at?: string
         }
         Relationships: []
+      }
+      unsubscribed_prospects: {
+        Row: {
+          email: string
+          id: string
+          prospect_id: string | null
+          reason: string | null
+          unsubscribed_at: string
+        }
+        Insert: {
+          email: string
+          id?: string
+          prospect_id?: string | null
+          reason?: string | null
+          unsubscribed_at?: string
+        }
+        Update: {
+          email?: string
+          id?: string
+          prospect_id?: string | null
+          reason?: string | null
+          unsubscribed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unsubscribed_prospects_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: true
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       variable_fallbacks: {
         Row: {
