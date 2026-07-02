@@ -2,6 +2,7 @@
 // original_message_id to thread into the same conversation.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logWebhook } from "../_shared/observability.ts";
+import { hasDemoUrl, markDemoLinkSent } from "../_shared/memory.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,6 +77,9 @@ Deno.serve(async (req) => {
         prospect_id, direction: "outgoing", source: source || "followup",
         subject, body, manyreach_message_id: rj?.messageId || rj?.id || null,
       });
+      if (hasDemoUrl(body)) {
+        try { await markDemoLinkSent(prospect_id, null); } catch (_) { /* noop */ }
+      }
       if (event) {
         await supabase.from("followup_events").update({
           status: "sent", sent_at: new Date().toISOString(),
