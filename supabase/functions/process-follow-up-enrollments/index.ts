@@ -14,6 +14,38 @@ function unitToHours(unit: string): number {
   return 24; // days
 }
 
+// Shift a scheduled time forward to next best_day @ best_hour, cap at +48h beyond raw
+function smartTime(rawIso: string, bestDay: number | null, bestHour: number | null): { iso: string; used: boolean } {
+  const raw = new Date(rawIso);
+  if (bestDay == null || bestHour == null) return { iso: rawIso, used: false };
+  const d = new Date(raw);
+  d.setUTCHours(bestHour, 0, 0, 0);
+  // advance to next matching day-of-week that is >= raw
+  for (let i = 0; i < 8; i++) {
+    if (d.getUTCDay() === bestDay && d.getTime() >= raw.getTime()) break;
+    d.setUTCDate(d.getUTCDate() + 1);
+    d.setUTCHours(bestHour, 0, 0, 0);
+  }
+  const cap = new Date(raw.getTime() + 48 * 3600_000);
+  if (d.getTime() > cap.getTime()) return { iso: rawIso, used: false };
+  return { iso: d.toISOString(), used: true };
+}
+
+async function loadFallbacks(): Promise<Record<string, string>> {
+  const { data } = await supabase.from("variable_fallbacks").select("variable_key, fallback_value");
+  const map: Record<string, string> = {};
+  for (const r of data || []) map[(r as any).variable_key] = (r as any).fallback_value || "";
+  return map;
+}
+
+function substituteWithFallbacks(tpl: string, vars: Record<string, string>, fallbacks: Record<string, string>): string {
+  return (tpl || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => {
+    const v = vars[k];
+    if (v && v.trim() && v.toLowerCase() !== "unknown") return v;
+    return fallbacks[k] ?? "";
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -26,6 +58,7 @@ Deno.serve(async (req) => {
       .limit(50);
 
     let sent = 0, cancelled = 0, failed = 0;
+    const fallbacks = await loadFallbacks();
 
     for (const enr of due || []) {
       const { data: p } = await supabase.from("prospects").select("*").eq("id", enr.prospect_id).single();
@@ -55,8 +88,8 @@ Deno.serve(async (req) => {
 
       const { data: demo } = await supabase.from("inbox_demos").select("demo_url").eq("prospect_id", p.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
       const vars = buildProspectVars(p, demo?.demo_url);
-      let body = substituteVars(step.message_body, vars);
-      const subject = substituteVars(step.message_subject, vars);
+      let body = substituteWithFallbacks(step.message_body, vars, fallbacks);
+      const subject = substituteWithFallbacks(step.message_subject || "Re: {{firstname}} overview", vars, fallbacks);
       if (!step.include_demo_link) body = body.replace(/\{\{\s*demo_url\s*\}\}/g, "").replace(demo?.demo_url || "___", "");
 
       if (!p.original_message_id) {
@@ -100,8 +133,19 @@ Deno.serve(async (req) => {
       if (!nextStep) {
         await supabase.from("follow_up_enrollments").update({ status: "completed", completed_at: nowIso, next_step_at: null }).eq("id", enr.id);
       } else {
-        const nextAt = new Date(Date.now() + nextStep.delay_value * unitToHours(nextStep.delay_unit) * 3600_000).toISOString();
-        await supabase.from("follow_up_enrollments").update({ current_step: enr.current_step + 1, next_step_at: nextAt, retry_count: 0 }).eq("id", enr.id);
+        const rawIso = new Date(Date.now() + nextStep.delay_value * unitToHours(nextStep.delay_unit) * 3600_000).toISOString();
+        // Smart send time
+        const { data: bst } = await supabase.rpc("get_best_send_time", { p_prospect_id: p.id });
+        const row: any = (bst || [])[0];
+        const enough = row && Number(row.data_points || 0) >= 3;
+        const shifted = enough ? smartTime(rawIso, row.best_day, row.best_hour) : { iso: rawIso, used: false };
+        await supabase.from("follow_up_enrollments").update({
+          current_step: enr.current_step + 1,
+          next_step_at: shifted.iso,
+          retry_count: 0,
+          best_send_hour: shifted.used ? row.best_hour : null,
+          best_send_day: shifted.used ? row.best_day : null,
+        }).eq("id", enr.id);
       }
       sent++;
     }
