@@ -20,6 +20,7 @@ import FollowUpTemplatesPanel from "@/components/admin/FollowUpTemplatesPanel";
 import KnowledgeBasePanel from "@/components/admin/KnowledgeBasePanel";
 import InboxManagerPanel from "@/components/admin/InboxManagerPanel";
 import FollowUpsPage from "@/components/admin/FollowUpsPage";
+import DashboardHome from "@/components/admin/DashboardHome";
 import { Input } from "@/components/ui/input";
 import { ShellProvider, useShell } from "@/components/shell/ShellContext";
 import { AppShell } from "@/components/shell/AppShell";
@@ -153,7 +154,7 @@ const AdminDashboard = () => {
   }
 
   return (
-    <ShellProvider initialSection="demos">
+    <ShellProvider initialSection="home">
       <AppShell onSignOut={() => { sessionStorage.removeItem("admin_auth"); setIsAuthenticated(false); }}>
         <AdminSections
           pages={pages}
@@ -204,6 +205,7 @@ function AdminSections(props: {
   return (
     <Tabs value={section} onValueChange={setSection} className="space-y-6">
       <TabsList className="sr-only">
+        <TabsTrigger value="home">Home</TabsTrigger>
         <TabsTrigger value="demos">Demos</TabsTrigger>
         <TabsTrigger value="settings">Settings</TabsTrigger>
         <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -216,6 +218,11 @@ function AdminSections(props: {
         <TabsTrigger value="logs">Logs</TabsTrigger>
       </TabsList>
 
+
+          {/* Home Tab */}
+          <TabsContent value="home">
+            <DashboardHome />
+          </TabsContent>
 
           {/* Demos Tab — shows both pages and chatbots */}
           <TabsContent value="demos" className="space-y-6">
