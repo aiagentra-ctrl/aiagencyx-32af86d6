@@ -404,6 +404,37 @@ const InboxManagerPanel = () => {
                     </div>
 
                     <div className="px-4 py-3 border-b bg-muted/20">
+                    </div>
+                    {selected.is_hot_lead && (
+                      <div className="px-4 py-3 border-b bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent border-orange-500/30 animate-fade-in">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <div className="relative">
+                              <Flame className="h-5 w-5 text-orange-500 relative" />
+                              <span className="absolute inset-0 rounded-full bg-orange-500/30 animate-ping" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-orange-700 dark:text-orange-400">🔥 Hot lead detected</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {selected.hot_lead_open_count || 0} demo opens · sequence auto-paused
+                                {selected.hot_lead_detected_at && ` · ${relTime(selected.hot_lead_detected_at)}`}
+                              </div>
+                            </div>
+                          </div>
+                          <Button size="sm" variant="outline" className="border-orange-500/40 text-orange-600 hover:bg-orange-500/10"
+                            onClick={async () => {
+                              try {
+                                await invoke("resume-hot-lead-sequence", { prospect_id: selected.id });
+                                toast.success("Sequence resumed");
+                                fetchAll();
+                              } catch (e: any) { toast.error(e.message || "Failed"); }
+                            }}>
+                            Resume sequence
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    <div className="px-4 py-3 border-b bg-muted/20">
                       {selectedDemo ? (
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
