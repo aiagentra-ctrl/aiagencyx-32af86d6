@@ -403,8 +403,6 @@ const InboxManagerPanel = () => {
                       </label>
                     </div>
 
-                    <div className="px-4 py-3 border-b bg-muted/20">
-                    </div>
                     {selected.is_hot_lead && (
                       <div className="px-4 py-3 border-b bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent border-orange-500/30 animate-fade-in">
                         <div className="flex items-center justify-between gap-2">
