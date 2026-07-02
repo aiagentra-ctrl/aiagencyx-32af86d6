@@ -27,7 +27,7 @@ export default function ErrorBell({ onJump }: { onJump?: (prospectId: string) =>
 
   useEffect(() => {
     load();
-    const ch = supabase.channel("error-bell")
+    const ch = supabase.channel(`error-bell-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "error_events" }, (p) => {
         const e = p.new as Err;
         if (!seenIds.has(e.id)) {
