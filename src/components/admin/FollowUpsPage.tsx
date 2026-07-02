@@ -461,6 +461,31 @@ function SequenceBuilder() {
       </Card>
 
       <EnrollDialog open={enrollOpen} onOpenChange={setEnrollOpen} sequenceId={selectedId} onEnrolled={() => toast.success("Enrolled")} />
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Sequence Preview · sample data</DialogTitle></DialogHeader>
+          <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+            {steps.map((s, i) => (
+              <div key={i} className="rounded border p-3 bg-muted/30">
+                <div className="text-[10px] uppercase text-muted-foreground">Step {i + 1} · after {s.delay_value}{s.delay_unit[0]}</div>
+                <div className="font-medium text-sm mt-1">{sampleSubstitute(s.message_subject)}</div>
+                <div className="text-xs whitespace-pre-wrap mt-2">{sampleSubstitute(s.message_body)}</div>
+                {s.include_demo_link && <div className="text-xs text-primary mt-2">→ https://aiagentfor.lovable.app/acme-inc</div>}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Import sequence JSON</DialogTitle></DialogHeader>
+          <Textarea rows={12} placeholder='{ "name": "...", "trigger": "custom", "steps": [...] }'
+            value={importText} onChange={(e) => setImportText(e.target.value)} />
+          <div className="flex justify-end"><Button onClick={importJson}>Import</Button></div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
