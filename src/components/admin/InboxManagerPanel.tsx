@@ -23,8 +23,9 @@ import PipelineTracer from "./inbox/PipelineTracer";
 import WebhookLogsTab from "./inbox/WebhookLogsTab";
 import ErrorLogTab from "./inbox/ErrorLogTab";
 import ErrorBell from "./inbox/ErrorBell";
+import NotificationBell from "./inbox/NotificationBell";
 import HealthCheckTab from "./inbox/HealthCheckTab";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Flame } from "lucide-react";
 
 type Prospect = {
   id: string; email: string; firstname: string | null; company: string | null;
@@ -34,6 +35,9 @@ type Prospect = {
   last_classification: "Positive" | "Negative" | "Objection" | null;
   demo_sent_at: string | null;
   created_at: string;
+  is_hot_lead?: boolean | null;
+  hot_lead_open_count?: number | null;
+  hot_lead_detected_at?: string | null;
 };
 type Msg = {
   id: string; prospect_id: string; direction: "incoming" | "outgoing";
@@ -264,7 +268,10 @@ const InboxManagerPanel = () => {
             <Code2 className="h-3.5 w-3.5" /> Developer View
           </button>
         </div>
-        <ErrorBell onJump={jumpToProspect} />
+        <div className="flex items-center gap-1">
+          <NotificationBell onJump={jumpToProspect} />
+          <ErrorBell onJump={jumpToProspect} />
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
