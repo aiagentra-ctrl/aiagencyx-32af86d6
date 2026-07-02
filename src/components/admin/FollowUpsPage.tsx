@@ -208,6 +208,9 @@ function SequenceBuilder() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [name, setName] = useState(""); const [trigger, setTrigger] = useState("custom"); const [active, setActive] = useState(true);
   const [enrollOpen, setEnrollOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
 
   const loadSeqs = async () => {
     const { data } = await supabase.from("follow_up_sequences_templates").select("*").order("created_at", { ascending: false });
@@ -258,6 +261,63 @@ function SequenceBuilder() {
   const updateStep = (i: number, patch: Partial<Step>) => setSteps(steps.map((s, idx) => idx === i ? { ...s, ...patch } : s));
   const insertVar = (i: number, v: string) => updateStep(i, { message_body: (steps[i].message_body || "") + `{{${v}}}` });
 
+  // Health check — detect unresolved chips, over-long delays, empty body, missing subject, duplicate step delays
+  const healthIssues = useMemo(() => {
+    const issues: { level: "warn" | "error"; msg: string }[] = [];
+    const knownVars = new Set(VARIABLES.map((v) => v.name));
+    steps.forEach((s, i) => {
+      if (!s.message_body?.trim()) issues.push({ level: "error", msg: `Step ${i + 1}: message body is empty.` });
+      if (!s.message_subject?.trim()) issues.push({ level: "warn", msg: `Step ${i + 1}: missing subject line.` });
+      const chips = [...(s.message_body || "").matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((m) => m[1]);
+      chips.forEach((c) => { if (!knownVars.has(c)) issues.push({ level: "warn", msg: `Step ${i + 1}: unknown variable {{${c}}} — add a fallback.` }); });
+      if (s.delay_value * unitHours(s.delay_unit) > 720) issues.push({ level: "warn", msg: `Step ${i + 1}: delay > 30 days — sequence may go stale.` });
+    });
+    if (steps.length > 7) issues.push({ level: "warn", msg: "More than 7 steps — reply rate typically drops after step 5." });
+    if (steps.length && steps[0].delay_value * unitHours(steps[0].delay_unit) === 0 && steps[0].step_number !== 1) issues.push({ level: "warn", msg: "First step has zero delay." });
+    return issues;
+  }, [steps]);
+
+  const duplicateSequence = async () => {
+    if (!selectedId) return;
+    const src = seqs.find((s) => s.id === selectedId); if (!src) return;
+    const { data: newSeq } = await supabase.from("follow_up_sequences_templates")
+      .insert({ name: `${src.name} (copy)`, trigger_type: src.trigger_type, is_active: false }).select("*").single();
+    if (!newSeq) return;
+    if (steps.length) {
+      await supabase.from("follow_up_steps").insert(steps.map((s, i) => ({
+        sequence_template_id: (newSeq as any).id, step_number: i + 1,
+        delay_value: s.delay_value, delay_unit: s.delay_unit,
+        message_subject: s.message_subject, message_body: s.message_body, include_demo_link: s.include_demo_link,
+      })));
+    }
+    toast.success("Duplicated");
+    await loadSeqs(); setSelectedId((newSeq as any).id);
+  };
+
+  const exportJson = () => {
+    const payload = { name, trigger, steps: steps.map(({ id, sequence_template_id, ...rest }) => rest) };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${name || "sequence"}.json`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importJson = () => {
+    try {
+      const parsed = JSON.parse(importText);
+      if (parsed.name) setName(parsed.name);
+      if (parsed.trigger) setTrigger(parsed.trigger);
+      if (Array.isArray(parsed.steps)) setSteps(parsed.steps.map((s: any, i: number) => ({
+        step_number: i + 1,
+        delay_value: s.delay_value ?? 1, delay_unit: s.delay_unit ?? "days",
+        message_subject: s.message_subject || "", message_body: s.message_body || "",
+        include_demo_link: !!s.include_demo_link,
+      })));
+      setImportOpen(false); setImportText("");
+      toast.success("Imported — click Save to persist.");
+    } catch (e: any) { toast.error("Invalid JSON"); }
+  };
+
   return (
     <div className="grid gap-4 md:grid-cols-[35%_1fr]">
       {/* Left: list */}
@@ -304,8 +364,25 @@ function SequenceBuilder() {
                 <div className="flex items-center gap-2 text-xs"><Switch checked={active} onCheckedChange={setActive} /> Active</div>
                 <Button onClick={saveSeq}>Save Sequence</Button>
               </div>
+              <div className="flex flex-wrap gap-1.5 pt-2">
+                <Button size="sm" variant="outline" onClick={() => setPreviewOpen(true)}><Eye className="h-3.5 w-3.5 mr-1" /> Preview</Button>
+                <Button size="sm" variant="outline" onClick={duplicateSequence}><Copy className="h-3.5 w-3.5 mr-1" /> Duplicate</Button>
+                <Button size="sm" variant="outline" onClick={exportJson}><Download className="h-3.5 w-3.5 mr-1" /> Export</Button>
+                <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}><Upload className="h-3.5 w-3.5 mr-1" /> Import</Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-3">
+              {healthIssues.length > 0 ? (
+                <div className="rounded-md border bg-amber-500/5 border-amber-500/30 p-2 space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-amber-600"><AlertTriangle className="h-3.5 w-3.5" /> Sequence health</div>
+                  {healthIssues.map((h, i) => (
+                    <div key={i} className={`text-[11px] ${h.level === "error" ? "text-red-600" : "text-amber-700 dark:text-amber-300"}`}>• {h.msg}</div>
+                  ))}
+                </div>
+              ) : steps.length > 0 && (
+                <div className="flex items-center gap-2 text-xs text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" /> Sequence looks healthy.</div>
+              )}
+
               {/* Timeline */}
               <div className="rounded-md border bg-muted/30 p-3 text-xs overflow-x-auto">
                 <div className="flex items-center gap-2 whitespace-nowrap">
