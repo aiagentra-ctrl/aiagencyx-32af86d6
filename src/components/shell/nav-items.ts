@@ -11,6 +11,7 @@ export type NavItem = {
 
 // Maps 1:1 to the existing AdminDashboard tab values so the sidebar can drive them.
 export const NAV_ITEMS: NavItem[] = [
+  { key: "home",      label: "Home",          icon: Home,       group: "primary" },
   { key: "demos",     label: "Demos",         icon: Zap,        group: "primary" },
   { key: "inbox",     label: "Inbox",         icon: Inbox,      group: "primary" },
   { key: "leads",     label: "Leads",         icon: UserCheck,  group: "primary" },
