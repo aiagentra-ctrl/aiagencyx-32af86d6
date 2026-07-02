@@ -21,6 +21,8 @@ import KnowledgeBasePanel from "@/components/admin/KnowledgeBasePanel";
 import InboxManagerPanel from "@/components/admin/InboxManagerPanel";
 import FollowUpsPage from "@/components/admin/FollowUpsPage";
 import { Input } from "@/components/ui/input";
+import { ShellProvider, useShell } from "@/components/shell/ShellContext";
+import { AppShell } from "@/components/shell/AppShell";
 
 
 const ADMIN_EMAIL = "aiagentron@gmail.com";
@@ -151,62 +153,68 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <h1 className="text-xl font-bold text-card-foreground">AI Agency Dashboard</h1>
-          <Link to="/api-docs">
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <Code className="h-3.5 w-3.5" /> API Docs
-            </Button>
-          </Link>
-        </div>
-      </header>
+    <ShellProvider initialSection="demos">
+      <AppShell onSignOut={() => { sessionStorage.removeItem("admin_auth"); setIsAuthenticated(false); }}>
+        <AdminSections
+          pages={pages}
+          chatbots={chatbots}
+          loading={loading}
+          copiedId={copiedId}
+          copyLink={copyLink}
+          getDemoUrl={getDemoUrl}
+          getChatbotUrl={getChatbotUrl}
+          setEditPage={setEditPage}
+          setEditOpen={setEditOpen}
+          setEditChatbot={setEditChatbot}
+          setEditChatbotOpen={setEditChatbotOpen}
+          handleDeleteChatbot={handleDeleteChatbot}
+        />
+      </AppShell>
+      <EditPageDialog page={editPage} open={editOpen} onOpenChange={setEditOpen} onUpdated={fetchData} />
+      <EditChatbotDialog chatbot={editChatbot} open={editChatbotOpen} onOpenChange={setEditChatbotOpen} onUpdated={fetchData} />
+    </ShellProvider>
+  );
+};
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
-        <Tabs defaultValue="demos" className="space-y-6">
-          <TabsList className="flex-wrap">
-            <TabsTrigger value="demos">
-              <Zap className="mr-1.5 h-3.5 w-3.5" />
-              Demos
-            </TabsTrigger>
-            <TabsTrigger value="settings">
-              <Cog className="mr-1.5 h-3.5 w-3.5" />
-              Settings
-            </TabsTrigger>
-            <TabsTrigger value="analytics">
-              <BarChart3 className="mr-1.5 h-3.5 w-3.5" />
-              Analytics
-            </TabsTrigger>
-            <TabsTrigger value="leads">
-              <UserCheck className="mr-1.5 h-3.5 w-3.5" />
-              Leads
-            </TabsTrigger>
-            <TabsTrigger value="templates">
-              <Layers className="mr-1.5 h-3.5 w-3.5" />
-              Templates
-            </TabsTrigger>
-            <TabsTrigger value="followups">
-              <Mail className="mr-1.5 h-3.5 w-3.5" />
-              Follow-Ups
-            </TabsTrigger>
-            <TabsTrigger value="knowledge">
-              <Database className="mr-1.5 h-3.5 w-3.5" />
-              Knowledge Base
-            </TabsTrigger>
-            <TabsTrigger value="inbox">
-              <Inbox className="mr-1.5 h-3.5 w-3.5" />
-              Inbox
-            </TabsTrigger>
-            <TabsTrigger value="sequences">
-              <Mail className="mr-1.5 h-3.5 w-3.5" />
-              Sequences
-            </TabsTrigger>
-            <TabsTrigger value="logs">
-              <Activity className="mr-1.5 h-3.5 w-3.5" />
-              Logs
-            </TabsTrigger>
-          </TabsList>
+/**
+ * AdminSections renders the tab content for whichever section the shell says is active.
+ * We keep <Tabs> (controlled) so the existing TabsContent panels render exactly as before,
+ * but the TabsList is hidden — the sidebar is now the primary nav.
+ */
+function AdminSections(props: {
+  pages: DemoPage[];
+  chatbots: Chatbot[];
+  loading: boolean;
+  copiedId: string | null;
+  copyLink: (url: string, id: string) => void;
+  getDemoUrl: (slug: string) => string;
+  getChatbotUrl: (slug: string) => string;
+  setEditPage: (p: DemoPage) => void;
+  setEditOpen: (v: boolean) => void;
+  setEditChatbot: (c: Chatbot) => void;
+  setEditChatbotOpen: (v: boolean) => void;
+  handleDeleteChatbot: (id: string) => void;
+}) {
+  const { section, setSection } = useShell();
+  const {
+    pages, chatbots, loading, copiedId, copyLink,
+    getDemoUrl, getChatbotUrl, setEditPage, setEditOpen,
+    setEditChatbot, setEditChatbotOpen, handleDeleteChatbot,
+  } = props;
+  return (
+    <Tabs value={section} onValueChange={setSection} className="space-y-6">
+      <TabsList className="sr-only">
+        <TabsTrigger value="demos">Demos</TabsTrigger>
+        <TabsTrigger value="settings">Settings</TabsTrigger>
+        <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        <TabsTrigger value="leads">Leads</TabsTrigger>
+        <TabsTrigger value="templates">Templates</TabsTrigger>
+        <TabsTrigger value="followups">Follow-Ups</TabsTrigger>
+        <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
+        <TabsTrigger value="inbox">Inbox</TabsTrigger>
+        <TabsTrigger value="sequences">Sequences</TabsTrigger>
+        <TabsTrigger value="logs">Logs</TabsTrigger>
+      </TabsList>
 
 
           {/* Demos Tab — shows both pages and chatbots */}
@@ -365,14 +373,8 @@ const AdminDashboard = () => {
           <TabsContent value="logs">
             <ActivityLogViewer />
           </TabsContent>
-        </Tabs>
-
-      </main>
-
-      <EditPageDialog page={editPage} open={editOpen} onOpenChange={setEditOpen} onUpdated={fetchData} />
-      <EditChatbotDialog chatbot={editChatbot} open={editChatbotOpen} onOpenChange={setEditChatbotOpen} onUpdated={fetchData} />
-    </div>
+    </Tabs>
   );
-};
+}
 
 export default AdminDashboard;
