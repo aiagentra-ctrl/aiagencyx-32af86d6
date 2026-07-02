@@ -327,6 +327,35 @@ export type Database = {
         }
         Relationships: []
       }
+      demo_open_log: {
+        Row: {
+          demo_id: string | null
+          id: string
+          opened_at: string
+          prospect_id: string
+        }
+        Insert: {
+          demo_id?: string | null
+          id?: string
+          opened_at?: string
+          prospect_id: string
+        }
+        Update: {
+          demo_id?: string | null
+          id?: string
+          opened_at?: string
+          prospect_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_open_log_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demo_pages: {
         Row: {
           assistant_id: string
@@ -473,6 +502,9 @@ export type Database = {
       }
       follow_up_enrollments: {
         Row: {
+          assigned_variant: string
+          best_send_day: number | null
+          best_send_hour: number | null
           completed_at: string | null
           created_at: string
           current_step: number
@@ -480,6 +512,8 @@ export type Database = {
           last_error: string | null
           next_step_at: string | null
           prospect_id: string
+          replied_at: string | null
+          reply_classification: string | null
           retry_count: number
           sequence_template_id: string
           started_at: string
@@ -487,6 +521,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assigned_variant?: string
+          best_send_day?: number | null
+          best_send_hour?: number | null
           completed_at?: string | null
           created_at?: string
           current_step?: number
@@ -494,6 +531,8 @@ export type Database = {
           last_error?: string | null
           next_step_at?: string | null
           prospect_id: string
+          replied_at?: string | null
+          reply_classification?: string | null
           retry_count?: number
           sequence_template_id: string
           started_at?: string
@@ -501,6 +540,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assigned_variant?: string
+          best_send_day?: number | null
+          best_send_hour?: number | null
           completed_at?: string | null
           created_at?: string
           current_step?: number
@@ -508,6 +550,8 @@ export type Database = {
           last_error?: string | null
           next_step_at?: string | null
           prospect_id?: string
+          replied_at?: string | null
+          reply_classification?: string | null
           retry_count?: number
           sequence_template_id?: string
           started_at?: string
@@ -533,6 +577,7 @@ export type Database = {
       }
       follow_up_sequences_templates: {
         Row: {
+          ab_test_enabled: boolean
           created_at: string
           description: string | null
           id: string
@@ -542,6 +587,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ab_test_enabled?: boolean
           created_at?: string
           description?: string | null
           id?: string
@@ -551,6 +597,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ab_test_enabled?: boolean
           created_at?: string
           description?: string | null
           id?: string
@@ -573,6 +620,7 @@ export type Database = {
           sequence_template_id: string
           step_number: number
           updated_at: string
+          variant: string
         }
         Insert: {
           created_at?: string
@@ -585,6 +633,7 @@ export type Database = {
           sequence_template_id: string
           step_number: number
           updated_at?: string
+          variant?: string
         }
         Update: {
           created_at?: string
@@ -597,6 +646,7 @@ export type Database = {
           sequence_template_id?: string
           step_number?: number
           updated_at?: string
+          variant?: string
         }
         Relationships: [
           {
@@ -1171,6 +1221,41 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          prospect_id: string | null
+          read: boolean
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          prospect_id?: string | null
+          read?: boolean
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          prospect_id?: string | null
+          read?: boolean
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_events: {
         Row: {
           created_at: string
@@ -1294,6 +1379,41 @@ export type Database = {
         }
         Relationships: []
       }
+      prospect_activity_times: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          event_type: string
+          hour_of_day: number
+          id: string
+          prospect_id: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          event_type: string
+          hour_of_day: number
+          id?: string
+          prospect_id: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          event_type?: string
+          hour_of_day?: number
+          id?: string
+          prospect_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospect_activity_times_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prospects: {
         Row: {
           automation_paused: boolean
@@ -1310,7 +1430,10 @@ export type Database = {
           firstname: string | null
           followup_attempts: number
           followup_status: string
+          hot_lead_detected_at: string | null
+          hot_lead_open_count: number
           id: string
+          is_hot_lead: boolean
           is_test_data: boolean
           last_activity_at: string | null
           last_classification: string | null
@@ -1340,7 +1463,10 @@ export type Database = {
           firstname?: string | null
           followup_attempts?: number
           followup_status?: string
+          hot_lead_detected_at?: string | null
+          hot_lead_open_count?: number
           id?: string
+          is_hot_lead?: boolean
           is_test_data?: boolean
           last_activity_at?: string | null
           last_classification?: string | null
@@ -1370,7 +1496,10 @@ export type Database = {
           firstname?: string | null
           followup_attempts?: number
           followup_status?: string
+          hot_lead_detected_at?: string | null
+          hot_lead_open_count?: number
           id?: string
+          is_hot_lead?: boolean
           is_test_data?: boolean
           last_activity_at?: string | null
           last_classification?: string | null
@@ -1504,6 +1633,30 @@ export type Database = {
         }
         Relationships: []
       }
+      variable_fallbacks: {
+        Row: {
+          description: string | null
+          fallback_value: string
+          id: string
+          updated_at: string
+          variable_key: string
+        }
+        Insert: {
+          description?: string | null
+          fallback_value?: string
+          id?: string
+          updated_at?: string
+          variable_key: string
+        }
+        Update: {
+          description?: string | null
+          fallback_value?: string
+          id?: string
+          updated_at?: string
+          variable_key?: string
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           created_at: string
@@ -1551,6 +1704,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_best_send_time: {
+        Args: { p_prospect_id: string }
+        Returns: {
+          best_day: number
+          best_hour: number
+          data_points: number
+        }[]
+      }
       match_kb_entries: {
         Args: {
           p_chatbot_id: string
