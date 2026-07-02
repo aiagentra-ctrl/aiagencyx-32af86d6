@@ -10,7 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Play, X, Trash2, Send, Sparkles, GripVertical, Clock, MoveDown } from "lucide-react";
+import { Plus, Play, X, Trash2, Send, Sparkles, GripVertical, Clock, MoveDown, Copy, Download, Upload, Eye, AlertTriangle, CheckCircle2 } from "lucide-react";
+import SequenceAnalyticsPanel from "./followup/SequenceAnalyticsPanel";
+import VariableFallbacksPanel from "./followup/VariableFallbacksPanel";
 
 type Rule = { id: string; trigger_key: string; label: string; delay_hours: number; enabled: boolean; auto_send: boolean };
 type Event = {
@@ -67,9 +69,13 @@ export default function FollowUpsPage() {
       <TabsList>
         <TabsTrigger value="rules">Rules & Queue</TabsTrigger>
         <TabsTrigger value="sequences">Sequences</TabsTrigger>
+        <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        <TabsTrigger value="variables">Variables</TabsTrigger>
       </TabsList>
       <TabsContent value="rules"><RulesAndQueue /></TabsContent>
       <TabsContent value="sequences"><SequenceBuilder /></TabsContent>
+      <TabsContent value="analytics"><SequenceAnalyticsPanel /></TabsContent>
+      <TabsContent value="variables"><VariableFallbacksPanel /></TabsContent>
     </Tabs>
   );
 }
