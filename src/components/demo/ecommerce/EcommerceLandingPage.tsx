@@ -3,10 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { renderTemplate } from "@/lib/renderTemplate";
 import { brandCssVars } from "@/lib/brandColors";
 import BusinessLogo from "@/components/chatbot/BusinessLogo";
-import UnifiedChatWindow, { type UnifiedChatWindowHandle } from "@/components/chatbot/unified/UnifiedChatWindow";
+import EcomFloatingChatWidget, { type EcomFloatingChatWidgetHandle } from "@/components/chatbot/unified/EcomFloatingChatWidget";
 import FooterSection from "@/components/demo/FooterSection";
 import { Button } from "@/components/ui/button";
 import ecomHeroAsset from "@/assets/ecom-hero.png.asset.json";
+import { MessageCircle, ArrowRight, Sparkles } from "lucide-react";
 
 interface Props {
   chatbotId?: string;
@@ -39,8 +40,7 @@ const EcommerceLandingPage = ({
 }: Props) => {
   const [tpl, setTpl] = useState<Template | null>(null);
   const [productCount, setProductCount] = useState<number>(0);
-  const chatRef = useRef<UnifiedChatWindowHandle>(null);
-  const chatSectionRef = useRef<HTMLDivElement>(null);
+  const widgetRef = useRef<EcomFloatingChatWidgetHandle>(null);
 
   useEffect(() => {
     (async () => {
@@ -67,9 +67,9 @@ const EcommerceLandingPage = ({
 
   const heroImage = (tpl?.hero_image_url && tpl.hero_image_url.trim()) || ecomHeroAsset.url;
 
-  const scrollToChat = () => chatSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const startVoice = () => { scrollToChat(); setTimeout(() => chatRef.current?.startVoice(), 500); };
-  const injectAndSend = (text: string) => { scrollToChat(); setTimeout(() => chatRef.current?.sendMessage(text), 400); };
+  const openChat = () => widgetRef.current?.open();
+  const startVoice = () => widgetRef.current?.startVoice();
+  const injectAndSend = (text: string) => widgetRef.current?.sendMessage(text);
 
   if (!tpl) {
     return (
@@ -89,7 +89,7 @@ const EcommerceLandingPage = ({
             <span className="font-semibold text-slate-900">{businessName}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={scrollToChat}
+            <button onClick={openChat}
               className="hidden rounded-lg px-4 py-2 text-sm font-medium sm:inline-flex"
               style={{ color: "var(--brand)" }}>Try Demo</button>
             <button onClick={onBookCall}
@@ -114,10 +114,10 @@ const EcommerceLandingPage = ({
             </h1>
             <p className="mt-4 text-lg text-slate-600">{renderTemplate(tpl.hero_sub, vars)}</p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <button onClick={scrollToChat}
-                className="rounded-xl px-5 py-3 text-sm font-semibold shadow-sm transition-transform active:scale-95"
+              <button onClick={openChat}
+                className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold shadow-sm transition-transform active:scale-95"
                 style={{ background: "var(--brand)", color: "var(--brand-text)" }}>
-                {tpl.hero_cta_primary}
+                <MessageCircle className="h-4 w-4" /> {tpl.hero_cta_primary}
               </button>
               {vapiKey && assistantId && (
                 <button onClick={startVoice}
@@ -128,20 +128,42 @@ const EcommerceLandingPage = ({
               )}
             </div>
           </div>
-          <div className="relative">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-3 shadow-2xl">
-              {chatbotId && (
-                <UnifiedChatWindow
-                  chatbotId={chatbotId}
-                  businessName={businessName}
-                  logoUrl={logoUrl}
-                  productCount={productCount}
-                  vapiKey={vapiKey}
-                  assistantId={assistantId}
-                  suggestionChips={tpl.suggestion_chips}
-                  height={520}
-                />
-              )}
+          <div className="relative flex items-center justify-center">
+            <div className="relative w-full max-w-md">
+              <div
+                className="absolute -inset-6 rounded-[2rem] opacity-30 blur-2xl"
+                style={{ background: "var(--brand)" }}
+              />
+              <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+                <div
+                  className="flex aspect-[4/3] items-center justify-center p-10"
+                  style={{ background: "linear-gradient(135deg, var(--brand-light), #fff)" }}
+                >
+                  <BusinessLogo url={logoUrl} name={businessName} size={180} rounded="2xl" className="!shadow-xl" />
+                </div>
+                <div className="border-t border-slate-100 p-5">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+                    </span>
+                    <span className="font-medium text-slate-700">AI Assistant online</span>
+                    <span className="ml-auto text-xs text-slate-400">Knows {productCount || "your"} products</span>
+                  </div>
+                  <button
+                    onClick={openChat}
+                    className="mt-3 flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500 transition hover:border-slate-300"
+                  >
+                    <span>Ask me anything about {businessName}…</span>
+                    <span
+                      className="flex h-8 w-8 items-center justify-center rounded-full"
+                      style={{ background: "var(--brand)", color: "var(--brand-text)" }}
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -196,8 +218,7 @@ const EcommerceLandingPage = ({
       </section>
 
       {/* LIVE DEMO */}
-      <section ref={chatSectionRef} id="demo-section" className="py-20"
-        style={{ background: "#f8fafc" }}>
+      <section id="demo-section" className="py-20" style={{ background: "#f8fafc" }}>
         <div className="mx-auto max-w-2xl px-4 text-center">
           <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
             style={{ background: "var(--brand-light)", color: "var(--brand)" }}>
@@ -206,40 +227,58 @@ const EcommerceLandingPage = ({
           <h2 className="mt-3 text-4xl font-bold text-slate-900">{renderTemplate(tpl.demo_headline, vars)}</h2>
           <p className="mx-auto mt-3 max-w-xl text-lg text-slate-500">{renderTemplate(tpl.demo_sub, vars)}</p>
         </div>
-        <div className="mx-auto mt-10 max-w-2xl px-4">
-          {chatbotId && (
-            <UnifiedChatWindow
-              ref={chatRef}
-              chatbotId={chatbotId}
-              businessName={businessName}
-              logoUrl={logoUrl}
-              productCount={productCount}
-              vapiKey={vapiKey}
-              assistantId={assistantId}
-              suggestionChips={tpl.suggestion_chips}
-              height={580}
-            />
-          )}
-        </div>
-        <div className="mx-auto mt-6 flex max-w-2xl flex-wrap justify-center gap-2 px-4">
-          <span className="self-center text-sm text-slate-400">Try saying →</span>
-          {tpl.suggestion_chips.slice(0, 4).map((c) => (
-            <button
-              key={c}
-              onClick={() => injectAndSend(c.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim())}
-              className="rounded-full border-[1.5px] border-slate-200 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 transition-all hover:-translate-y-0.5"
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = "var(--brand)";
-                (e.currentTarget as HTMLElement).style.color = "var(--brand)";
-                (e.currentTarget as HTMLElement).style.background = "var(--brand-light)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.borderColor = "";
-                (e.currentTarget as HTMLElement).style.color = "";
-                (e.currentTarget as HTMLElement).style.background = "";
-              }}
-            >{c}</button>
-          ))}
+        <div className="mx-auto mt-10 max-w-3xl px-4">
+          <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 shadow-xl md:p-12">
+            <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-center">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: "var(--brand-light)", color: "var(--brand)" }}>
+                  <Sparkles className="h-3 w-3" /> Try it now
+                </div>
+                <h3 className="mt-3 text-2xl font-bold text-slate-900">Open the chat in the bottom-right corner</h3>
+                <p className="mt-2 text-slate-600">Ask about products, sizes, shipping, returns — or start a voice call. The assistant knows every product on {businessName}.</p>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {tpl.suggestion_chips.slice(0, 4).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => injectAndSend(c.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim())}
+                      className="rounded-full border-[1.5px] border-slate-200 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 transition-all hover:-translate-y-0.5"
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.borderColor = "var(--brand)";
+                        (e.currentTarget as HTMLElement).style.color = "var(--brand)";
+                        (e.currentTarget as HTMLElement).style.background = "var(--brand-light)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.borderColor = "";
+                        (e.currentTarget as HTMLElement).style.color = "";
+                        (e.currentTarget as HTMLElement).style.background = "";
+                      }}
+                    >{c}</button>
+                  ))}
+                </div>
+                <button
+                  onClick={openChat}
+                  className="mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold shadow-sm transition-transform active:scale-95"
+                  style={{ background: "var(--brand)", color: "var(--brand-text)" }}
+                >
+                  <MessageCircle className="h-4 w-4" /> Open Live Chat
+                </button>
+              </div>
+              <div className="hidden md:block">
+                <div className="relative">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full shadow-2xl" style={{ background: "var(--brand)" }}>
+                    {logoUrl ? (
+                      <img src={logoUrl} alt="" className="h-16 w-16 rounded-full bg-white object-contain p-1" />
+                    ) : (
+                      <MessageCircle className="h-10 w-10 text-white" />
+                    )}
+                  </div>
+                  <div className="absolute -left-16 -top-4 rotate-[-8deg] text-xs font-medium text-slate-500">
+                    ↘ down here
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -264,6 +303,18 @@ const EcommerceLandingPage = ({
         logoUrl={logoUrl || undefined}
       />
       <p className="pb-6 text-center text-xs text-slate-400">{renderTemplate(tpl.footer_note, vars)}</p>
+
+      {/* FLOATING CHAT WIDGET */}
+      <EcomFloatingChatWidget
+        ref={widgetRef}
+        chatbotId={chatbotId}
+        businessName={businessName}
+        logoUrl={logoUrl}
+        productCount={productCount}
+        vapiKey={vapiKey}
+        assistantId={assistantId}
+        suggestionChips={tpl.suggestion_chips}
+      />
     </div>
   );
 };
