@@ -45,6 +45,7 @@ const EcommerceLandingPage = ({
   const override = useContext(LandingTemplateOverrideCtx);
   const [tpl, setTpl] = useState<Template | null>(override ?? null);
   const [productCount, setProductCount] = useState<number>(_previewProductCount ?? 0);
+  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
   const widgetRef = useRef<EcomFloatingChatWidgetHandle>(null);
 
   useEffect(() => {
@@ -62,6 +63,19 @@ const EcommerceLandingPage = ({
       if (count) setProductCount(count);
     })();
   }, [chatbotId, _previewProductCount]);
+
+  useEffect(() => {
+    if (!chatbotId) return;
+    (async () => {
+      const { data } = await supabase
+        .from("products")
+        .select("id,name,price,currency,image_url,product_url,in_stock,category")
+        .eq("chatbot_id", chatbotId)
+        .order("created_at", { ascending: false })
+        .limit(6);
+      if (data) setFeaturedProducts(data as any[]);
+    })();
+  }, [chatbotId]);
 
   const vars = useMemo(() => ({
     company: businessName,
@@ -320,6 +334,8 @@ const EcommerceLandingPage = ({
         vapiKey={vapiKey}
         assistantId={assistantId}
         suggestionChips={tpl.suggestion_chips}
+        visitorFirstName={visitorName}
+        featuredProducts={featuredProducts}
         contained={override !== null}
         defaultOpen={_previewWidgetOpen}
       />
