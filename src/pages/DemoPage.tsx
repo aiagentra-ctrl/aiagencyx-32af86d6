@@ -31,6 +31,7 @@ const RealEstateValueSection = lazy(() => import("@/components/demo/realestate/R
 const ProductGridSection = lazy(() => import("@/components/demo/ecommerce/ProductGridSection"));
 const EcommerceValueSection = lazy(() => import("@/components/demo/ecommerce/EcommerceValueSection"));
 const EcommerceChatWidget = lazy(() => import("@/components/chatbot/EcommerceChatWidget"));
+const EcommerceLandingPage = lazy(() => import("@/components/demo/ecommerce/EcommerceLandingPage"));
 
 interface DemoPageData {
   id: string;
