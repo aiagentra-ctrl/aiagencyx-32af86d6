@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import {
   ArrowLeft, ChevronRight, ChevronDown, MessageCircle, Home, HelpCircle,
-  Mic, MicOff, RefreshCw, Send, Search, Phone, ShoppingBag, Sparkles, Loader2, ExternalLink,
+  Mic, MicOff, RefreshCw, Send, Search, Phone, PhoneOff, ShoppingBag, Sparkles, Loader2, ExternalLink, ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -704,28 +704,44 @@ function ChatProductCard({ p }: { p: Product }) {
   const cur = p.currency === "USD" || !p.currency ? "$" : `${p.currency} `;
   const oos = p.in_stock === false;
   return (
-    <div className="w-[150px] flex-shrink-0 snap-start overflow-hidden rounded-2xl bg-[#1a1a1a] ring-1 ring-white/5">
-      <div className="aspect-square bg-[#111]">
+    <div className="w-[160px] flex-shrink-0 snap-start overflow-hidden rounded-2xl bg-[#1a1a1a] ring-1 ring-white/5">
+      <div className="relative aspect-square bg-[#111]">
         {p.image_url ? (
           <img src={p.image_url} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center"><ShoppingBag className="h-7 w-7 text-white/20" /></div>
+          <div className="flex h-full w-full items-center justify-center" style={{ background: "color-mix(in srgb, var(--brand) 18%, #111)" }}>
+            <ShoppingBag className="h-7 w-7 text-white/30" />
+          </div>
+        )}
+        {oos && (
+          <span className="absolute left-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/80">
+            Sold out
+          </span>
         )}
       </div>
-      <div className="space-y-1 p-2.5">
-        <p className="line-clamp-2 min-h-[32px] text-[12px] font-semibold text-white leading-tight">{p.name}</p>
+      <div className="space-y-1.5 p-2.5">
+        <p className="line-clamp-2 min-h-[32px] text-[12px] font-semibold leading-tight text-white">{p.name}</p>
         {p.price !== undefined && p.price !== "" && (
-          <p className="text-[13px] font-bold" style={{ color: "var(--brand)" }}>{cur}{p.price}</p>
+          <p className="text-[13px] font-bold" style={{ color: "var(--brand-mid)" }}>{cur}{p.price}</p>
         )}
-        <p className="text-[10px]" style={{ color: oos ? "#9ca3af" : "#4ade80" }}>{oos ? "Out of stock" : "In stock"}</p>
         {p.product_url && (
-          <a
-            href={p.product_url} target="_blank" rel="noopener noreferrer"
-            className="mt-1 flex h-7 w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold"
-            style={{ background: "var(--brand)", color: "var(--brand-text, #fff)" }}
-          >
-            {oos ? "View" : "Order Now"} <ExternalLink className="h-3 w-3" />
-          </a>
+          <div className="space-y-1 pt-0.5">
+            <a
+              href={p.product_url} target="_blank" rel="noopener noreferrer"
+              className="flex h-7 w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold"
+              style={{ background: "var(--brand)", color: "var(--brand-text, #fff)" }}
+            >
+              {oos ? "View" : "Buy Now"} <ExternalLink className="h-3 w-3" />
+            </a>
+            {!oos && (
+              <a
+                href={p.product_url} target="_blank" rel="noopener noreferrer"
+                className="flex h-7 w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold text-white/85 ring-1 ring-white/10 hover:ring-white/25"
+              >
+                <ShoppingCart className="h-3 w-3" /> Add to Cart
+              </a>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -812,17 +828,30 @@ function FaqScreen({ faqs, onAskAi, onTalkAi, hasVoice }: { faqs: FaqItem[]; onA
       <p className="mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wider text-white/50">Popular Questions</p>
       <div className="space-y-2">
         {filtered.map((f, i) => (
-          <button
-            key={f.q}
-            onClick={() => setOpenIdx(openIdx === i ? null : i)}
-            className="w-full rounded-2xl bg-[#1a1a1a] p-3 text-left ring-1 ring-white/5 transition hover:bg-[#222]"
-          >
-            <div className="flex items-center gap-2">
+          <div key={f.q} className="rounded-2xl bg-[#1a1a1a] ring-1 ring-white/5">
+            <button
+              type="button"
+              onClick={() => setOpenIdx(openIdx === i ? null : i)}
+              className="flex w-full items-center gap-2 p-3 text-left transition hover:bg-[#222] rounded-2xl"
+            >
               <span className="flex-1 text-sm font-semibold text-white">{f.q}</span>
               <ChevronDown className={cn("h-4 w-4 text-white/40 transition", openIdx === i && "rotate-180")} />
-            </div>
-            {openIdx === i && <p className="mt-2 text-xs leading-relaxed text-white/70">{f.a}</p>}
-          </button>
+            </button>
+            {openIdx === i && (
+              <div className="border-t border-white/5 px-3 pb-3 pt-2">
+                <p className="text-xs leading-relaxed text-white/70">{f.a}</p>
+                {f.source_url && (
+                  <a
+                    href={f.source_url} target="_blank" rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold"
+                    style={{ color: "var(--brand-mid)" }}
+                  >
+                    View policy <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
         ))}
         {filtered.length === 0 && <p className="text-center text-xs text-white/40">No matching questions.</p>}
       </div>
