@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { renderTemplate } from "@/lib/renderTemplate";
 import { brandCssVars } from "@/lib/brandColors";
@@ -8,6 +8,7 @@ import FooterSection from "@/components/demo/FooterSection";
 import { Button } from "@/components/ui/button";
 import ecomHeroAsset from "@/assets/ecom-hero.png.asset.json";
 import { MessageCircle, ArrowRight, Sparkles } from "lucide-react";
+import { LandingTemplateOverrideCtx } from "@/components/admin/EcomLandingTemplatePanel";
 
 interface Props {
   chatbotId?: string;
@@ -21,6 +22,8 @@ interface Props {
   contactEmail?: string;
   contactPhone?: string;
   visitorName?: string;
+  _previewProductCount?: number;
+  _previewWidgetOpen?: boolean;
 }
 
 type Template = {
@@ -37,25 +40,28 @@ const EcommerceLandingPage = ({
   chatbotId, businessName, logoUrl, brandColor,
   vapiKey, assistantId, onBookCall,
   contactEmail, contactPhone, visitorName,
+  _previewProductCount, _previewWidgetOpen,
 }: Props) => {
-  const [tpl, setTpl] = useState<Template | null>(null);
-  const [productCount, setProductCount] = useState<number>(0);
+  const override = useContext(LandingTemplateOverrideCtx);
+  const [tpl, setTpl] = useState<Template | null>(override ?? null);
+  const [productCount, setProductCount] = useState<number>(_previewProductCount ?? 0);
   const widgetRef = useRef<EcomFloatingChatWidgetHandle>(null);
 
   useEffect(() => {
+    if (override) { setTpl(override); return; }
     (async () => {
       const { data } = await supabase.from("ecommerce_landing_template" as any).select("*").limit(1).maybeSingle();
       if (data) setTpl(data as unknown as Template);
     })();
-  }, []);
+  }, [override]);
 
   useEffect(() => {
-    if (!chatbotId) return;
+    if (!chatbotId || _previewProductCount !== undefined) return;
     (async () => {
       const { count } = await supabase.from("products").select("id", { count: "exact", head: true }).eq("chatbot_id", chatbotId);
       if (count) setProductCount(count);
     })();
-  }, [chatbotId]);
+  }, [chatbotId, _previewProductCount]);
 
   const vars = useMemo(() => ({
     company: businessName,
@@ -314,6 +320,8 @@ const EcommerceLandingPage = ({
         vapiKey={vapiKey}
         assistantId={assistantId}
         suggestionChips={tpl.suggestion_chips}
+        contained={override !== null}
+        defaultOpen={_previewWidgetOpen}
       />
     </div>
   );
