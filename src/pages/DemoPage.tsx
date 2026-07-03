@@ -31,6 +31,7 @@ const RealEstateValueSection = lazy(() => import("@/components/demo/realestate/R
 const ProductGridSection = lazy(() => import("@/components/demo/ecommerce/ProductGridSection"));
 const EcommerceValueSection = lazy(() => import("@/components/demo/ecommerce/EcommerceValueSection"));
 const EcommerceChatWidget = lazy(() => import("@/components/chatbot/EcommerceChatWidget"));
+const EcommerceLandingPage = lazy(() => import("@/components/demo/ecommerce/EcommerceLandingPage"));
 
 interface DemoPageData {
   id: string;
@@ -241,6 +242,26 @@ const DemoPage = () => {
   const isEcommerce = ["ecommerce", "e-commerce", "shop", "store", "retail"]
     .some(k => (page.industry || "").toLowerCase().includes(k));
   const wt = dc.website_template || {};
+
+  // E-COMMERCE gets its own dedicated, admin-editable landing experience.
+  if (isEcommerce) {
+    return (
+      <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>}>
+        <EcommerceLandingPage
+          chatbotId={linkedChatbot?.id}
+          businessName={companyName}
+          logoUrl={logoUrl}
+          brandColor={dc.brand_color || linkedChatbot?.widget_config?.primaryColor}
+          vapiKey={page.vapi_key}
+          assistantId={page.assistant_id}
+          calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
+          onBookCall={handleBookCall}
+          contactEmail={page.contact_email || undefined}
+          contactPhone={page.contact_phone || undefined}
+        />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
