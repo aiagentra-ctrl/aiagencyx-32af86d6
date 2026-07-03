@@ -24,7 +24,7 @@ type Msg = {
   ts: number;
 };
 type Session = { id: string; startedAt: number; messages: Msg[] };
-type FaqItem = { q: string; a: string };
+type FaqItem = { q: string; a: string; source_url?: string };
 type Tab = "home" | "chats" | "faq";
 
 export interface EcomChatShellHandle {
@@ -99,6 +99,9 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [voiceState, setVoiceState] = useState<"idle" | "connecting" | "listening" | "speaking">("idle");
+  const [voiceStartedAt, setVoiceStartedAt] = useState<number | null>(null);
+  const [voiceCallView, setVoiceCallView] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const sessionId = useRef<string>(crypto.randomUUID());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -209,15 +212,23 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
     if (!vapiKey || !assistantId || voiceState !== "idle") return;
     try {
       setVoiceState("connecting");
-      setInChat(true);
+      setVoiceCallView(true);
+      setTab("home");
       const { default: Vapi } = await import("@vapi-ai/web");
       const vapi = new Vapi(vapiKey);
       vapiRef.current = vapi;
-      vapi.on("call-start", () => setVoiceState("listening"));
+      vapi.on("call-start", () => { setVoiceState("listening"); setVoiceStartedAt(Date.now()); });
       vapi.on("speech-start", () => setVoiceState("speaking"));
       vapi.on("speech-end", () => setVoiceState("listening"));
-      vapi.on("call-end", () => { setVoiceState("idle"); vapiRef.current = null; });
-      vapi.on("error", () => { setVoiceState("idle"); vapiRef.current = null; });
+      vapi.on("call-end", () => {
+        const dur = voiceStartedAt ? Math.round((Date.now() - voiceStartedAt) / 1000) : 0;
+        setVoiceState("idle"); vapiRef.current = null; setVoiceStartedAt(null); setVoiceCallView(false); setMuted(false);
+        if (dur > 0) {
+          setInChat(true);
+          setMessages((p) => [...p, { id: crypto.randomUUID(), role: "assistant", content: `📞 Voice call ended · ${Math.floor(dur/60)}:${String(dur%60).padStart(2,"0")}`, voice: true, ts: Date.now() }]);
+        }
+      });
+      vapi.on("error", () => { setVoiceState("idle"); vapiRef.current = null; setVoiceStartedAt(null); setVoiceCallView(false); });
       vapi.on("message", (m: any) => {
         if (m?.type === "transcript" && m.transcriptType === "final" && m.transcript?.trim()) {
           const role = m.role === "user" ? "user" : "assistant";
@@ -226,12 +237,22 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
       });
       vapi.start(assistantId);
     } catch (e) { console.error(e); setVoiceState("idle"); }
-  }, [vapiKey, assistantId, voiceState]);
+  }, [vapiKey, assistantId, voiceState, voiceStartedAt]);
 
   const stopVoice = useCallback(() => {
     try { vapiRef.current?.stop?.(); } catch {}
-    setVoiceState("idle"); vapiRef.current = null;
+    setVoiceState("idle"); vapiRef.current = null; setVoiceStartedAt(null); setVoiceCallView(false); setMuted(false);
   }, []);
+
+  const toggleMute = useCallback(() => {
+    try {
+      const v = vapiRef.current;
+      if (!v) return;
+      const next = !muted;
+      v.setMuted?.(next);
+      setMuted(next);
+    } catch {}
+  }, [muted]);
 
   useImperativeHandle(ref, () => ({ sendMessage, startVoice }), [sendMessage, startVoice]);
   useEffect(() => () => { try { vapiRef.current?.stop?.(); } catch {} }, []);
@@ -244,6 +265,18 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
 
   return (
     <div className={cn("relative flex h-full w-full flex-col overflow-hidden bg-[#0a0a0a] text-white", className)}>
+      {voiceCallView && (
+        <VoiceCallView
+          businessName={businessName}
+          logoUrl={logoUrl}
+          voiceState={voiceState}
+          startedAt={voiceStartedAt}
+          muted={muted}
+          onToggleMute={toggleMute}
+          onEnd={stopVoice}
+          onBack={() => setVoiceCallView(false)}
+        />
+      )}
       {/* Screen container */}
       <div className="relative flex flex-1 flex-col overflow-hidden">
         <AnimatePresence mode="wait" initial={false}>
