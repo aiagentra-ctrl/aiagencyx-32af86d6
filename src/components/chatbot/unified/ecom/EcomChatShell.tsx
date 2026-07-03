@@ -880,6 +880,122 @@ function FaqScreen({ faqs, onAskAi, onTalkAi, hasVoice }: { faqs: FaqItem[]; onA
 
 // ================= BOTTOM NAV =================
 
+function VoiceCallView({
+  businessName, logoUrl, voiceState, startedAt, muted, onToggleMute, onEnd, onBack,
+}: {
+  businessName: string;
+  logoUrl?: string | null;
+  voiceState: "idle" | "connecting" | "listening" | "speaking";
+  startedAt: number | null;
+  muted: boolean;
+  onToggleMute: () => void;
+  onEnd: () => void;
+  onBack: () => void;
+}) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, []);
+  const secs = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
+  const timer = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+  const statusLabel =
+    voiceState === "connecting" ? "Connecting…" :
+    voiceState === "speaking" ? "AI is speaking" :
+    voiceState === "listening" ? "Listening…" : "Idle";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="absolute inset-0 z-30 flex flex-col overflow-hidden"
+      style={{
+        background:
+          "radial-gradient(600px 400px at 50% 25%, color-mix(in srgb, var(--brand) 40%, transparent), transparent 70%), #0a0a0a",
+      }}
+    >
+      {/* header */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <button
+          onClick={onBack}
+          className="rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+          aria-label="Back to chat"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <p className="text-xs font-semibold uppercase tracking-wider text-white/60">Voice Call</p>
+        <div className="w-8" />
+      </div>
+
+      {/* central avatar + status */}
+      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+        <div className="relative flex h-40 w-40 items-center justify-center">
+          {/* pulse rings */}
+          <span
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "color-mix(in srgb, var(--brand) 25%, transparent)",
+              animation: "vcPulseOne 2.2s ease-out infinite",
+            }}
+          />
+          <span
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "color-mix(in srgb, var(--brand) 18%, transparent)",
+              animation: "vcPulseTwo 2.2s ease-out .6s infinite",
+            }}
+          />
+          <div
+            className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-2xl font-bold shadow-2xl ring-4 ring-white/10"
+            style={{ background: "var(--brand)", color: "var(--brand-text, #fff)" }}
+          >
+            {logoUrl ? (
+              <img src={logoUrl} alt={businessName} className="h-full w-full rounded-full bg-white object-contain p-1.5" />
+            ) : businessName.slice(0, 2).toUpperCase()}
+          </div>
+          <style>{`
+            @keyframes vcPulseOne { 0% { transform: scale(1); opacity: .7 } 100% { transform: scale(1.55); opacity: 0 } }
+            @keyframes vcPulseTwo { 0% { transform: scale(1); opacity: .5 } 100% { transform: scale(1.85); opacity: 0 } }
+          `}</style>
+        </div>
+
+        <h3 className="mt-6 text-xl font-bold text-white" style={{ fontFamily: "'Sora', sans-serif" }}>{businessName} AI</h3>
+        <p className="mt-1 text-sm text-white/60">{statusLabel}</p>
+        {startedAt && <p className="mt-2 font-mono text-2xl tabular-nums text-white/85">{timer}</p>}
+      </div>
+
+      {/* controls */}
+      <div className="flex items-center justify-center gap-6 px-6 pb-8">
+        <button
+          onClick={onToggleMute}
+          className={cn(
+            "flex h-14 w-14 flex-col items-center justify-center rounded-full ring-1 transition",
+            muted ? "bg-white/15 ring-white/25 text-white" : "bg-white/5 ring-white/10 text-white/80 hover:bg-white/10"
+          )}
+          aria-label={muted ? "Unmute" : "Mute"}
+        >
+          {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+        </button>
+
+        <button
+          onClick={onEnd}
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 text-white shadow-[0_10px_40px_rgba(239,68,68,.55)] transition hover:scale-105 active:scale-95"
+          aria-label="End call"
+        >
+          <PhoneOff className="h-6 w-6" />
+        </button>
+
+        <button
+          onClick={onBack}
+          className="flex h-14 w-14 flex-col items-center justify-center rounded-full bg-white/5 text-white/80 ring-1 ring-white/10 transition hover:bg-white/10"
+          aria-label="Back to chat"
+        >
+          <MessageCircle className="h-5 w-5" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
 function BottomNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
   const items: { id: Tab; label: string; icon: any }[] = [
     { id: "home", label: "Home", icon: Home },
