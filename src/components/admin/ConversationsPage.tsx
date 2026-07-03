@@ -25,6 +25,7 @@ type Session = {
   analyzed_at: string | null;
   analysis: any;
   topics: string[] | null;
+  ended_at?: string | null;
 };
 type Msg = {
   id: string; role: string; content: string; created_at: string;
