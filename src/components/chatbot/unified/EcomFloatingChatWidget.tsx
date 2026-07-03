@@ -2,7 +2,7 @@ import { forwardRef, useImperativeHandle, useState, useEffect, useRef } from "re
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X } from "lucide-react";
 import BusinessLogo from "../BusinessLogo";
-import UnifiedChatWindow, { type UnifiedChatWindowHandle } from "./UnifiedChatWindow";
+import EcomChatShell, { type EcomChatShellHandle } from "./ecom/EcomChatShell";
 
 export interface EcomFloatingChatWidgetHandle {
   open: () => void;
@@ -21,6 +21,9 @@ interface Props {
   assistantId?: string;
   suggestionChips?: string[];
   greeting?: string;
+  visitorFirstName?: string;
+  featuredProducts?: any[];
+  faqs?: { q: string; a: string }[];
   /** When true, render inside its container (absolute) instead of fixed to viewport. For admin preview. */
   contained?: boolean;
   /** Initial open state (for preview) */
@@ -29,11 +32,12 @@ interface Props {
 
 const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>(({
   chatbotId, businessName, logoUrl, productCount, vapiKey, assistantId,
-  suggestionChips, greeting, contained = false, defaultOpen = false,
+  suggestionChips, greeting, visitorFirstName, featuredProducts, faqs,
+  contained = false, defaultOpen = false,
 }, ref) => {
   const [open, setOpen] = useState(defaultOpen);
   const [showTip, setShowTip] = useState(false);
-  const chatRef = useRef<UnifiedChatWindowHandle>(null);
+  const chatRef = useRef<EcomChatShellHandle>(null);
 
   useEffect(() => {
     if (contained) return;
@@ -119,7 +123,7 @@ const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>((
               <X className="h-4 w-4" />
             </button>
             {chatbotId ? (
-              <UnifiedChatWindow
+              <EcomChatShell
                 ref={chatRef}
                 chatbotId={chatbotId}
                 businessName={businessName}
@@ -129,8 +133,10 @@ const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>((
                 assistantId={assistantId}
                 suggestionChips={suggestionChips}
                 greeting={greeting}
-                height="100%"
-                className="!rounded-none !border-0 !shadow-none"
+                visitorFirstName={visitorFirstName}
+                featuredProducts={featuredProducts}
+                faqs={faqs}
+                className="h-full"
               />
             ) : (
               <div className="flex h-full items-center justify-center p-8 text-center text-sm text-slate-500">
