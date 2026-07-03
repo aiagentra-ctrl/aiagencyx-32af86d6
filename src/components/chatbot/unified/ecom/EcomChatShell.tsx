@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import {
   ArrowLeft, ChevronRight, ChevronDown, MessageCircle, Home, HelpCircle,
-  Mic, MicOff, RefreshCw, Send, Search, Phone, ShoppingBag, Sparkles, Loader2, ExternalLink,
+  Mic, MicOff, RefreshCw, Send, Search, Phone, PhoneOff, ShoppingBag, Sparkles, Loader2, ExternalLink, ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +24,7 @@ type Msg = {
   ts: number;
 };
 type Session = { id: string; startedAt: number; messages: Msg[] };
-type FaqItem = { q: string; a: string };
+type FaqItem = { q: string; a: string; source_url?: string };
 type Tab = "home" | "chats" | "faq";
 
 export interface EcomChatShellHandle {
@@ -99,6 +99,9 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [voiceState, setVoiceState] = useState<"idle" | "connecting" | "listening" | "speaking">("idle");
+  const [voiceStartedAt, setVoiceStartedAt] = useState<number | null>(null);
+  const [voiceCallView, setVoiceCallView] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const sessionId = useRef<string>(crypto.randomUUID());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -209,15 +212,23 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
     if (!vapiKey || !assistantId || voiceState !== "idle") return;
     try {
       setVoiceState("connecting");
-      setInChat(true);
+      setVoiceCallView(true);
+      setTab("home");
       const { default: Vapi } = await import("@vapi-ai/web");
       const vapi = new Vapi(vapiKey);
       vapiRef.current = vapi;
-      vapi.on("call-start", () => setVoiceState("listening"));
+      vapi.on("call-start", () => { setVoiceState("listening"); setVoiceStartedAt(Date.now()); });
       vapi.on("speech-start", () => setVoiceState("speaking"));
       vapi.on("speech-end", () => setVoiceState("listening"));
-      vapi.on("call-end", () => { setVoiceState("idle"); vapiRef.current = null; });
-      vapi.on("error", () => { setVoiceState("idle"); vapiRef.current = null; });
+      vapi.on("call-end", () => {
+        const dur = voiceStartedAt ? Math.round((Date.now() - voiceStartedAt) / 1000) : 0;
+        setVoiceState("idle"); vapiRef.current = null; setVoiceStartedAt(null); setVoiceCallView(false); setMuted(false);
+        if (dur > 0) {
+          setInChat(true);
+          setMessages((p) => [...p, { id: crypto.randomUUID(), role: "assistant", content: `📞 Voice call ended · ${Math.floor(dur/60)}:${String(dur%60).padStart(2,"0")}`, voice: true, ts: Date.now() }]);
+        }
+      });
+      vapi.on("error", () => { setVoiceState("idle"); vapiRef.current = null; setVoiceStartedAt(null); setVoiceCallView(false); });
       vapi.on("message", (m: any) => {
         if (m?.type === "transcript" && m.transcriptType === "final" && m.transcript?.trim()) {
           const role = m.role === "user" ? "user" : "assistant";
@@ -226,12 +237,22 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
       });
       vapi.start(assistantId);
     } catch (e) { console.error(e); setVoiceState("idle"); }
-  }, [vapiKey, assistantId, voiceState]);
+  }, [vapiKey, assistantId, voiceState, voiceStartedAt]);
 
   const stopVoice = useCallback(() => {
     try { vapiRef.current?.stop?.(); } catch {}
-    setVoiceState("idle"); vapiRef.current = null;
+    setVoiceState("idle"); vapiRef.current = null; setVoiceStartedAt(null); setVoiceCallView(false); setMuted(false);
   }, []);
+
+  const toggleMute = useCallback(() => {
+    try {
+      const v = vapiRef.current;
+      if (!v) return;
+      const next = !muted;
+      v.setMuted?.(next);
+      setMuted(next);
+    } catch {}
+  }, [muted]);
 
   useImperativeHandle(ref, () => ({ sendMessage, startVoice }), [sendMessage, startVoice]);
   useEffect(() => () => { try { vapiRef.current?.stop?.(); } catch {} }, []);
@@ -244,6 +265,18 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
 
   return (
     <div className={cn("relative flex h-full w-full flex-col overflow-hidden bg-[#0a0a0a] text-white", className)}>
+      {voiceCallView && (
+        <VoiceCallView
+          businessName={businessName}
+          logoUrl={logoUrl}
+          voiceState={voiceState}
+          startedAt={voiceStartedAt}
+          muted={muted}
+          onToggleMute={toggleMute}
+          onEnd={stopVoice}
+          onBack={() => setVoiceCallView(false)}
+        />
+      )}
       {/* Screen container */}
       <div className="relative flex flex-1 flex-col overflow-hidden">
         <AnimatePresence mode="wait" initial={false}>
@@ -671,28 +704,44 @@ function ChatProductCard({ p }: { p: Product }) {
   const cur = p.currency === "USD" || !p.currency ? "$" : `${p.currency} `;
   const oos = p.in_stock === false;
   return (
-    <div className="w-[150px] flex-shrink-0 snap-start overflow-hidden rounded-2xl bg-[#1a1a1a] ring-1 ring-white/5">
-      <div className="aspect-square bg-[#111]">
+    <div className="w-[160px] flex-shrink-0 snap-start overflow-hidden rounded-2xl bg-[#1a1a1a] ring-1 ring-white/5">
+      <div className="relative aspect-square bg-[#111]">
         {p.image_url ? (
           <img src={p.image_url} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center"><ShoppingBag className="h-7 w-7 text-white/20" /></div>
+          <div className="flex h-full w-full items-center justify-center" style={{ background: "color-mix(in srgb, var(--brand) 18%, #111)" }}>
+            <ShoppingBag className="h-7 w-7 text-white/30" />
+          </div>
+        )}
+        {oos && (
+          <span className="absolute left-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/80">
+            Sold out
+          </span>
         )}
       </div>
-      <div className="space-y-1 p-2.5">
-        <p className="line-clamp-2 min-h-[32px] text-[12px] font-semibold text-white leading-tight">{p.name}</p>
+      <div className="space-y-1.5 p-2.5">
+        <p className="line-clamp-2 min-h-[32px] text-[12px] font-semibold leading-tight text-white">{p.name}</p>
         {p.price !== undefined && p.price !== "" && (
-          <p className="text-[13px] font-bold" style={{ color: "var(--brand)" }}>{cur}{p.price}</p>
+          <p className="text-[13px] font-bold" style={{ color: "var(--brand-mid)" }}>{cur}{p.price}</p>
         )}
-        <p className="text-[10px]" style={{ color: oos ? "#9ca3af" : "#4ade80" }}>{oos ? "Out of stock" : "In stock"}</p>
         {p.product_url && (
-          <a
-            href={p.product_url} target="_blank" rel="noopener noreferrer"
-            className="mt-1 flex h-7 w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold"
-            style={{ background: "var(--brand)", color: "var(--brand-text, #fff)" }}
-          >
-            {oos ? "View" : "Order Now"} <ExternalLink className="h-3 w-3" />
-          </a>
+          <div className="space-y-1 pt-0.5">
+            <a
+              href={p.product_url} target="_blank" rel="noopener noreferrer"
+              className="flex h-7 w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold"
+              style={{ background: "var(--brand)", color: "var(--brand-text, #fff)" }}
+            >
+              {oos ? "View" : "Buy Now"} <ExternalLink className="h-3 w-3" />
+            </a>
+            {!oos && (
+              <a
+                href={p.product_url} target="_blank" rel="noopener noreferrer"
+                className="flex h-7 w-full items-center justify-center gap-1 rounded-lg text-[11px] font-semibold text-white/85 ring-1 ring-white/10 hover:ring-white/25"
+              >
+                <ShoppingCart className="h-3 w-3" /> Add to Cart
+              </a>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -779,17 +828,30 @@ function FaqScreen({ faqs, onAskAi, onTalkAi, hasVoice }: { faqs: FaqItem[]; onA
       <p className="mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wider text-white/50">Popular Questions</p>
       <div className="space-y-2">
         {filtered.map((f, i) => (
-          <button
-            key={f.q}
-            onClick={() => setOpenIdx(openIdx === i ? null : i)}
-            className="w-full rounded-2xl bg-[#1a1a1a] p-3 text-left ring-1 ring-white/5 transition hover:bg-[#222]"
-          >
-            <div className="flex items-center gap-2">
+          <div key={f.q} className="rounded-2xl bg-[#1a1a1a] ring-1 ring-white/5">
+            <button
+              type="button"
+              onClick={() => setOpenIdx(openIdx === i ? null : i)}
+              className="flex w-full items-center gap-2 p-3 text-left transition hover:bg-[#222] rounded-2xl"
+            >
               <span className="flex-1 text-sm font-semibold text-white">{f.q}</span>
               <ChevronDown className={cn("h-4 w-4 text-white/40 transition", openIdx === i && "rotate-180")} />
-            </div>
-            {openIdx === i && <p className="mt-2 text-xs leading-relaxed text-white/70">{f.a}</p>}
-          </button>
+            </button>
+            {openIdx === i && (
+              <div className="border-t border-white/5 px-3 pb-3 pt-2">
+                <p className="text-xs leading-relaxed text-white/70">{f.a}</p>
+                {f.source_url && (
+                  <a
+                    href={f.source_url} target="_blank" rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold"
+                    style={{ color: "var(--brand-mid)" }}
+                  >
+                    View policy <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
         ))}
         {filtered.length === 0 && <p className="text-center text-xs text-white/40">No matching questions.</p>}
       </div>
@@ -817,6 +879,122 @@ function FaqScreen({ faqs, onAskAi, onTalkAi, hasVoice }: { faqs: FaqItem[]; onA
 }
 
 // ================= BOTTOM NAV =================
+
+function VoiceCallView({
+  businessName, logoUrl, voiceState, startedAt, muted, onToggleMute, onEnd, onBack,
+}: {
+  businessName: string;
+  logoUrl?: string | null;
+  voiceState: "idle" | "connecting" | "listening" | "speaking";
+  startedAt: number | null;
+  muted: boolean;
+  onToggleMute: () => void;
+  onEnd: () => void;
+  onBack: () => void;
+}) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, []);
+  const secs = startedAt ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
+  const timer = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+  const statusLabel =
+    voiceState === "connecting" ? "Connecting…" :
+    voiceState === "speaking" ? "AI is speaking" :
+    voiceState === "listening" ? "Listening…" : "Idle";
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="absolute inset-0 z-30 flex flex-col overflow-hidden"
+      style={{
+        background:
+          "radial-gradient(600px 400px at 50% 25%, color-mix(in srgb, var(--brand) 40%, transparent), transparent 70%), #0a0a0a",
+      }}
+    >
+      {/* header */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <button
+          onClick={onBack}
+          className="rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+          aria-label="Back to chat"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <p className="text-xs font-semibold uppercase tracking-wider text-white/60">Voice Call</p>
+        <div className="w-8" />
+      </div>
+
+      {/* central avatar + status */}
+      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+        <div className="relative flex h-40 w-40 items-center justify-center">
+          {/* pulse rings */}
+          <span
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "color-mix(in srgb, var(--brand) 25%, transparent)",
+              animation: "vcPulseOne 2.2s ease-out infinite",
+            }}
+          />
+          <span
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "color-mix(in srgb, var(--brand) 18%, transparent)",
+              animation: "vcPulseTwo 2.2s ease-out .6s infinite",
+            }}
+          />
+          <div
+            className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-2xl font-bold shadow-2xl ring-4 ring-white/10"
+            style={{ background: "var(--brand)", color: "var(--brand-text, #fff)" }}
+          >
+            {logoUrl ? (
+              <img src={logoUrl} alt={businessName} className="h-full w-full rounded-full bg-white object-contain p-1.5" />
+            ) : businessName.slice(0, 2).toUpperCase()}
+          </div>
+          <style>{`
+            @keyframes vcPulseOne { 0% { transform: scale(1); opacity: .7 } 100% { transform: scale(1.55); opacity: 0 } }
+            @keyframes vcPulseTwo { 0% { transform: scale(1); opacity: .5 } 100% { transform: scale(1.85); opacity: 0 } }
+          `}</style>
+        </div>
+
+        <h3 className="mt-6 text-xl font-bold text-white" style={{ fontFamily: "'Sora', sans-serif" }}>{businessName} AI</h3>
+        <p className="mt-1 text-sm text-white/60">{statusLabel}</p>
+        {startedAt && <p className="mt-2 font-mono text-2xl tabular-nums text-white/85">{timer}</p>}
+      </div>
+
+      {/* controls */}
+      <div className="flex items-center justify-center gap-6 px-6 pb-8">
+        <button
+          onClick={onToggleMute}
+          className={cn(
+            "flex h-14 w-14 flex-col items-center justify-center rounded-full ring-1 transition",
+            muted ? "bg-white/15 ring-white/25 text-white" : "bg-white/5 ring-white/10 text-white/80 hover:bg-white/10"
+          )}
+          aria-label={muted ? "Unmute" : "Mute"}
+        >
+          {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+        </button>
+
+        <button
+          onClick={onEnd}
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500 text-white shadow-[0_10px_40px_rgba(239,68,68,.55)] transition hover:scale-105 active:scale-95"
+          aria-label="End call"
+        >
+          <PhoneOff className="h-6 w-6" />
+        </button>
+
+        <button
+          onClick={onBack}
+          className="flex h-14 w-14 flex-col items-center justify-center rounded-full bg-white/5 text-white/80 ring-1 ring-white/10 transition hover:bg-white/10"
+          aria-label="Back to chat"
+        >
+          <MessageCircle className="h-5 w-5" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
 
 function BottomNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void }) {
   const items: { id: Tab; label: string; icon: any }[] = [

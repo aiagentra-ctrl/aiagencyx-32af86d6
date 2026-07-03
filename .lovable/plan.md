@@ -1,86 +1,84 @@
-# E-Commerce Chatbot UI Rebuild (PLIX-style)
+# Ecom Landing v3 + Chatbot Polish
 
-Scope: E-commerce industry only. Rebuild the floating chat widget from scratch to match the reference screenshots exactly. Landing page and other industries untouched. All colors auto-derive from `chatbots.widget_config.brand_color` (already implemented via `brandCssVars`).
+Copy the koushikflow.netlify.app aesthetic for the ecom landing page, personalized with the scraped business (logo, name, first-name greeting). Keep the widget architecture we already built; polish the chat UX so product cards drive to real product URLs, add a dedicated in-widget voice call screen, and use scraped policy pages to populate FAQs.
 
-## New widget structure (replaces current `UnifiedChatWindow` body inside `EcomFloatingChatWidget`)
+## 1. Landing page — koushikflow-style (`EcommerceLandingPage.tsx`)
 
-Three screens + bottom tab nav, all inside the existing floating panel (390×640).
+Replace the current hero/sections with a single dark, centered, minimal viewport:
 
-### 1. Home tab (default open view)
+- **Background**: near-black `#0a0620` → deep indigo, faint animated grid + soft glowing dot particles (pure CSS, no libs).
+- **Top-right nav**: pill button "Try AI Now" (brand gradient), and small brand mark top-left = client `logo_url` + `businessName` (fallback initials via `BusinessLogo`).
+- **Center block** (vertically centered, ~60ch max):
+  1. Huge headline: `Hey {{visitorFirstName || "there"}},` — the name gets a purple glow (`text-shadow`) and gradient fill using brand color, matching the reference "Guest" treatment.
+  2. Subhead (light gray, ~1.5rem): `I built an AI that captures sales while you're off the clock.`
+  3. Framed quote card (rounded, subtle brand border, backdrop-blur): `It's an AI that talks to your customers on {{siteDomain}}, answers questions about your products, and helps them checkout — while you focus on running {{businessName}}.`
+  4. Primary CTA: gradient pill `Try it out 💬` → opens floating widget (already wired via `EcomFloatingChatWidgetHandle.open`).
+  5. Small caption under CTA: `A smooth chat will begin in the bottom-right corner`.
+- **Second viewport (scroll)**: matching dark section
+  - Small brand-tinted eyebrow: `Turn conversations into conversions`
+  - H2: `Capture sales the moment buyers are ready.`
+  - Body: `See how the AI can sell, support, and recommend products for {{businessName}} 24/7.`
+  - CTA: `Start Chatting Now` (opens widget) + secondary ghost `Talk to AI` (opens widget → voice view).
+  - Tag line: `Don't wait until it's too late. Early adopters always win.`
+- Typography: import Google Font `Sora` (headings) + `Inter` (body) via `<link>` in `index.html`; add tokens to `tailwind.config.ts` (`font-display`, `font-sans`).
+- Personalization: pull `businessName`, `logo_url`, `first_name` (visitor), domain, and product count from the same props the page already receives — no schema change.
+- Remove the old Hero / ValueProps / ProductGrid marketing sections from `EcommerceLandingPage.tsx`; the widget is the product showcase. Keep the floating widget mount unchanged.
 
-- Brand-color header block (~140px): business logo top-left (28px), then large white heading `Hi {{firstname}} 👋` + subline `What are you shopping for today?`
-- Primary CTA card (dark #1e1e1e, full width, chevron right): `💬 Ask about products` → switches to Chat tab
-- Quick chip grid 2×2:  `Bestsellers`,  `Gifts`,  `Under $100`,  `Track order` (chips = brand color at 80% opacity, white text). Click sends message + switches to Chat tab.
-- Recent Conversation card (if any prior session in localStorage): shows first user message + relative time → reopens Chat tab with restored messages
-- Voice CTA card: `🎙 Talk to AI — Start Call` → triggers VAPI start
-- Featured Products horizontal scroll (2–4 products from `products` table for this chatbot): image + name + price, tap → sends "Tell me about {product}" and switches to Chat
+## 2. Chatbot polish (`EcomChatShell.tsx` + subparts)
 
-### 2. Chat tab
+Everything stays in the existing 390×640 shell; no new tabs.
 
-- Sticky sub-header: back arrow (returns to Home) + `{{company}} AI` + `Your assistant`
-- Dark background (#0f0f0f)
-- Empty state: centered brand-color logo circle + business name + `I know {{N}} products. Ask me anything.` + 2×2 chip cards (same as Home quick chips)
-- Active messages:
-  - Bot: brand-color avatar circle (logo/initials) on left + dark gray (#1e1e1e) bubble, white text
-  - User: brand-color bubble, right-aligned, `--brand-text` color, no avatar
-  - Chips as part of bot message: rendered below the bubble, click sends chip text as user message
-  - Product recommendations: horizontal-scroll row of `ProductCard` (image, name, brand-color price, Order Now button) rendered below the bot bubble
-  - Debug/KB snippets: collapsible expandable card (chevron), closed by default
-- Input bar (dark, brand-color focus ring): text input + mic button + refresh (new conversation) + send (brand-color circular)
+### 2a. Product recommendation cards
+- `ProductCard` (dark variant used inside chat) gets two buttons stacked:
+  - Primary `Buy Now` → opens `product.url` in new tab (`target=_blank rel=noopener`).
+  - Secondary `Add to Cart` → same URL for now (most Shopify/Woo add-to-cart is `?add-to-cart={id}` or the product URL); we pass through whatever the scraper stored in `products.url`.
+- Ensure image, name, price, and CTA are always visible; graceful fallback when `image_url` missing (brand-tinted placeholder w/ initials).
+- Horizontal snap-scroll row inside bot bubbles when >1 product.
 
-### 3. FAQ tab
+### 2b. Voice call — dedicated in-widget screen
+- Add `view: "home" | "chat" | "faq" | "voice"` state in `EcomChatShell`.
+- New `VoiceCallView` component:
+  - Full-shell dark screen with pulsing brand-color avatar (logo or initials), business name, status label (`Connecting…`, `Listening…`, `Speaking…`), live timer.
+  - Big red circular `End Call` button (single control); small mic-mute toggle + back-to-chat link at bottom.
+  - Uses the existing VAPI hook already used by the mic button; call start moves to this view, call end returns to chat with a system message `Voice call ended · 01:23`.
+- Chat tab keeps a small mic icon in the composer that switches into the voice view instead of inline waveform.
+- Home tab "Start a live call" row triggers the same voice view.
 
-- Search input at top
-- List of expandable Q/A cards pulled from `chatbots.widget_config.faqs` (fallback to defaults: return policy, shipping, sizes, gift wrap)
-- Footer buttons:  `Ask the AI` (→ Chat tab) and  `Talk to AI` (→ voice)
+### 2c. FAQ tab from scraped policy pages
+- Extend `scrape-ecommerce-products` (or add a small step in `scrape-and-analyze`) to also fetch typical policy URLs: `/pages/shipping`, `/pages/returns`, `/policies/*`, `/faq`, `/shipping`, `/returns`, `/pages/faq`, plus any nav link containing `policy|shipping|return|faq|gift|size`. Store extracted Q/A pairs in `chatbots.widget_config.faqs` as `[{q, a, source_url}]`.
+- Default fallback questions (rendered only if scrape returned nothing):
+  - What is your return policy?
+  - How long does shipping take?
+  - Do you offer gift wrapping?
+  - What sizes are available?
+- FAQ tab UI: search box + accordion (already exists); each answer shows a small `View policy →` link when `source_url` present.
 
-### Bottom nav (persistent, 56px)
+### 2d. Small chat polish
+- Bot bubble spacing tightened; consistent 12px radius; message timestamp on hover.
+- User bubble uses `var(--brand)` bg / `var(--brand-text)` fg.
+- Composer: rounded pill, brand focus ring, send button becomes brand gradient when input has text.
 
--  Home,  Chats,  FAQ — active tab underlined in brand color
-- `Powered by Aiagentra` micro-text below
+## 3. Admin preview
+- `EcomLandingTemplatePanel` preview iframe already renders `EcommerceLandingPage`; no structural change needed — it will pick up the new layout automatically.
+- Add a "View mode" toggle for the widget preview: `Home | Chat | Voice | FAQ` so admins can inspect each screen without interacting.
 
-## Files to create
+## Files
 
-- `src/components/chatbot/unified/ecom/EcomChatShell.tsx` — tab controller, bottom nav, header switching
-- `src/components/chatbot/unified/ecom/HomeTab.tsx`
-- `src/components/chatbot/unified/ecom/ChatTab.tsx` — reuses streaming logic from existing `UnifiedChatWindow`
-- `src/components/chatbot/unified/ecom/FaqTab.tsx`
-- `src/components/chatbot/unified/ecom/ChatsTab.tsx` — localStorage session list (last 5)
-- `src/components/chatbot/unified/ecom/MessageBubble.tsx` — bot/user variants, avatar, chip row, product row, debug accordion
-- `src/components/chatbot/unified/ecom/ChatInput.tsx` — dark input + mic + refresh + send
-- `src/components/chatbot/unified/ecom/ProductStrip.tsx` — horizontal scroll wrapper for `ProductCard`
+**Edit**
+- `src/components/demo/ecommerce/EcommerceLandingPage.tsx` — full rewrite to koushikflow layout
+- `src/components/chatbot/unified/ecom/EcomChatShell.tsx` — add `voice` view, wire FAQ source_url, polish
+- `src/components/chatbot/ProductCard.tsx` — dual CTA, dark variant refinements
+- `src/components/admin/EcomLandingTemplatePanel.tsx` — widget view-mode toggle
+- `supabase/functions/scrape-ecommerce-products/index.ts` — also fetch policy pages → FAQs
+- `index.html` — Sora + Inter font links
+- `tailwind.config.ts` — `fontFamily.display`, `fontFamily.sans`
 
-## Files to edit
-
-- `src/components/chatbot/unified/EcomFloatingChatWidget.tsx` — swap `UnifiedChatWindow` body for `<EcomChatShell />`; pass `products`, `faqs`, `visitorFirstName`
-- `src/components/chatbot/ProductCard.tsx` — add dark-theme variant (`variant="dark"`) so it reads on #0f0f0f
-- `src/components/admin/EcomLandingTemplatePanel.tsx` — the preview already renders `EcommerceLandingPage` which mounts the widget; add a "Preview widget on Home / Chat / FAQ" tab selector above the preview frame so admin can inspect each screen without clicking through
-- `src/components/demo/ecommerce/EcommerceLandingPage.tsx` — pass `visitorName` first-name and top featured products to the widget
-
-## Data & state
-
-- Conversation history + recent sessions: `localStorage` keyed by `chatbotId` (no DB migration needed)
-- Featured products: existing `products` table, top 4 by created_at for the chatbot
-- FAQs: read `chatbots.widget_config.faqs` array, fall back to hardcoded e-commerce defaults
-- Streaming, RAG, voice: reuse the existing `chatbot-conversation` edge function + VAPI hook from current `UnifiedChatWindow` — no backend changes
-
-## Theming (auto per business)
-
-Already available via `brandCssVars` on the widget root. New components consume:
-
-- `var(--brand)` — header, user bubble, avatar, send button, active tab underline, product price
-- `var(--brand-dark)` — chip background
-- `var(--brand-text)` — text on brand surfaces
-- Fixed dark tokens: bg `#0f0f0f`, cards `#1a1a1a`, bot bubble `#1e1e1e`, borders `white/8`
+**Create**
+- `src/components/chatbot/unified/ecom/VoiceCallView.tsx`
+- `src/components/demo/ecommerce/StarfieldBackground.tsx` (CSS-only grid + dots)
 
 ## Out of scope
+- Non-ecom industries, backend DB schema changes, real cart integration, VAPI provisioning, auth.
 
-- Landing page layout (unchanged)
-- Other industries (dental, real estate)
-- Backend / edge functions / DB schema
-- Voice VAPI provisioning logic
-- Order tracking integration (chip sends message only; real tracking is future work)
-
-## Admin preview
-
-The existing live-preview panel already renders the real widget via `LandingTemplateOverrideCtx`. After this rebuild, admin will see the new 3-tab UI live. Adding a small tab selector lets admin jump directly to Home / Chat / FAQ inside the scaled preview.
+## Open question
+Product "Add to Cart" — for now both buttons deep-link to `product.url` (new tab). Fine, or should the secondary button be hidden until we have a real cart endpoint?
