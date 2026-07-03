@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SiteSettingsPanel from "./SiteSettingsPanel";
 import VariableFallbacksPanel from "./followup/VariableFallbacksPanel";
+import EcomLandingTemplatePanel from "./EcomLandingTemplatePanel";
 import { SectionHeader } from "@/components/primitives";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -89,12 +90,14 @@ export default function SettingsPage() {
         <TabsList className="bg-surface-1">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="variables">Variables</TabsTrigger>
+          <TabsTrigger value="ecom-landing">E-com Landing</TabsTrigger>
           <TabsTrigger value="sequences">Sequences</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="keys">API Keys</TabsTrigger>
         </TabsList>
         <TabsContent value="general"><SiteSettingsPanel /></TabsContent>
         <TabsContent value="variables"><VariableFallbacksPanel /></TabsContent>
+        <TabsContent value="ecom-landing"><EcomLandingTemplatePanel /></TabsContent>
         <TabsContent value="sequences"><SequenceGlobalRules /></TabsContent>
         <TabsContent value="notifications"><NotificationToggles /></TabsContent>
         <TabsContent value="keys"><ApiKeysShortcut /></TabsContent>
