@@ -182,7 +182,7 @@ function PreviewFrame({
  * from DB. We instead wrap it with a context override.
  */
 import { createContext, useContext } from "react";
-export const LandingTemplateOverrideCtx = createContext<Template | null>(null);
+export const LandingTemplateOverrideCtx = createContext<any | null>(null);
 
 function PreviewInner({ tpl, previewOpen }: { tpl: Template; previewOpen: boolean }) {
   return (
@@ -196,7 +196,6 @@ function PreviewInner({ tpl, previewOpen }: { tpl: Template; previewOpen: boolea
         visitorName="Alex"
         contactEmail="hi@acme.store"
         contactPhone="+1 555 0100"
-        // @ts-expect-error - preview-only props
         _previewProductCount={42}
         _previewWidgetOpen={previewOpen}
       />
