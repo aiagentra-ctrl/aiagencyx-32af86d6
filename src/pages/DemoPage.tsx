@@ -243,6 +243,26 @@ const DemoPage = () => {
     .some(k => (page.industry || "").toLowerCase().includes(k));
   const wt = dc.website_template || {};
 
+  // E-COMMERCE gets its own dedicated, admin-editable landing experience.
+  if (isEcommerce) {
+    return (
+      <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>}>
+        <EcommerceLandingPage
+          chatbotId={linkedChatbot?.id}
+          businessName={companyName}
+          logoUrl={logoUrl}
+          brandColor={dc.brand_color || linkedChatbot?.widget_config?.primaryColor}
+          vapiKey={page.vapi_key}
+          assistantId={page.assistant_id}
+          calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
+          onBookCall={handleBookCall}
+          contactEmail={page.contact_email || undefined}
+          contactPhone={page.contact_phone || undefined}
+        />
+      </Suspense>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <DemoNavbar
