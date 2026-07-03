@@ -2,7 +2,7 @@
 // Tap mic = start voice. Tap again = stop. Transcripts flow into the same thread.
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, Sparkles } from "lucide-react";
 import ChatMessage from "./ChatMessage";
 import WelcomeScreen from "./WelcomeScreen";
 import VoiceMicButton, { type VoiceState } from "./VoiceMicButton";
@@ -44,13 +44,21 @@ const EcommerceChatWindow = ({
   const [started, setStarted] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const sessionId = useRef(crypto.randomUUID());
   const vapiRef = useRef<any>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
+
+  // Auto-expand textarea
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 120) + "px";
+  }, [input]);
 
   const sendMessage = useCallback(async (text: string) => {
     text = text.trim();
@@ -200,12 +208,18 @@ const EcommerceChatWindow = ({
               />
             ))}
             {isLoading && messages[messages.length - 1]?.role === "user" && (
-              <div className="flex justify-start">
-                <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
+              <div className="flex justify-start gap-2">
+                <div className="flex-shrink-0 mt-0.5 h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center ring-1 ring-primary/20">
+                  <Sparkles className="h-3.5 w-3.5" />
+                </div>
+                <div
+                  className="bg-white border border-slate-200/70 px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
+                  style={{ borderRadius: "4px 18px 18px 18px" }}
+                >
                   <div className="flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
-                    <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
-                    <span className="h-2 w-2 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                    <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0ms]" />
+                    <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
+                    <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
                   </div>
                 </div>
               </div>
@@ -224,19 +238,41 @@ const EcommerceChatWindow = ({
         </div>
       )}
 
-      {/* Unified input bar: text + mic */}
-      <div className="border-t bg-card/80 backdrop-blur-md p-3">
+      {/* Unified input bar: quick chips + textarea + mic + send */}
+      <div className="border-t border-slate-200 bg-white px-4 py-3 shadow-[0_-4px_16px_rgba(0,0,0,0.04)]">
+        {started && (
+          <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {actions.slice(0, 4).map((a, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleAction(a)}
+                disabled={isLoading}
+                className="flex-shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all disabled:opacity-40"
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+        )}
         <form
           onSubmit={(e) => { e.preventDefault(); sendMessage(input); }}
-          className="flex gap-2 items-center"
+          className="flex gap-2 items-end"
         >
-          <input
+          <textarea
             ref={inputRef}
             value={input}
+            rows={1}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={voiceState !== "idle" ? "Voice mode active…" : "Type or tap mic to talk…"}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage(input);
+              }
+            }}
+            placeholder={voiceState !== "idle" ? "Voice mode active…" : "Ask about products, prices, or anything..."}
             disabled={isLoading || voiceState !== "idle"}
-            className="flex-1 rounded-2xl border border-input bg-background px-4 py-2.5 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
+            className="flex-1 resize-none rounded-2xl border border-transparent bg-slate-100 px-4 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-primary focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] transition-all duration-150 disabled:opacity-50 min-h-[36px] max-h-[120px]"
           />
           {vapiKey && assistantId && (
             <VoiceMicButton state={voiceState} onClick={toggleVoice} disabled={isLoading} />
@@ -245,7 +281,7 @@ const EcommerceChatWindow = ({
             type="submit"
             size="icon"
             disabled={isLoading || !input.trim() || voiceState !== "idle"}
-            className="rounded-2xl shrink-0 h-10 w-10 bg-gradient-to-br from-primary to-primary/80 shadow-md hover:shadow-lg transition-all"
+            className="rounded-full shrink-0 h-9 w-9 bg-primary hover:bg-primary/90 shadow-sm active:scale-95 transition-all disabled:bg-slate-200 disabled:text-slate-400"
           >
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>

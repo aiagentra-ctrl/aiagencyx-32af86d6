@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createEmbedding, chatCompletion, MODELS } from "../_shared/openrouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +30,19 @@ interface AIProvider {
 async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> {
   const providers: AIProvider[] = [];
 
+  // Prefer OpenRouter Claude Haiku for e-commerce (fast + product-savvy).
+  const industryLower = (chatbot.industry || "").toLowerCase();
+  const isEcom = ["ecommerce", "shop", "store", "retail"].some((k) => industryLower.includes(k));
+  const openrouterKey = Deno.env.get("OPENROUTER_API_KEY");
+  if (openrouterKey && isEcom) {
+    providers.push({
+      name: "OpenRouter: Claude 3.5 Haiku",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      key: openrouterKey,
+      model: MODELS.ecommerce_chat,
+    });
+  }
+
   if (chatbot.ai_provider !== "lovable" && chatbot.api_key_encrypted) {
     let url: string;
     switch (chatbot.ai_provider) {
@@ -51,6 +65,16 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
       url: "https://ai.gateway.lovable.dev/v1/chat/completions",
       key: lovableKey,
       model: chatbot.ai_provider === "lovable" ? (chatbot.ai_model || "google/gemini-3-flash-preview") : "google/gemini-3-flash-preview",
+    });
+  }
+
+  // OpenRouter fallback for non-ecommerce industries (or if primary path failed above).
+  if (openrouterKey && !providers.find((p) => p.url.includes("openrouter.ai"))) {
+    providers.push({
+      name: "OpenRouter: GPT-4o mini",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      key: openrouterKey,
+      model: MODELS.fallback,
     });
   }
 
@@ -78,6 +102,78 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
   }
 
   return providers;
+}
+
+// ── Shopping query parsing (Part 2C) ─────────────────────────────────────
+type ParsedQuery = {
+  search_query: string;
+  max_price: number | null;
+  min_price: number | null;
+  category: string | null;
+  vendor: string | null;
+  in_stock_only: boolean;
+  intent: "browse" | "find_specific" | "compare" | "policy" | "size_help" | "gift" | "other";
+  quantity: number | null;
+  attributes: string[];
+};
+
+const parseCache = new Map<string, { at: number; parsed: ParsedQuery }>();
+function cacheKey(msg: string) { return msg.trim().toLowerCase().slice(0, 200); }
+
+async function parseShoppingQuery(message: string): Promise<ParsedQuery> {
+  const fallback: ParsedQuery = {
+    search_query: message, max_price: null, min_price: null, category: null,
+    vendor: null, in_stock_only: false, intent: "other", quantity: null, attributes: [],
+  };
+  const key = cacheKey(message);
+  const cached = parseCache.get(key);
+  if (cached && Date.now() - cached.at < 60_000) return cached.parsed;
+
+  const result = await chatCompletion(MODELS.ecommerce_chat, [
+    { role: "system", content: "Extract shopping intent from the user message. Return JSON only, no other text." },
+    { role: "user", content: `Message: "${message}"
+
+Return this exact schema:
+{
+  "search_query": "clean search terms for embedding (remove filler words)",
+  "max_price": number or null,
+  "min_price": number or null,
+  "category": "detected category or null",
+  "vendor": "brand mentioned or null",
+  "in_stock_only": boolean,
+  "intent": "browse|find_specific|compare|policy|size_help|gift|other",
+  "quantity": number or null,
+  "attributes": ["color/size/material mentions"]
+}` },
+  ], { temperature: 0.1, max_tokens: 300, response_format: { type: "json_object" } });
+
+  if (!result?.content) { parseCache.set(key, { at: Date.now(), parsed: fallback }); return fallback; }
+  try {
+    const parsed = { ...fallback, ...JSON.parse(result.content) };
+    parseCache.set(key, { at: Date.now(), parsed });
+    return parsed;
+  } catch { parseCache.set(key, { at: Date.now(), parsed: fallback }); return fallback; }
+}
+
+function countForIntent(intent: ParsedQuery["intent"]): number {
+  switch (intent) {
+    case "browse": return 6;
+    case "find_specific": return 3;
+    case "compare": return 6;
+    case "gift": return 4;
+    default: return 5;
+  }
+}
+
+function rerankProducts(products: any[]): any[] {
+  const withBoost = products.map((p) => {
+    let score = p.combined_score ?? 0;
+    if (p.compare_at_price && p.price && Number(p.compare_at_price) > Number(p.price)) score += 0.05;
+    return { ...p, _score: score };
+  });
+  const inStock = withBoost.filter((p) => p.in_stock !== false).sort((a, b) => b._score - a._score);
+  const oos = withBoost.filter((p) => p.in_stock === false).sort((a, b) => b._score - a._score);
+  return inStock.length >= 3 ? inStock : [...inStock, ...oos];
 }
 
 function buildKnowledgeBase(chatbot: any, scrapedData: any): string {
@@ -420,27 +516,26 @@ Deno.serve(async (req) => {
     ]);
     const scrapedData = scrapedResult.data;
 
+    // Parse shopping intent up front (cheap, ~100ms, cached).
+    const industryLowerEarly = (chatbot.industry || "").toLowerCase();
+    const isEcom = ["ecommerce", "shop", "store", "retail"].some((k) => industryLowerEarly.includes(k));
+    let parsed: ParsedQuery | null = null;
+    if (isEcom) {
+      try { parsed = await parseShoppingQuery(message); }
+      catch (e) { console.warn("parseShoppingQuery failed", e); }
+    }
+
     // RAG: pull relevant knowledge base entries for the latest user message
     let kbContext = "";
     try {
-      const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-      if (lovableKey) {
-        const embRes = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/embeddings", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "openai/text-embedding-3-small", input: message.slice(0, 4000) }),
-        }, 5000);
-        if (embRes.ok) {
-          const emb = (await embRes.json())?.data?.[0]?.embedding;
-          if (emb) {
-            const { data: kb } = await supabase.rpc("match_kb_entries", {
-              p_chatbot_id: chatbotId, p_query_embedding: emb as any, p_match_count: 5,
-            });
-            if (kb && kb.length > 0) {
-              kbContext = "\n\n## RELEVANT KNOWLEDGE (use this to answer — never guess facts beyond it)\n" +
-                kb.map((e: any, i: number) => `[${i + 1}] ${e.title || e.content_type}${e.source_url ? ` (${e.source_url})` : ""}\n${e.content}`).join("\n\n---\n");
-            }
-          }
+      const emb = await createEmbedding(message.slice(0, 4000));
+      if (emb) {
+        const { data: kb } = await supabase.rpc("match_kb_entries", {
+          p_chatbot_id: chatbotId, p_query_embedding: emb as any, p_match_count: 5,
+        });
+        if (kb && kb.length > 0) {
+          kbContext = "\n\n## RELEVANT KNOWLEDGE (use this to answer — never guess facts beyond it)\n" +
+            kb.map((e: any, i: number) => `[${i + 1}] ${e.title || e.content_type}${e.source_url ? ` (${e.source_url})` : ""}\n${e.content}`).join("\n\n---\n");
         }
       }
     } catch (e) {
@@ -458,43 +553,109 @@ Deno.serve(async (req) => {
 
     // E-commerce: inject relevant products (semantic search on products table)
     let productsBlock = "";
-    const industryLower = (chatbot.industry || "").toLowerCase();
-    const isEcom = industryLower.includes("ecommerce") || industryLower.includes("shop")
-      || industryLower.includes("store") || industryLower.includes("retail");
-    if (isEcom) {
+    let injectedProducts: any[] = [];
+    if (isEcom && parsed && parsed.intent !== "policy") {
       try {
-        const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-        if (lovableKey) {
-          const embRes = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/embeddings", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "openai/text-embedding-3-small", input: message.slice(0, 1000) }),
-          }, 5000);
-          if (embRes.ok) {
-            const emb = (await embRes.json())?.data?.[0]?.embedding;
-            if (emb) {
-              const { data: prods } = await supabase.rpc("match_products", {
-                p_chatbot_id: chatbotId, p_query_embedding: emb as any, p_match_count: 5,
-              });
-              if (prods && prods.length > 0) {
-                productsBlock = "\n\n## RELEVANT PRODUCTS — render these as recommendation cards if user asks to buy/browse/recommend\n" +
-                  "Use the `<!--recommendations:[...]-->` format. Each product:\n" +
-                  prods.map((p: any) => `- ${p.name} | ${p.currency || "$"}${p.price || "?"} | ${p.description || ""} | image: ${p.image_url || ""} | url: ${p.product_url || ""}`).join("\n") +
-                  "\n\nWhen recommending products, output:\n" +
-                  `<!--recommendations:[${prods.slice(0, 3).map((p: any) => JSON.stringify({
-                    name: p.name, price: `${p.currency === "USD" || !p.currency ? "$" : p.currency}${p.price || ""}`,
-                    description: (p.description || "").slice(0, 120), image_url: p.image_url || "",
-                    category: p.category || "Product",
-                    actions: p.product_url ? [{ label: "Buy Now", value: "", url: p.product_url }] : [{ label: "Tell me more", value: `Tell me more about ${p.name}` }],
-                  })).join(",")}]-->\n`;
-              }
-            }
+        const searchText = parsed.search_query?.trim() || message.slice(0, 1000);
+        const emb = await createEmbedding(searchText);
+        if (emb) {
+          const filters: Record<string, any> = {};
+          if (parsed.max_price != null) filters.max_price = parsed.max_price;
+          if (parsed.min_price != null) filters.min_price = parsed.min_price;
+          if (parsed.category) filters.category = parsed.category;
+          if (parsed.vendor) filters.vendor = parsed.vendor;
+          if (parsed.in_stock_only) filters.in_stock = true;
+          const count = countForIntent(parsed.intent);
+
+          const { data: hybrid, error: hybridErr } = await supabase.rpc("match_products_hybrid", {
+            p_chatbot_id: chatbotId,
+            p_query_embedding: emb as any,
+            p_query_text: searchText,
+            p_match_count: count,
+            p_filters: filters,
+          });
+
+          let prods: any[] = [];
+          if (!hybridErr && Array.isArray(hybrid)) prods = rerankProducts(hybrid);
+          else {
+            const { data: legacy } = await supabase.rpc("match_products", {
+              p_chatbot_id: chatbotId, p_query_embedding: emb as any, p_match_count: count,
+            });
+            prods = rerankProducts(legacy || []);
+          }
+
+          if (prods.length > 0) {
+            injectedProducts = prods;
+            const cardJson = prods.slice(0, Math.min(prods.length, count)).map((p: any) => ({
+              name: p.name,
+              price: String(p.price ?? ""),
+              compare_at_price: p.compare_at_price ? String(p.compare_at_price) : null,
+              image_url: p.image_url || "",
+              in_stock: p.in_stock !== false,
+              category: p.category || "Product",
+              actions: p.product_url
+                ? [{ label: "View Product", url: p.product_url }]
+                : [{ label: "Tell me more", value: `Tell me more about ${p.name}` }],
+            }));
+            productsBlock =
+              "\n\n## RELEVANT PRODUCTS (use EXACT values below — never invent prices or URLs)\n" +
+              prods.map((p: any, i: number) =>
+                `[${i + 1}] ${p.name} | price: ${p.currency || "$"}${p.price ?? "?"}` +
+                `${p.compare_at_price ? ` (was ${p.compare_at_price})` : ""}` +
+                ` | ${p.in_stock === false ? "OUT OF STOCK" : "in stock"}` +
+                ` | category: ${p.category || "-"}` +
+                ` | url: ${p.product_url || "-"}`
+              ).join("\n") +
+              `\n\nDetected intent: ${parsed.intent}. When recommending, emit EXACTLY:\n` +
+              `<!--recommendations:${JSON.stringify(cardJson)}-->\n`;
           }
         }
-      } catch (e) { console.warn("Product RAG failed", e); }
+      } catch (e) { console.warn("Product hybrid RAG failed", e); }
     }
 
     const systemPrompt = buildSystemPrompt(chatbot, calendarUrl, scrapedData) + coreFactsBlock + productsBlock + kbContext;
+
+    // ── Session logging (chatbot_sessions + chatbot_messages) ────────────
+    let monitoringSessionId: string | null = null;
+    try {
+      const { data: existingSess } = await supabase
+        .from("chatbot_sessions").select("id, total_messages, user_messages, products_shown")
+        .eq("chatbot_id", chatbotId).eq("session_id", sessionId).maybeSingle();
+      if (existingSess) {
+        monitoringSessionId = existingSess.id;
+        await supabase.from("chatbot_sessions").update({
+          last_message_at: new Date().toISOString(),
+          total_messages: (existingSess.total_messages ?? 0) + 1,
+          user_messages: (existingSess.user_messages ?? 0) + 1,
+          products_shown: (existingSess.products_shown ?? 0) + injectedProducts.length,
+        }).eq("id", existingSess.id);
+      } else {
+        const { data: created } = await supabase.from("chatbot_sessions").insert({
+          chatbot_id: chatbotId,
+          session_id: sessionId,
+          business_name: chatbot.business_name,
+          total_messages: 1,
+          user_messages: 1,
+          products_shown: injectedProducts.length,
+          interaction_type: "chat",
+        }).select("id").maybeSingle();
+        monitoringSessionId = created?.id ?? null;
+      }
+      if (monitoringSessionId) {
+        await supabase.from("chatbot_messages").insert({
+          session_id: monitoringSessionId,
+          chatbot_id: chatbotId,
+          role: "user",
+          content: message,
+          query_intent: parsed?.intent ?? null,
+          products_shown: injectedProducts.length > 0
+            ? injectedProducts.slice(0, 6).map((p: any) => ({ name: p.name, price: p.price, url: p.product_url }))
+            : null,
+        });
+      }
+    } catch (e) {
+      console.warn("chatbot_sessions logging failed", e);
+    }
 
     const aiMessages = [
       { role: "system", content: systemPrompt },
@@ -574,6 +735,25 @@ Deno.serve(async (req) => {
           ...updatedMessages,
           { role: "assistant", content: fullResponse, timestamp: new Date().toISOString() },
         ];
+
+        // Log assistant message + update session counters (best-effort)
+        try {
+          if (monitoringSessionId) {
+            await supabase.from("chatbot_messages").insert({
+              session_id: monitoringSessionId,
+              chatbot_id: chatbotId,
+              role: "assistant",
+              content: fullResponse,
+            });
+            const { data: cur } = await supabase.from("chatbot_sessions")
+              .select("total_messages, bot_messages").eq("id", monitoringSessionId).maybeSingle();
+            await supabase.from("chatbot_sessions").update({
+              total_messages: (cur?.total_messages ?? 0) + 1,
+              bot_messages: (cur?.bot_messages ?? 0) + 1,
+              last_message_at: new Date().toISOString(),
+            }).eq("id", monitoringSessionId);
+          }
+        } catch (e) { console.warn("assistant log failed", e); }
 
         // Calculate conversation quality score (0-100)
         const userMsgs = finalMessages.filter((m: any) => m.role === "user");

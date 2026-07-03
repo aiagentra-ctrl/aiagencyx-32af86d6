@@ -12,7 +12,7 @@ const supabase = createClient(
 );
 
 const FIRECRAWL_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
+import { createEmbedding, chatCompletion, MODELS } from "../_shared/openrouter.ts";
 
 const MAX_PAGES = 25;
 const CHUNK_SIZE = 1200; // chars
@@ -25,19 +25,7 @@ function chunkText(text: string, size = CHUNK_SIZE): string[] {
   return out;
 }
 
-async function embed(text: string): Promise<number[] | null> {
-  if (!LOVABLE_KEY) return null;
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text.slice(0, 8000) }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.data?.[0]?.embedding || null;
-  } catch { return null; }
-}
+const embed = createEmbedding;
 
 async function fcMap(url: string): Promise<string[]> {
   const res = await fetch("https://api.firecrawl.dev/v2/map", {
@@ -122,24 +110,15 @@ SCRAPED CONTENT:
 ${combinedMarkdown.slice(0, 60000)}`;
 
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!res.ok) {
-      console.error("Architect call failed", res.status, await res.text());
+    const result = await chatCompletion(MODELS.kb_build, [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ], { temperature: 0.2, max_tokens: 4000, response_format: { type: "json_object" } });
+    if (!result) {
+      console.error("Architect call failed");
       return null;
     }
-    const data = await res.json();
-    const raw = data?.choices?.[0]?.message?.content || "";
+    const raw = result.content || "";
     const cleaned = raw.replace(/^```json\s*|```$/g, "").trim();
     const parsed = JSON.parse(cleaned);
     if (!parsed.chatbot_kb_md || !parsed.voice_kb_text || !parsed.prompt_core) return null;

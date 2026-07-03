@@ -186,6 +186,150 @@ export type Database = {
           },
         ]
       }
+      chatbot_messages: {
+        Row: {
+          chatbot_id: string | null
+          content: string
+          created_at: string
+          id: string
+          products_shown: Json | null
+          query_intent: string | null
+          response_quality_score: number | null
+          role: string
+          session_id: string | null
+          was_helpful: boolean | null
+        }
+        Insert: {
+          chatbot_id?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          products_shown?: Json | null
+          query_intent?: string | null
+          response_quality_score?: number | null
+          role: string
+          session_id?: string | null
+          was_helpful?: boolean | null
+        }
+        Update: {
+          chatbot_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          products_shown?: Json | null
+          query_intent?: string | null
+          response_quality_score?: number | null
+          role?: string
+          session_id?: string | null
+          was_helpful?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbot_messages_chatbot_id_fkey"
+            columns: ["chatbot_id"]
+            isOneToOne: false
+            referencedRelation: "chatbots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatbot_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "chatbot_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chatbot_sessions: {
+        Row: {
+          analysis: Json | null
+          analyzed_at: string | null
+          bot_messages: number
+          business_name: string | null
+          chatbot_id: string | null
+          demo_page_id: string | null
+          ended_at: string | null
+          flag_reason: string | null
+          flagged_for_review: boolean
+          id: string
+          interaction_type: string
+          last_message_at: string
+          outcome: string
+          products_clicked: number
+          products_shown: number
+          sentiment: string | null
+          sentiment_score: number | null
+          session_id: string
+          started_at: string
+          topics: string[] | null
+          total_messages: number
+          user_messages: number
+        }
+        Insert: {
+          analysis?: Json | null
+          analyzed_at?: string | null
+          bot_messages?: number
+          business_name?: string | null
+          chatbot_id?: string | null
+          demo_page_id?: string | null
+          ended_at?: string | null
+          flag_reason?: string | null
+          flagged_for_review?: boolean
+          id?: string
+          interaction_type?: string
+          last_message_at?: string
+          outcome?: string
+          products_clicked?: number
+          products_shown?: number
+          sentiment?: string | null
+          sentiment_score?: number | null
+          session_id: string
+          started_at?: string
+          topics?: string[] | null
+          total_messages?: number
+          user_messages?: number
+        }
+        Update: {
+          analysis?: Json | null
+          analyzed_at?: string | null
+          bot_messages?: number
+          business_name?: string | null
+          chatbot_id?: string | null
+          demo_page_id?: string | null
+          ended_at?: string | null
+          flag_reason?: string | null
+          flagged_for_review?: boolean
+          id?: string
+          interaction_type?: string
+          last_message_at?: string
+          outcome?: string
+          products_clicked?: number
+          products_shown?: number
+          sentiment?: string | null
+          sentiment_score?: number | null
+          session_id?: string
+          started_at?: string
+          topics?: string[] | null
+          total_messages?: number
+          user_messages?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbot_sessions_chatbot_id_fkey"
+            columns: ["chatbot_id"]
+            isOneToOne: false
+            referencedRelation: "chatbots"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatbot_sessions_demo_page_id_fkey"
+            columns: ["demo_page_id"]
+            isOneToOne: false
+            referencedRelation: "demo_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chatbots: {
         Row: {
           ai_model: string
@@ -1480,6 +1624,112 @@ export type Database = {
         }
         Relationships: []
       }
+      prompt_improvement_suggestions: {
+        Row: {
+          applied_at: string | null
+          chatbot_id: string | null
+          created_at: string
+          current_behavior: string | null
+          evidence: Json | null
+          id: string
+          industry: string
+          occurrence_count: number
+          outcomes: Json | null
+          sessions_analyzed: number | null
+          status: string
+          suggested_change: string | null
+          suggestion_type: string | null
+          suggestions: Json | null
+          summary: string | null
+        }
+        Insert: {
+          applied_at?: string | null
+          chatbot_id?: string | null
+          created_at?: string
+          current_behavior?: string | null
+          evidence?: Json | null
+          id?: string
+          industry?: string
+          occurrence_count?: number
+          outcomes?: Json | null
+          sessions_analyzed?: number | null
+          status?: string
+          suggested_change?: string | null
+          suggestion_type?: string | null
+          suggestions?: Json | null
+          summary?: string | null
+        }
+        Update: {
+          applied_at?: string | null
+          chatbot_id?: string | null
+          created_at?: string
+          current_behavior?: string | null
+          evidence?: Json | null
+          id?: string
+          industry?: string
+          occurrence_count?: number
+          outcomes?: Json | null
+          sessions_analyzed?: number | null
+          status?: string
+          suggested_change?: string | null
+          suggestion_type?: string | null
+          suggestions?: Json | null
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_improvement_suggestions_chatbot_id_fkey"
+            columns: ["chatbot_id"]
+            isOneToOne: false
+            referencedRelation: "chatbots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prompt_versions: {
+        Row: {
+          applied_by: string
+          change_summary: string | null
+          chatbot_id: string | null
+          created_at: string
+          id: string
+          industry: string
+          suggestions_applied: string[] | null
+          system_prompt: string
+          version_number: number
+        }
+        Insert: {
+          applied_by?: string
+          change_summary?: string | null
+          chatbot_id?: string | null
+          created_at?: string
+          id?: string
+          industry?: string
+          suggestions_applied?: string[] | null
+          system_prompt: string
+          version_number?: number
+        }
+        Update: {
+          applied_by?: string
+          change_summary?: string | null
+          chatbot_id?: string | null
+          created_at?: string
+          id?: string
+          industry?: string
+          suggestions_applied?: string[] | null
+          system_prompt?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_versions_chatbot_id_fkey"
+            columns: ["chatbot_id"]
+            isOneToOne: false
+            referencedRelation: "chatbots"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prospect_activity_times: {
         Row: {
           created_at: string
@@ -1996,6 +2246,35 @@ export type Database = {
           product_url: string
           similarity: number
           sku: string
+        }[]
+      }
+      match_products_hybrid: {
+        Args: {
+          p_chatbot_id: string
+          p_filters?: Json
+          p_match_count?: number
+          p_query_embedding: string
+          p_query_text: string
+        }
+        Returns: {
+          category: string
+          combined_score: number
+          compare_at_price: number
+          currency: string
+          description: string
+          id: string
+          image_url: string
+          images: string[]
+          in_stock: boolean
+          name: string
+          options: Json
+          price: number
+          product_url: string
+          sku: string
+          text_score: number
+          variants: Json
+          vector_score: number
+          vendor: string
         }[]
       }
     }
