@@ -1,87 +1,86 @@
-# E-commerce Landing v2 + Floating Chat Widget + Admin Preview
+# E-Commerce Chatbot UI Rebuild (PLIX-style)
 
-Rework the e-commerce demo so it matches the reference site (koushikflow.netlify.app/50): a real marketing landing page (no embedded chat panel in the hero), a **floating bottom-right chat widget** that opens on click, and an **admin live preview** of the landing template.
+Scope: E-commerce industry only. Rebuild the floating chat widget from scratch to match the reference screenshots exactly. Landing page and other industries untouched. All colors auto-derive from `chatbots.widget_config.brand_color` (already implemented via `brandCssVars`).
 
-## 1. Landing page rebuild (`EcommerceLandingPage.tsx`)
+## New widget structure (replaces current `UnifiedChatWindow` body inside `EcomFloatingChatWidget`)
 
-Remove the embedded `UnifiedChatWindow` from the hero and the "Live Demo" section. Landing becomes pure marketing content — chat is only in the floating widget.
+Three screens + bottom tab nav, all inside the existing floating panel (390×640).
 
-New section order (matches reference):
+### 1. Home tab (default open view)
 
-1. **Nav** — scraped business logo (via `logo_url`) + business name, right-side "Book Call" button. Uses `--brand`.
-2. **Hero** — large headline `{{company}} — [template headline]`, sub, two CTAs: primary "Try AI Assistant" (opens floating widget), secondary "Book a Call". Right column: hero product/mockup image (scraped `logo_url` shown large in a branded card, or `hero_image_url` from template) — no chat window here.
-3. **Intro** — `Hey {{visitor_name}}, ...` personalized block.
-4. **Image feature** — hero image + headline + CTA.
-5. **Urgency line**.
-6. **Proof / YouTube video**.
-7. **"See it in action"** — instead of embedding chat, show a static screenshot/illustration of the widget with an arrow pointing to bottom-right + button "Open Live Chat" that pops the widget open.
-8. **Final CTA** — book call.
-9. **Footer**.
+- Brand-color header block (~140px): business logo top-left (28px), then large white heading `Hi {{firstname}} 👋` + subline `What are you shopping for today?`
+- Primary CTA card (dark #1e1e1e, full width, chevron right): `💬 Ask about products` → switches to Chat tab
+- Quick chip grid 2×2:  `Bestsellers`,  `Gifts`,  `Under $100`,  `Track order` (chips = brand color at 80% opacity, white text). Click sends message + switches to Chat tab.
+- Recent Conversation card (if any prior session in localStorage): shows first user message + relative time → reopens Chat tab with restored messages
+- Voice CTA card: `🎙 Talk to AI — Start Call` → triggers VAPI start
+- Featured Products horizontal scroll (2–4 products from `products` table for this chatbot): image + name + price, tap → sends "Tell me about {product}" and switches to Chat
 
-All copy stays template-driven with `{{company}}`, `{{visitor_name}}`, `{{product_count}}` variables. Logo everywhere pulled from scraped `logo_url` (via `BusinessLogo` component, which already falls back to initials).
+### 2. Chat tab
 
-## 2. Floating chat widget (`EcomFloatingChatWidget.tsx`)
+- Sticky sub-header: back arrow (returns to Home) + `{{company}} AI` + `Your assistant`
+- Dark background (#0f0f0f)
+- Empty state: centered brand-color logo circle + business name + `I know {{N}} products. Ask me anything.` + 2×2 chip cards (same as Home quick chips)
+- Active messages:
+  - Bot: brand-color avatar circle (logo/initials) on left + dark gray (#1e1e1e) bubble, white text
+  - User: brand-color bubble, right-aligned, `--brand-text` color, no avatar
+  - Chips as part of bot message: rendered below the bubble, click sends chip text as user message
+  - Product recommendations: horizontal-scroll row of `ProductCard` (image, name, brand-color price, Order Now button) rendered below the bot bubble
+  - Debug/KB snippets: collapsible expandable card (chevron), closed by default
+- Input bar (dark, brand-color focus ring): text input + mic button + refresh (new conversation) + send (brand-color circular)
 
-New component mounted once at page root of `EcommerceLandingPage`.
+### 3. FAQ tab
 
-**Closed state (FAB):**
-- Fixed bottom-right, 64px circle, `--brand` background, business logo inside (white ring), subtle pulse ring animation
-- Small tooltip bubble on first load: "👋 Chat with {{company}} AI" (auto-dismiss after 5s)
-- Unread dot if greeting hasn't been seen
+- Search input at top
+- List of expandable Q/A cards pulled from `chatbots.widget_config.faqs` (fallback to defaults: return policy, shipping, sizes, gift wrap)
+- Footer buttons:  `Ask the AI` (→ Chat tab) and  `Talk to AI` (→ voice)
 
-**Open state (panel):**
-- Fixed bottom-right, `380px × 620px` on desktop, full-screen on mobile
-- Rounded 24px, shadow-2xl, spring open animation (framer-motion)
-- Reuses existing `UnifiedChatWindow` as the body (no rewrite)
-- Header inside widget: scraped business logo + business name + "Online · Knows {{n}} products" + voice toggle + close (X) button
-- Bottom: existing input bar + quick chips
-- Voice mode: overlays the `VoiceActiveBar` inside the panel (no separate screen)
+### Bottom nav (persistent, 56px)
 
-State: `open/closed` in React state; `useImperativeHandle` exposes `open()` so landing CTAs can trigger it.
+-  Home,  Chats,  FAQ — active tab underlined in brand color
+- `Powered by Aiagentra` micro-text below
 
-## 3. Scraped logo integration
+## Files to create
 
-- `EcommerceLandingPage` already receives `logoUrl` prop from `DemoPage` (sourced from scraped data). Ensure it's threaded into:
-  - Nav (already)
-  - Hero visual (new — large centered logo card if no `hero_image_url` set)
-  - Floating widget FAB
-  - Widget header
-  - Bot message avatars
-- Fallback to `BusinessLogo` initials chip (already implemented) if URL missing/errors.
+- `src/components/chatbot/unified/ecom/EcomChatShell.tsx` — tab controller, bottom nav, header switching
+- `src/components/chatbot/unified/ecom/HomeTab.tsx`
+- `src/components/chatbot/unified/ecom/ChatTab.tsx` — reuses streaming logic from existing `UnifiedChatWindow`
+- `src/components/chatbot/unified/ecom/FaqTab.tsx`
+- `src/components/chatbot/unified/ecom/ChatsTab.tsx` — localStorage session list (last 5)
+- `src/components/chatbot/unified/ecom/MessageBubble.tsx` — bot/user variants, avatar, chip row, product row, debug accordion
+- `src/components/chatbot/unified/ecom/ChatInput.tsx` — dark input + mic + refresh + send
+- `src/components/chatbot/unified/ecom/ProductStrip.tsx` — horizontal scroll wrapper for `ProductCard`
 
-## 4. Admin live preview (`EcomLandingTemplatePanel.tsx`)
+## Files to edit
 
-Split the panel into two columns on desktop:
+- `src/components/chatbot/unified/EcomFloatingChatWidget.tsx` — swap `UnifiedChatWindow` body for `<EcomChatShell />`; pass `products`, `faqs`, `visitorFirstName`
+- `src/components/chatbot/ProductCard.tsx` — add dark-theme variant (`variant="dark"`) so it reads on #0f0f0f
+- `src/components/admin/EcomLandingTemplatePanel.tsx` — the preview already renders `EcommerceLandingPage` which mounts the widget; add a "Preview widget on Home / Chat / FAQ" tab selector above the preview frame so admin can inspect each screen without clicking through
+- `src/components/demo/ecommerce/EcommerceLandingPage.tsx` — pass `visitorName` first-name and top featured products to the widget
 
-- **Left (existing)**: form fields for all template keys + chips.
-- **Right (new)**: sticky iframe-style preview card that renders `EcommerceLandingPage` in a scaled-down (0.5×) container using:
-  - Live edited template values (not the saved DB row)
-  - Mock props: `businessName="Acme Store"`, `logoUrl=null` (shows initials), `brandColor="#2563EB"`, `productCount=42`, `visitorName="Alex"`
-  - Floating widget rendered in closed state; a toggle above the preview lets admin open it to preview widget too
-- On mobile / narrow: preview collapses to a "Preview" tab.
+## Data & state
 
-Preview updates in real time as admin types (no save needed).
+- Conversation history + recent sessions: `localStorage` keyed by `chatbotId` (no DB migration needed)
+- Featured products: existing `products` table, top 4 by created_at for the chatbot
+- FAQs: read `chatbots.widget_config.faqs` array, fall back to hardcoded e-commerce defaults
+- Streaming, RAG, voice: reuse the existing `chatbot-conversation` edge function + VAPI hook from current `UnifiedChatWindow` — no backend changes
 
-## 5. Files
+## Theming (auto per business)
 
-**New:**
-- `src/components/chatbot/unified/EcomFloatingChatWidget.tsx`
-- `src/components/admin/EcomLandingPreview.tsx` (wraps `EcommerceLandingPage` with mock data)
+Already available via `brandCssVars` on the widget root. New components consume:
 
-**Edited:**
-- `src/components/demo/ecommerce/EcommerceLandingPage.tsx` — remove embedded chat panels, add hero visual with logo, mount floating widget, wire CTAs to `widgetRef.open()`
-- `src/components/admin/EcomLandingTemplatePanel.tsx` — two-column form + live preview
-- `src/components/chatbot/unified/UnifiedChatWindow.tsx` — small tweaks so it renders cleanly inside a fixed 380×620 panel (already flexible, verify only)
-
-**Unchanged:** DB schema, RAG, prompts, other industries, `DemoPage` routing, admin nav.
-
-## Technical notes
-
-- Floating widget uses `position: fixed` + `z-50`, hides on print, respects safe-area on mobile.
-- Preview iframe: use a scaled `<div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: '200%' }}>` wrapping the page — no real iframe needed, keeps context/styles/tokens.
-- Widget open state persisted in `sessionStorage` so it stays open across scroll/nav within the demo.
-- Reference visual: koushikflow.netlify.app/50 — clean white landing + brand accent + floating chat bottom-right.
+- `var(--brand)` — header, user bubble, avatar, send button, active tab underline, product price
+- `var(--brand-dark)` — chip background
+- `var(--brand-text)` — text on brand surfaces
+- Fixed dark tokens: bg `#0f0f0f`, cards `#1a1a1a`, bot bubble `#1e1e1e`, borders `white/8`
 
 ## Out of scope
 
-Voice VAPI provisioning changes, other industries, prompt/RAG work, dental/real-estate demos.
+- Landing page layout (unchanged)
+- Other industries (dental, real estate)
+- Backend / edge functions / DB schema
+- Voice VAPI provisioning logic
+- Order tracking integration (chip sends message only; real tracking is future work)
+
+## Admin preview
+
+The existing live-preview panel already renders the real widget via `LandingTemplateOverrideCtx`. After this rebuild, admin will see the new 3-tab UI live. Adding a small tab selector lets admin jump directly to Home / Chat / FAQ inside the scaled preview.
