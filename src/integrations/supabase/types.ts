@@ -646,6 +646,87 @@ export type Database = {
         }
         Relationships: []
       }
+      ecommerce_landing_template: {
+        Row: {
+          created_at: string
+          cta_button: string
+          cta_headline: string
+          cta_sub: string
+          demo_headline: string
+          demo_sub: string
+          footer_note: string
+          hero_cta_primary: string
+          hero_cta_secondary: string
+          hero_headline: string
+          hero_image_url: string
+          hero_sub: string
+          id: string
+          image_cta: string
+          image_headline: string
+          image_sub: string
+          intro_body: string
+          intro_greeting: string
+          proof_headline: string
+          singleton: boolean
+          suggestion_chips: Json
+          updated_at: string
+          urgency_line: string
+          youtube_embed_url: string
+        }
+        Insert: {
+          created_at?: string
+          cta_button?: string
+          cta_headline?: string
+          cta_sub?: string
+          demo_headline?: string
+          demo_sub?: string
+          footer_note?: string
+          hero_cta_primary?: string
+          hero_cta_secondary?: string
+          hero_headline?: string
+          hero_image_url?: string
+          hero_sub?: string
+          id?: string
+          image_cta?: string
+          image_headline?: string
+          image_sub?: string
+          intro_body?: string
+          intro_greeting?: string
+          proof_headline?: string
+          singleton?: boolean
+          suggestion_chips?: Json
+          updated_at?: string
+          urgency_line?: string
+          youtube_embed_url?: string
+        }
+        Update: {
+          created_at?: string
+          cta_button?: string
+          cta_headline?: string
+          cta_sub?: string
+          demo_headline?: string
+          demo_sub?: string
+          footer_note?: string
+          hero_cta_primary?: string
+          hero_cta_secondary?: string
+          hero_headline?: string
+          hero_image_url?: string
+          hero_sub?: string
+          id?: string
+          image_cta?: string
+          image_headline?: string
+          image_sub?: string
+          intro_body?: string
+          intro_greeting?: string
+          proof_headline?: string
+          singleton?: boolean
+          suggestion_chips?: Json
+          updated_at?: string
+          urgency_line?: string
+          youtube_embed_url?: string
+        }
+        Relationships: []
+      }
       email_queue: {
         Row: {
           cancelled_reason: string | null
