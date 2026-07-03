@@ -1,6 +1,7 @@
 // Product recommendation engine — pgvector similarity search.
 // Used by chatbot-conversation (direct) and Vapi voice agent (tool-call shape).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createEmbedding, chatCompletion, MODELS } from "../_shared/openrouter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,30 +13,29 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
-
-async function embed(text: string): Promise<number[] | null> {
-  if (!LOVABLE_KEY) return null;
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text.slice(0, 4000) }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.data?.[0]?.embedding || null;
-  } catch { return null; }
-}
-
 export async function recommend(chatbotId: string, query: string, topK = 5): Promise<any[]> {
-  const emb = await embed(query);
+  const emb = await createEmbedding(query);
   if (!emb) {
     // fallback: ilike search
     const { data } = await supabase
       .from("products").select("*").eq("chatbot_id", chatbotId)
       .or(`name.ilike.%${query}%,description.ilike.%${query}%`).limit(topK);
     return data || [];
+  }
+  // Prefer hybrid search (in-stock-boosted); fall back to legacy match_products.
+  const { data: hybrid, error: hybridErr } = await supabase.rpc("match_products_hybrid", {
+    p_chatbot_id: chatbotId,
+    p_query_embedding: emb as any,
+    p_query_text: query,
+    p_match_count: topK,
+    p_filters: {},
+  });
+  if (!hybridErr && Array.isArray(hybrid)) {
+    // In-stock first, then by combined_score.
+    return [...hybrid].sort((a: any, b: any) => {
+      if (!!a.in_stock !== !!b.in_stock) return a.in_stock ? -1 : 1;
+      return (b.combined_score ?? 0) - (a.combined_score ?? 0);
+    });
   }
   const { data, error } = await supabase.rpc("match_products", {
     p_chatbot_id: chatbotId, p_query_embedding: emb as any, p_match_count: topK,
@@ -91,11 +91,20 @@ Deno.serve(async (req) => {
     const products = await recommend(chatbotId, query, topK);
 
     if (toolCallId) {
-      const text = products.length > 0
-        ? products.slice(0, 3).map((p: any) =>
-            `${p.name}${p.price ? ` — ${p.currency || "$"}${p.price}` : ""}${p.description ? `: ${String(p.description).slice(0, 120)}` : ""}`
-          ).join(". ")
-        : "I don't see anything matching that in stock right now.";
+      // Voice: use Claude Haiku to craft a natural 1-2 sentence spoken reply.
+      let text: string;
+      if (products.length === 0) {
+        text = "I don't see anything matching that in stock right now. Want to try something else?";
+      } else {
+        const top = products.slice(0, 2).map((p: any) =>
+          `${p.name} for ${p.price ?? "?"}${p.description ? ` — ${String(p.description).slice(0, 80)}` : ""}`
+        ).join(" and ");
+        const spoken = await chatCompletion(MODELS.voice, [
+          { role: "system", content: "You are a voice shopping assistant. Reply in max 2 spoken sentences. Say prices naturally (e.g. 'forty nine ninety-nine'). Say 'We have' not 'The store has'. End by offering to hear more or see another option." },
+          { role: "user", content: `Customer asked: "${query}". Best matches: ${top}. Reply naturally.` },
+        ], { temperature: 0.3, max_tokens: 150 });
+        text = spoken?.content?.trim() || `We have the ${products[0].name}. Want to hear more?`;
+      }
       return new Response(JSON.stringify({
         results: [{ toolCallId, result: text }],
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

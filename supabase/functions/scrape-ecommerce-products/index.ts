@@ -20,7 +20,7 @@ const supabase = createClient(
 );
 
 const FIRECRAWL_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY");
+import { createEmbedding } from "../_shared/openrouter.ts";
 
 const MAX_PRODUCTS = 500;     // hard cap
 const SHOPIFY_PAGE_SIZE = 250; // Shopify max
@@ -76,21 +76,9 @@ function abs(base: string, u: string): string {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Embeddings (Lovable AI Gateway)
+// Embeddings (OpenRouter → text-embedding-3-small, with fallback)
 // ────────────────────────────────────────────────────────────────────────────
-async function embed(text: string): Promise<number[] | null> {
-  if (!LOVABLE_KEY) return null;
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text.slice(0, 8000) }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.data?.[0]?.embedding || null;
-  } catch { return null; }
-}
+const embed = createEmbedding;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Platform detection
@@ -370,19 +358,55 @@ export async function scrapeProducts(websiteUrl: string, platform?: string): Pro
   return { products, platform: plat, logo };
 }
 
-// Build rich embedding text per product — used for RAG recommendations.
+// Build rich, semantic embedding text per product — improves RAG recall on
+// natural-language queries ("something for running", "under $50", etc.).
 function embeddingText(p: Product): string {
-  const parts = [
-    p.name,
-    p.vendor && `by ${p.vendor}`,
-    p.category && `category: ${p.category}`,
-    p.tags?.length ? `tags: ${p.tags.join(", ")}` : null,
-    p.options?.length ? `options: ${p.options.map((o: any) => `${o.name || ""}=${(o.values || []).join("/")}`).join("; ")}` : null,
-    p.variants?.length ? `variants: ${p.variants.slice(0, 6).map((v: any) => v.title || "default").join(", ")}` : null,
-    p.price ? `price: ${p.currency || "USD"} ${p.price}${p.compare_at_price ? ` (was ${p.compare_at_price})` : ""}` : null,
-    p.in_stock === false ? "out of stock" : "in stock",
-    p.description,
-  ].filter(Boolean);
+  const parts: string[] = [];
+
+  // Primary identity
+  parts.push(p.name);
+  if (p.category) parts.push(`Category: ${p.category}`);
+  if (p.vendor) parts.push(`Brand: ${p.vendor}`);
+
+  // Tags — both flat and natural-language framing
+  if (p.tags?.length) {
+    parts.push(`Tags: ${p.tags.join(", ")}`);
+    parts.push(`This product is: ${p.tags.join(", ")}`);
+  }
+
+  // Options (critical for apparel/fitness/etc.)
+  const optionNames = (p.options || []).map((o: any) => o?.name).filter(Boolean);
+  if (optionNames.length) {
+    parts.push(`Available options: ${optionNames.join(", ")}`);
+    for (const opt of p.options || []) {
+      if (opt?.name && Array.isArray(opt?.values) && opt.values.length) {
+        parts.push(`${opt.name}: ${opt.values.join(", ")}`);
+      }
+    }
+  }
+
+  // Price context
+  const variantPrices = (p.variants || [])
+    .map((v: any) => parseFloat(v?.price))
+    .filter((n: number) => !Number.isNaN(n));
+  if (variantPrices.length) {
+    const minPrice = Math.min(...variantPrices);
+    const maxPrice = Math.max(...variantPrices);
+    parts.push(minPrice === maxPrice ? `Price: $${minPrice}` : `Price range: $${minPrice} to $${maxPrice}`);
+  } else if (p.price != null) {
+    parts.push(`Price: $${p.price}${p.compare_at_price ? ` (was $${p.compare_at_price})` : ""}`);
+  }
+
+  // Stock
+  const inStock = (p.variants || []).some((v: any) => v?.available) || p.in_stock !== false;
+  parts.push(inStock ? "In stock" : "Out of stock");
+
+  // Cleaned description
+  if (p.description) {
+    const clean = String(p.description).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500);
+    if (clean) parts.push(clean);
+  }
+
   return parts.join(". ");
 }
 

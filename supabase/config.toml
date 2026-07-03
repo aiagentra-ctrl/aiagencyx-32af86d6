@@ -8,3 +8,18 @@ verify_jwt = false
 
 [functions.get-secret-status]
 verify_jwt = false
+
+[functions.chatbot-conversation]
+verify_jwt = false
+
+[functions.track-chat-event]
+verify_jwt = false
+
+[functions.recommend-products]
+verify_jwt = false
+
+[functions.analyze-chat-session]
+verify_jwt = false
+
+[functions.generate-prompt-improvements]
+verify_jwt = false

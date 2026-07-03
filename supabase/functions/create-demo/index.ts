@@ -637,7 +637,20 @@ function buildGenericVoicePrompt(
   const li = industry.toLowerCase();
 
   if (li.includes("ecommerce") || li.includes("shop") || li.includes("store") || li.includes("retail")) {
-    industryFlows = `\n## PRODUCT HELP FLOW\n1. Ask what they're looking for\n2. Suggest 2-3 matching products with prices\n3. Compare options if asked\n4. Help with sizing, availability, shipping\n5. Guide to purchase`;
+    industryFlows = `\n## VOICE SHOPPING ASSISTANT — ${businessName}
+You are a voice shopping assistant. Rules for voice:
+- Maximum 2 sentences per response. Always.
+- Say prices naturally: 'forty-nine ninety-nine' not '$49.99'
+- Say 'We have' not 'The store has' (you ARE the store)
+- When recommending products, say the name and price then ask if they want to hear more:
+  'We have the [Name] for [price] — great for [use case]. Want to hear more about it or see another option?'
+- When you find products: call the search_products tool first, THEN respond
+- Offer to send a link at every opportunity: 'Want me to send you a link to that?'
+- For sizes/availability: check the tool result for variant data
+
+NEVER: list more than 2 products verbally at once (they can't see a screen).
+NEVER: read out long descriptions — summarize in 5 words max.
+NEVER: say 'I found X products matching...' — just describe the best one naturally.`;
   } else if (li.includes("clinic") || li.includes("dental") || li.includes("medical") || li.includes("doctor") || li.includes("health")) {
     industryFlows = `\n## APPOINTMENT BOOKING\n1. Ask what service they need\n2. Suggest relevant services\n3. Ask preferred date/time\n4. Collect name + phone\n5. Confirm appointment`;
   } else if (li.includes("salon") || li.includes("spa") || li.includes("beauty") || li.includes("barber")) {

@@ -19,6 +19,7 @@ import LeadsPanel from "@/components/admin/LeadsPanel";
 import FollowUpTemplatesPanel from "@/components/admin/FollowUpTemplatesPanel";
 import KnowledgeBasePanel from "@/components/admin/KnowledgeBasePanel";
 import InboxManagerPanel from "@/components/admin/InboxManagerPanel";
+import ConversationsPage from "@/components/admin/ConversationsPage";
 import FollowUpsPage from "@/components/admin/FollowUpsPage";
 import DashboardHome from "@/components/admin/DashboardHome";
 import LogsPage from "@/components/admin/LogsPage";
@@ -220,6 +221,7 @@ function AdminSections(props: {
         <TabsTrigger value="followups">Follow-Ups</TabsTrigger>
         <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
         <TabsTrigger value="inbox">Inbox</TabsTrigger>
+        <TabsTrigger value="conversations">Conversations</TabsTrigger>
         <TabsTrigger value="sequences">Sequences</TabsTrigger>
         <TabsTrigger value="logs">Logs</TabsTrigger>
       </TabsList>
@@ -375,6 +377,11 @@ function AdminSections(props: {
           {/* Inbox Manager Tab */}
           <TabsContent value="inbox">
             <InboxManagerPanel />
+          </TabsContent>
+
+          {/* Conversations (Chat monitoring) */}
+          <TabsContent value="conversations">
+            <ConversationsPage />
           </TabsContent>
 
           {/* Follow-up Sequences Tab */}
