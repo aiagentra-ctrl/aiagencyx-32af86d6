@@ -538,25 +538,23 @@ function ChatScreen({
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4">
         {messages.length === 0 ? (
           <div className="flex min-h-full flex-col items-center justify-center px-4 text-center">
-            <div
-              className="flex h-16 w-16 items-center justify-center rounded-full text-lg font-bold"
-              style={{ background: "var(--brand)", color: "var(--brand-text, #fff)" }}
-            >
+            <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full text-lg font-bold ring-2 ring-white/10"
+              style={{ background: "var(--brand)", color: "var(--brand-text, #fff)" }}>
               {logoUrl ? (
-                <img src={logoUrl} alt={businessName} className="h-full w-full rounded-full object-contain bg-white p-1" />
+                <img src={logoUrl} alt={businessName} className="h-full w-full rounded-full bg-white object-contain p-1" />
               ) : businessName.slice(0, 2).toUpperCase()}
+              <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-[#0a0a0a] bg-green-500" />
             </div>
-            <h3 className="mt-3 text-lg font-bold text-white">{businessName} AI</h3>
-            <p className="mt-1 text-sm text-white/60">
-              {productCount ? `I know ${productCount} products.` : "I know this store."} Ask me anything.
+            <h3 className="mt-4 text-lg font-bold text-white">Hi, I'm the {businessName} AI 🛍️</h3>
+            <p className="mt-1.5 max-w-[280px] text-sm text-white/60">
+              {productCount ? `I know all ${productCount} products in the store.` : "I know this whole store."} Ask me anything — sizing, shipping, gift ideas, or product recs.
             </p>
-            <div className="mt-6 grid w-full max-w-[260px] grid-cols-2 gap-2">
+            <div className="mt-6 grid w-full max-w-[280px] grid-cols-2 gap-2">
               {chips.map((c: string) => (
                 <button
                   key={c}
                   onClick={() => onChip(c)}
-                  className="rounded-xl px-3 py-2.5 text-xs font-semibold text-white/90 transition hover:opacity-90"
-                  style={{ background: "color-mix(in srgb, var(--brand) 22%, #1a1a1a)" }}
+                  className="rounded-xl border border-white/10 bg-white/[.03] px-3 py-2.5 text-xs font-semibold text-white/90 transition hover:border-[color:var(--brand)] hover:bg-white/[.06]"
                 >
                   {c}
                 </button>
