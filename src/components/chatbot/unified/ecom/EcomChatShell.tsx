@@ -690,7 +690,10 @@ function MessageRow({ m, logoUrl, businessName, onChip }: { m: Msg; logoUrl?: st
       {m.content && (
         <div className="flex items-end gap-2">
           <Avatar logoUrl={logoUrl} businessName={businessName} />
-          <div className="prose prose-invert max-w-[80%] rounded-2xl rounded-bl-sm bg-[#1e1e1e] px-4 py-2.5 text-sm text-white prose-p:my-1 prose-strong:text-white">
+          <div
+            className="prose prose-invert max-w-[80%] rounded-2xl rounded-bl-sm border-l-2 bg-[#181818] px-4 py-2.5 text-sm text-white shadow-[0_2px_10px_rgba(0,0,0,0.35)] prose-p:my-1 prose-strong:text-white prose-a:text-[color:var(--brand-mid)]"
+            style={{ borderLeftColor: "var(--brand)" }}
+          >
             <ReactMarkdown>{m.content}</ReactMarkdown>
           </div>
         </div>
