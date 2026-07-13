@@ -495,11 +495,7 @@ function MiniProductCard({ p, onClick }: { p: Product; onClick: () => void }) {
       className="w-[130px] flex-shrink-0 snap-start overflow-hidden rounded-2xl bg-[#1a1a1a] text-left ring-1 ring-white/5 transition hover:ring-white/20"
     >
       <div className="aspect-square bg-[#111]">
-        {p.image_url ? (
-          <img src={p.image_url} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center"><ShoppingBag className="h-6 w-6 text-white/20" /></div>
-        )}
+        <ProductImg src={p.image_url} alt={p.name} />
       </div>
       <div className="p-2">
         <p className="line-clamp-1 text-[11px] font-semibold text-white">{p.name}</p>
@@ -730,13 +726,7 @@ function ChatProductCard({ p }: { p: Product }) {
   return (
     <div className="w-[160px] flex-shrink-0 snap-start overflow-hidden rounded-2xl bg-[#1a1a1a] ring-1 ring-white/5">
       <div className="relative aspect-square bg-[#111]">
-        {p.image_url ? (
-          <img src={p.image_url} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center" style={{ background: "color-mix(in srgb, var(--brand) 18%, #111)" }}>
-            <ShoppingBag className="h-7 w-7 text-white/30" />
-          </div>
-        )}
+        <ProductImg src={p.image_url} alt={p.name} />
         {oos && (
           <span className="absolute left-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white/80">
             Sold out
