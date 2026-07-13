@@ -43,6 +43,7 @@ const EcommerceLandingPage = ({
   const [tpl, setTpl] = useState<Template | null>(override ?? null);
   const [productCount, setProductCount] = useState<number>(_previewProductCount ?? 0);
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
+  const [faqs, setFaqs] = useState<{ q: string; a: string; source_url?: string }[]>([]);
   const widgetRef = useRef<EcomFloatingChatWidgetHandle>(null);
 
   useEffect(() => {
@@ -73,6 +74,39 @@ const EcommerceLandingPage = ({
       if (data) setFeaturedProducts(data as any[]);
     })();
   }, [chatbotId]);
+
+  // Load FAQ / policy entries from the knowledge base
+  useEffect(() => {
+    if (!chatbotId) return;
+    (async () => {
+      const { data } = await supabase
+        .from("knowledge_base_entries")
+        .select("title,content,source_url,content_type,structured")
+        .eq("chatbot_id", chatbotId)
+        .in("content_type", ["faq", "policy", "shipping", "returns", "faq_item"])
+        .limit(20);
+      if (data && data.length) {
+        const items: { q: string; a: string; source_url?: string }[] = [];
+        for (const row of data as any[]) {
+          const s = row.structured || {};
+          if (Array.isArray(s.faqs)) {
+            for (const f of s.faqs.slice(0, 8)) {
+              if (f?.q && f?.a) items.push({ q: String(f.q), a: String(f.a), source_url: row.source_url });
+            }
+          } else if (row.title && row.content) {
+            items.push({ q: String(row.title), a: String(row.content).slice(0, 500), source_url: row.source_url });
+          }
+        }
+        if (items.length) setFaqs(items.slice(0, 12));
+      }
+    })();
+  }, [chatbotId]);
+
+  const youtubeEmbedSrc = useMemo(() => {
+    const url = tpl?.youtube_embed_url || "https://youtu.be/eOAyie0kWGQ";
+    const m = url.match(/(?:youtu\.be\/|v=|embed\/)([A-Za-z0-9_-]{6,})/);
+    return m ? `https://www.youtube.com/embed/${m[1]}` : "";
+  }, [tpl?.youtube_embed_url]);
 
   const vars = useMemo(() => ({
     company: businessName,
@@ -281,6 +315,96 @@ const EcommerceLandingPage = ({
         </p>
       </section>
 
+      {/* FEATURED PRODUCTS */}
+      {featuredProducts.length > 0 && (
+        <section className="relative z-10 mx-auto max-w-6xl px-5 py-16">
+          <div className="mb-8 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--brand-mid)" }}>
+              What the AI is trained on
+            </p>
+            <h3 className="mt-2 text-3xl font-bold md:text-4xl" style={{ fontFamily: "'Sora', sans-serif" }}>
+              Featured from {businessName}
+            </h3>
+          </div>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            {featuredProducts.slice(0, 6).map((p) => {
+              const raw = p.image_url as string | undefined;
+              const img = raw?.startsWith("//") ? "https:" + raw : raw;
+              return (
+                <button
+                  key={p.id}
+                  onClick={openChat}
+                  className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[.02] text-left transition hover:-translate-y-0.5 hover:border-[color:var(--brand)]"
+                >
+                  <div className="aspect-square bg-white/5">
+                    {img ? (
+                      <img src={img} alt={p.name} loading="lazy" className="h-full w-full object-cover transition group-hover:scale-105" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-white/20">—</div>
+                    )}
+                  </div>
+                  <div className="p-2.5">
+                    <p className="line-clamp-1 text-xs font-semibold text-white/90">{p.name}</p>
+                    {p.price != null && p.price !== "" && (
+                      <p className="mt-0.5 text-xs font-bold" style={{ color: "var(--brand-mid)" }}>
+                        {p.currency === "USD" || !p.currency ? "$" : `${p.currency} `}{p.price}
+                      </p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* PROOF / VIDEO */}
+      {youtubeEmbedSrc && (
+        <section className="relative z-10 mx-auto max-w-4xl px-5 py-20 text-center">
+          <h3 className="text-3xl font-bold md:text-4xl" style={{ fontFamily: "'Sora', sans-serif" }}>
+            {tpl.proof_headline || "The proof? My clients can't stop talking about it."}
+          </h3>
+          <div
+            className="mt-8 overflow-hidden rounded-2xl border shadow-2xl"
+            style={{
+              borderColor: "color-mix(in srgb, var(--brand) 30%, transparent)",
+              boxShadow: "0 25px 80px -20px color-mix(in srgb, var(--brand) 40%, transparent)",
+            }}
+          >
+            <div className="relative aspect-video w-full bg-black">
+              <iframe
+                src={youtubeEmbedSrc}
+                title="Client testimonial"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="absolute inset-0 h-full w-full"
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* FINAL CTA */}
+      <section className="relative z-10 mx-auto max-w-3xl px-5 py-24 text-center">
+        <h2 className="text-4xl font-bold md:text-5xl" style={{ fontFamily: "'Sora', sans-serif" }}>
+          {renderTemplate(tpl.cta_headline || "Book a call and see how AI Agents can sell, support, and generate leads for {{company}} 24/7.", vars)}
+        </h2>
+        <p className="mx-auto mt-5 max-w-xl text-lg text-white/70">
+          {renderTemplate(tpl.cta_sub || "The early adopters always win. Don't wait until it's too late.", vars)}
+        </p>
+        <button
+          onClick={onBookCall}
+          className="mt-8 inline-flex items-center gap-2 rounded-full px-8 py-4 text-base font-semibold shadow-2xl transition-transform hover:scale-[1.04] active:scale-95"
+          style={{
+            background: "linear-gradient(135deg, var(--brand), color-mix(in srgb, var(--brand) 40%, #8b5cf6))",
+            color: "var(--brand-text)",
+            boxShadow: "0 15px 45px color-mix(in srgb, var(--brand) 55%, transparent)",
+          }}
+        >
+          {tpl.cta_button || "Book Your Call Now"}
+        </button>
+      </section>
+
       <footer className="relative z-10 mx-auto max-w-6xl px-5 pb-8 pt-4 text-center text-xs text-white/40">
         <p>© {new Date().getFullYear()} {businessName} · AI demo</p>
         {(contactEmail || contactPhone) && (
@@ -304,6 +428,7 @@ const EcommerceLandingPage = ({
         suggestionChips={tpl.suggestion_chips}
         visitorFirstName={visitorName}
         featuredProducts={featuredProducts}
+        faqs={faqs}
         contained={override !== null}
         defaultOpen={_previewWidgetOpen}
       />
