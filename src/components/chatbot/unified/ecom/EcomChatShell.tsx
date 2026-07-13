@@ -58,6 +58,30 @@ const DEFAULT_FAQS: FaqItem[] = [
 function chipToQuery(s: string) {
   return s.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "").trim();
 }
+
+/** Normalize protocol-relative and root-relative image URLs so <img> loads reliably. */
+function normalizeImg(u?: string | null, base?: string): string | undefined {
+  if (!u) return undefined;
+  const s = String(u).trim();
+  if (!s) return undefined;
+  if (s.startsWith("//")) return "https:" + s;
+  if (s.startsWith("/") && base) { try { return new URL(s, base).toString(); } catch { return s; } }
+  return s;
+}
+
+function ProductImg({ src, alt }: { src?: string; alt: string }) {
+  const [ok, setOk] = useState(true);
+  const url = normalizeImg(src);
+  if (!url || !ok) {
+    return (
+      <div className="flex h-full w-full items-center justify-center" style={{ background: "color-mix(in srgb, var(--brand) 15%, #111)" }}>
+        <ShoppingBag className="h-7 w-7 text-white/30" />
+      </div>
+    );
+  }
+  return <img src={url} alt={alt} loading="lazy" onError={() => setOk(false)} className="h-full w-full object-cover" />;
+}
+
 function parseRecommendations(content: string): { text: string; items: Product[] } {
   const m = content.match(/<!--recommendations:(\[[\s\S]*?\])-->/);
   if (!m) return { text: content, items: [] };
