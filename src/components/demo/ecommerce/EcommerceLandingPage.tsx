@@ -43,6 +43,7 @@ const EcommerceLandingPage = ({
   const [tpl, setTpl] = useState<Template | null>(override ?? null);
   const [productCount, setProductCount] = useState<number>(_previewProductCount ?? 0);
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
+  const [faqs, setFaqs] = useState<{ q: string; a: string; source_url?: string }[]>([]);
   const widgetRef = useRef<EcomFloatingChatWidgetHandle>(null);
 
   useEffect(() => {
@@ -73,6 +74,39 @@ const EcommerceLandingPage = ({
       if (data) setFeaturedProducts(data as any[]);
     })();
   }, [chatbotId]);
+
+  // Load FAQ / policy entries from the knowledge base
+  useEffect(() => {
+    if (!chatbotId) return;
+    (async () => {
+      const { data } = await supabase
+        .from("knowledge_base_entries")
+        .select("title,content,source_url,content_type,structured")
+        .eq("chatbot_id", chatbotId)
+        .in("content_type", ["faq", "policy", "shipping", "returns", "faq_item"])
+        .limit(20);
+      if (data && data.length) {
+        const items: { q: string; a: string; source_url?: string }[] = [];
+        for (const row of data as any[]) {
+          const s = row.structured || {};
+          if (Array.isArray(s.faqs)) {
+            for (const f of s.faqs.slice(0, 8)) {
+              if (f?.q && f?.a) items.push({ q: String(f.q), a: String(f.a), source_url: row.source_url });
+            }
+          } else if (row.title && row.content) {
+            items.push({ q: String(row.title), a: String(row.content).slice(0, 500), source_url: row.source_url });
+          }
+        }
+        if (items.length) setFaqs(items.slice(0, 12));
+      }
+    })();
+  }, [chatbotId]);
+
+  const youtubeEmbedSrc = useMemo(() => {
+    const url = tpl?.youtube_embed_url || "https://youtu.be/eOAyie0kWGQ";
+    const m = url.match(/(?:youtu\.be\/|v=|embed\/)([A-Za-z0-9_-]{6,})/);
+    return m ? `https://www.youtube.com/embed/${m[1]}` : "";
+  }, [tpl?.youtube_embed_url]);
 
   const vars = useMemo(() => ({
     company: businessName,
