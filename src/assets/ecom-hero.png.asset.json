@@ -1,11 +1,11 @@
 {
-  "version": 1,
   "asset_id": "07429139-fe4d-47c8-bd6a-c9f0f24c3923",
-  "project_id": "d93833dc-2288-4b36-a1e8-9df1502c4c12",
-  "url": "/__l5e/assets-v1/07429139-fe4d-47c8-bd6a-c9f0f24c3923/ecom-hero.png",
-  "r2_key": "a/v1/d93833dc-2288-4b36-a1e8-9df1502c4c12/07429139-fe4d-47c8-bd6a-c9f0f24c3923/ecom-hero.png",
-  "original_filename": "ecom-hero.png",
-  "size": 1061028,
   "content_type": "image/png",
-  "created_at": "2026-07-03T12:12:40Z"
+  "created_at": "2026-07-03T12:12:40Z",
+  "original_filename": "ecom-hero.png",
+  "project_id": "27eaad25-4162-4d37-af26-96aee12ea079",
+  "r2_key": "a/v1/27eaad25-4162-4d37-af26-96aee12ea079/07429139-fe4d-47c8-bd6a-c9f0f24c3923/ecom-hero.png",
+  "size": 1061028,
+  "url": "/__l5e/assets-v1/07429139-fe4d-47c8-bd6a-c9f0f24c3923/ecom-hero.png",
+  "version": 1
 }
