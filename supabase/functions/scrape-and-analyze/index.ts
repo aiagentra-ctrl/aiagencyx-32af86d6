@@ -135,13 +135,13 @@ async function analyzeWithAI(supabase: any, businessName: string, websiteUrl: st
   interface AIProvider { name: string; url: string; key: string; model: string; }
   const providers: AIProvider[] = [];
 
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  if (lovableKey) {
+  const envOr = Deno.env.get("OPENROUTER_API_KEY");
+  if (envOr) {
     providers.push({
-      name: "Lovable AI",
-      url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-      key: lovableKey,
-      model: "google/gemini-3-flash-preview",
+      name: "OpenRouter",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      key: envOr,
+      model: "anthropic/claude-sonnet-5",
     });
   }
 

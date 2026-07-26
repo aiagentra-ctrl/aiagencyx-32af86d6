@@ -12,10 +12,10 @@ const supabase = createClient(
 );
 
 export async function embedText(text: string): Promise<number[] | null> {
-  const key = Deno.env.get("LOVABLE_API_KEY");
+  const key = Deno.env.get("OPENROUTER_API_KEY");
   if (!key) return null;
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+    const res = await fetch("https://openrouter.ai/api/v1/embeddings", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text.slice(0, 8000) }),

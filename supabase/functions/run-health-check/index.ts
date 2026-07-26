@@ -178,7 +178,7 @@ async function testManyReach() {
 
 async function testSecrets() {
   return timed("secrets", async () => {
-    const required = ["INBOX_WEBHOOK_SECRET", "LOVABLE_API_KEY", "MANYREACH_API_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"];
+    const required = ["INBOX_WEBHOOK_SECRET", "OPENROUTER_API_KEY", "MANYREACH_API_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"];
     const status: Record<string, boolean> = {};
     for (const k of required) status[k] = !!Deno.env.get(k);
     const missing = Object.entries(status).filter(([, v]) => !v).map(([k]) => k);

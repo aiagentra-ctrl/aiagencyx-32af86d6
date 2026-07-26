@@ -4,7 +4,7 @@ const NAMES = [
   "MANYREACH_API_KEY", "INBOX_WEBHOOK_SECRET",
   "NETLIFY_API_TOKEN", "NETLIFY_SITE_ID",
   "SITE_URL", "SITE_DOMAIN",
-  "VAPI_API_KEY", "LOVABLE_API_KEY",
+  "VAPI_API_KEY", "OPENROUTER_API_KEY",
 ];
 Deno.serve((req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
