@@ -23,8 +23,8 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 6
 
 function buildProviderList(llmProviders: any[]): { name: string; url: string; key: string; model: string }[] {
   const providers: { name: string; url: string; key: string; model: string }[] = [];
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  if (lovableKey) providers.push({ name: "Lovable AI", url: "https://ai.gateway.lovable.dev/v1/chat/completions", key: lovableKey, model: "google/gemini-3-flash-preview" });
+  const envOr = Deno.env.get("OPENROUTER_API_KEY");
+  if (envOr) providers.push({ name: "OpenRouter", url: "https://openrouter.ai/api/v1/chat/completions", key: envOr, model: "anthropic/claude-sonnet-5" });
   if (llmProviders) for (const p of llmProviders) {
     let url = p.endpoint_url;
     if (!url) {

@@ -144,13 +144,13 @@ async function scrapeViaLlmWebSearch(supabase: any, websiteUrl: string, business
     }
   }
 
-  // Also try Lovable AI as last resort (no :online but still useful)
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  if (lovableKey) {
+  // Env OpenRouter key as last resort
+  const envOr = Deno.env.get("OPENROUTER_API_KEY");
+  if (envOr && !keys.length) {
     keys.push({
-      key: lovableKey,
-      url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-      model: "google/gemini-3-flash-preview",
+      key: envOr,
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      model: "anthropic/claude-sonnet-5:online",
     });
   }
 
@@ -264,8 +264,8 @@ async function scrapeWebsite(supabase: any, websiteUrl: string, businessName: st
 // ── LLM helpers ──
 function buildProviderList(llmProviders: any[]): { name: string; url: string; key: string; model: string }[] {
   const providers: { name: string; url: string; key: string; model: string }[] = [];
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  if (lovableKey) providers.push({ name: "Lovable AI", url: "https://ai.gateway.lovable.dev/v1/chat/completions", key: lovableKey, model: "google/gemini-3-flash-preview" });
+  const envOr = Deno.env.get("OPENROUTER_API_KEY");
+  if (envOr) providers.push({ name: "OpenRouter", url: "https://openrouter.ai/api/v1/chat/completions", key: envOr, model: "anthropic/claude-sonnet-5" });
   if (llmProviders) for (const p of llmProviders) {
     let url = p.endpoint_url;
     if (!url) { if (p.provider_type === "openai") url = "https://api.openai.com/v1/chat/completions"; else if (p.provider_type === "openrouter") url = "https://openrouter.ai/api/v1/chat/completions"; else continue; }

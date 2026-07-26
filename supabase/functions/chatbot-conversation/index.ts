@@ -58,13 +58,12 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
     });
   }
 
-  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-  if (lovableKey) {
+  if (openrouterKey && !providers.find((p) => p.model === MODELS.agent)) {
     providers.push({
-      name: "Lovable AI",
-      url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-      key: lovableKey,
-      model: chatbot.ai_provider === "lovable" ? (chatbot.ai_model || "google/gemini-3-flash-preview") : "google/gemini-3-flash-preview",
+      name: "OpenRouter: Claude Sonnet 5",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      key: openrouterKey,
+      model: MODELS.agent,
     });
   }
 
