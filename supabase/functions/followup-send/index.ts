@@ -3,14 +3,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logWebhook } from "../_shared/observability.ts";
 import { hasDemoUrl, markDemoLinkSent } from "../_shared/memory.ts";
+import { sendReply, extractMessageId } from "../_shared/manyreach.ts";
+import { finalizeReply, senderName } from "../_shared/reply-format.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-const MANYREACH_API_KEY = Deno.env.get("MANYREACH_API_KEY")!;
-const MANYREACH_URL = "https://api.manyreach.com/api/v2/messages/reply";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -47,35 +47,46 @@ Deno.serve(async (req) => {
 
     if (!p.original_message_id) throw new Error("prospect has no original_message_id — cannot thread follow-up");
 
+    // Formatting gate — never send a malformed link / sign-off.
+    const name = senderName(p);
+    const finalized = finalizeReply(body, name);
+    body = finalized.text;
+    if (!finalized.ok) {
+      if (event) {
+        await supabase.from("followup_events").update({
+          status: "needs_review", error: `validation: ${finalized.errors.join(", ")}`,
+          message_subject: subject, message_body: body,
+        }).eq("id", event.id);
+      }
+      return new Response(JSON.stringify({
+        ok: false, blocked: true, needs_review: true, validation_errors: finalized.errors, preview: body,
+      }), { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const payload = {
       messageId: p.original_message_id,
       subject,
       body,
-      sendAsReply: "true",
       fromEmail: p.sender_email,
       replyToEmail: p.email,
     };
 
-    const res = await fetch(MANYREACH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": MANYREACH_API_KEY },
-      body: JSON.stringify(payload),
-    });
-    const rj: any = await res.json().catch(() => ({}));
-    const ok = res.ok;
+    const r = await sendReply(payload);
+    const rj: any = r.data ?? {};
+    const ok = r.ok;
 
     await logWebhook({
       endpoint: "followup-send", method: "POST",
-      status: ok ? "success" : "failed", status_code: res.status,
+      status: ok ? "success" : "failed", status_code: r.status,
       response_ms: Date.now() - t0,
-      payload, response: rj, error: ok ? null : `HTTP ${res.status}`,
+      payload, response: rj, error: r.error,
       source: "manyreach",
     });
 
     if (ok) {
       await supabase.from("inbox_messages").insert({
         prospect_id, direction: "outgoing", source: source || "followup",
-        subject, body, manyreach_message_id: rj?.messageId || rj?.id || null,
+        subject, body, manyreach_message_id: extractMessageId(rj),
       });
       if (hasDemoUrl(body)) {
         try { await markDemoLinkSent(prospect_id, null); } catch (_) { /* noop */ }
@@ -84,7 +95,7 @@ Deno.serve(async (req) => {
         await supabase.from("followup_events").update({
           status: "sent", sent_at: new Date().toISOString(),
           message_subject: subject, message_body: body,
-          manyreach_message_id: rj?.messageId || rj?.id || null,
+          manyreach_message_id: extractMessageId(rj),
         }).eq("id", event.id);
       }
       await supabase.from("prospects").update({
@@ -94,10 +105,10 @@ Deno.serve(async (req) => {
         next_followup_trigger: null,
       }).eq("id", prospect_id);
     } else if (event) {
-      await supabase.from("followup_events").update({ status: "failed", error: `HTTP ${res.status}` }).eq("id", event.id);
+      await supabase.from("followup_events").update({ status: "failed", error: r.error }).eq("id", event.id);
     }
 
-    return new Response(JSON.stringify({ ok, response: rj }), { status: ok ? 200 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok, response: rj, error: r.error, attempts: r.attempts }), { status: ok ? 200 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as any)?.message || e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
