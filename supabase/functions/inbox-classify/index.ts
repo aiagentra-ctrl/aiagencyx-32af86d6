@@ -8,7 +8,8 @@ const corsHeaders = {
 };
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+import { chatCompletion, MODELS } from "../_shared/openrouter.ts";
+import { setLeadStatus } from "../_shared/memory.ts";
 
 async function loadClassifierPrompt(): Promise<string> {
   const { data } = await supabase
@@ -43,31 +44,17 @@ Deno.serve(async (req) => {
     const systemPrompt = await loadClassifierPrompt();
     const userPrompt = `THREAD HISTORY:\n${history}\n\nDEMO_SENT: ${demoSent}\n\nLATEST INCOMING MESSAGE:\n${current?.body || ""}\n\nReturn only one word.`;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Lovable-API-Key": LOVABLE_API_KEY,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0,
-        max_tokens: 8,
-      }),
-    });
-    if (!res.ok) {
-      const t = await res.text();
-      console.error("classifier LLM error:", res.status, t);
-      await logError("classify", `LLM ${res.status}: ${t}`, { prospect_id, message_id });
-      await traceStep(prospect_id, message_id, "classified", "failed", { status: res.status, body: t }, `LLM ${res.status}`);
-      return new Response(JSON.stringify({ error: "llm_failed", status: res.status }), { status: 502, headers: corsHeaders });
+    const out = await chatCompletion(MODELS.agent, [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ], { temperature: 0, max_tokens: 8 });
+    if (!out) {
+      console.error("classifier LLM error: no response from OpenRouter");
+      await logError("classify", "OpenRouter returned no response", { prospect_id, message_id });
+      await traceStep(prospect_id, message_id, "classified", "failed", {}, "openrouter_failed");
+      return new Response(JSON.stringify({ error: "llm_failed" }), { status: 502, headers: corsHeaders });
     }
-    const j = await res.json();
-    const raw: string = j?.choices?.[0]?.message?.content || "";
+    const raw: string = out.content || "";
     const clean = raw.replace(/[^A-Za-z]/g, "");
     let classification: "Positive" | "Negative" | "Objection" = "Objection";
     let ruleFired = "ai_classification";
@@ -97,10 +84,12 @@ Deno.serve(async (req) => {
       .update({ classification, classified_by: "ai" }).eq("id", message_id);
     await supabase.from("prospects")
       .update({ last_classification: classification }).eq("id", prospect_id);
+    // Memory continuity: persist lead status so later turns remember a decline.
+    try { await setLeadStatus(prospect_id, classification); } catch (_) { /* noop */ }
 
     await traceStep(prospect_id, message_id, "classified", "ok", {
       classification, raw_output: raw, rule_fired: ruleFired,
-      demo_sent: demoSent, model: "google/gemini-3-flash-preview",
+      demo_sent: demoSent, model: out.usedModel,
     });
 
     return new Response(JSON.stringify({ classification, raw_output: raw, rule_fired: ruleFired }), {
