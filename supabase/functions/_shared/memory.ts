@@ -139,6 +139,74 @@ export async function updateDemoBehavior(prospectId: string, patch: Record<strin
   await supa.from("prospect_memory").update({ demo_behavior }).eq("prospect_id", prospectId);
 }
 
+// ---------- Lead status continuity ----------
+
+export type LeadStatus = "new" | "engaged" | "interested" | "declined" | "objection" | "closed";
+
+const CLASS_TO_STATUS: Record<string, LeadStatus> = {
+  Positive: "interested",
+  Interested: "interested",
+  Negative: "declined",
+  NotInterested: "declined",
+  Objection: "objection",
+  Question: "engaged",
+  Neutral: "engaged",
+};
+
+export function statusFromClassification(classification?: string | null): LeadStatus | null {
+  if (!classification) return null;
+  return CLASS_TO_STATUS[classification] ?? null;
+}
+
+/** Persist lead status + last classification so context survives between messages. */
+export async function setLeadStatus(
+  prospectId: string,
+  classification: string | null,
+  explicitStatus?: LeadStatus | null,
+) {
+  const supa = supabaseAdmin();
+  const mem = await getOrCreateMemory(prospectId);
+  const status = explicitStatus ?? statusFromClassification(classification);
+  const patch: Record<string, any> = {};
+  if (classification) patch.last_classification = classification;
+  // Never downgrade a declined lead back to engaged on a neutral follow-up.
+  if (status && !((mem as any).lead_status === "declined" && status === "engaged")) {
+    patch.lead_status = status;
+  }
+  if (Object.keys(patch).length === 0) return;
+  await supa.from("prospect_memory").update(patch).eq("prospect_id", prospectId);
+}
+
+/** Increment the number of times we've pitched this prospect. */
+export async function incrementPitchCount(prospectId: string) {
+  const supa = supabaseAdmin();
+  const mem = await getOrCreateMemory(prospectId);
+  await supa
+    .from("prospect_memory")
+    .update({ pitch_count: ((mem as any).pitch_count || 0) + 1 })
+    .eq("prospect_id", prospectId);
+}
+
+/** Compact memory block injected into the agent's system prompt. */
+export function memoryPromptBlock(mem: ProspectMemory | null | undefined): string {
+  if (!mem) return "";
+  const m = mem as any;
+  const lines = [
+    `lead_status: ${m.lead_status || "new"}`,
+    `last_classification: ${m.last_classification || "(none)"}`,
+    `conversation_stage: ${m.conversation_stage || "new"}`,
+    `demo_link_already_sent: ${m.demo_link_sent ? "YES" : "no"}`,
+    `total_replies_received: ${m.total_replies_received ?? 0}`,
+    `pitch_count: ${m.pitch_count ?? 0}`,
+    `classification_history: ${(m.classification_history || []).slice(-5).join(" > ") || "(none)"}`,
+  ];
+  let block = `\n\nCONVERSATION MEMORY (authoritative — trust this over your own guesses):\n${lines.join("\n")}`;
+  if (m.lead_status === "declined") {
+    block += `\n\nHARD RULE: This lead has ALREADY DECLINED. Do not re-pitch, do not ask for a call, do not add a new offer. Acknowledge briefly in one line and sign off. Do not repeat anything you already sent.`;
+  }
+  return block;
+}
+
 // ---------- Demo-link lock (3 layers) ----------
 
 // Detect any URL that looks like a demo link.
