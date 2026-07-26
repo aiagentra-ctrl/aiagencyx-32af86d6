@@ -811,6 +811,7 @@ export type Database = {
           replied_at: string | null
           reply_classification: string | null
           retry_count: number
+          scheduling_debug: Json
           sequence_template_id: string
           started_at: string
           status: string
@@ -830,6 +831,7 @@ export type Database = {
           replied_at?: string | null
           reply_classification?: string | null
           retry_count?: number
+          scheduling_debug?: Json
           sequence_template_id: string
           started_at?: string
           status?: string
@@ -849,6 +851,7 @@ export type Database = {
           replied_at?: string | null
           reply_classification?: string | null
           retry_count?: number
+          scheduling_debug?: Json
           sequence_template_id?: string
           started_at?: string
           status?: string
@@ -907,6 +910,7 @@ export type Database = {
       follow_up_steps: {
         Row: {
           created_at: string
+          cta_type: Database["public"]["Enums"]["cta_type"]
           delay_unit: string
           delay_value: number
           id: string
@@ -920,6 +924,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          cta_type?: Database["public"]["Enums"]["cta_type"]
           delay_unit?: string
           delay_value?: number
           id?: string
@@ -933,6 +938,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          cta_type?: Database["public"]["Enums"]["cta_type"]
           delay_unit?: string
           delay_value?: number
           id?: string
@@ -1856,8 +1862,11 @@ export type Database = {
           demo_link_sent_at: string | null
           demo_link_sent_in_message_id: string | null
           id: string
+          last_classification: string | null
           last_reply_at: string | null
+          lead_status: string
           optimal_send_window: Json
+          pitch_count: number
           prospect_id: string
           reply_times: Json
           sequence_memory: Json
@@ -1873,8 +1882,11 @@ export type Database = {
           demo_link_sent_at?: string | null
           demo_link_sent_in_message_id?: string | null
           id?: string
+          last_classification?: string | null
           last_reply_at?: string | null
+          lead_status?: string
           optimal_send_window?: Json
+          pitch_count?: number
           prospect_id: string
           reply_times?: Json
           sequence_memory?: Json
@@ -1890,8 +1902,11 @@ export type Database = {
           demo_link_sent_at?: string | null
           demo_link_sent_in_message_id?: string | null
           id?: string
+          last_classification?: string | null
           last_reply_at?: string | null
+          lead_status?: string
           optimal_send_window?: Json
+          pitch_count?: number
           prospect_id?: string
           reply_times?: Json
           sequence_memory?: Json
@@ -2360,7 +2375,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      cta_type: "link_only" | "demo_only" | "both"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2487,6 +2502,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      cta_type: ["link_only", "demo_only", "both"],
+    },
   },
 } as const
