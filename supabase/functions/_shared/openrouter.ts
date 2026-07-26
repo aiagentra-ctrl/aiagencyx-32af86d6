@@ -6,6 +6,8 @@ const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const SITE_URL = Deno.env.get("SITE_URL") || "https://aiagentra.lovable.app";
 
 export const MODELS = {
+  // Primary agent model for all inbox / follow-up / system-prompt calls.
+  agent: "anthropic/claude-sonnet-5",
   ecommerce_chat: "anthropic/claude-3.5-haiku",
   extraction: "google/gemini-2.0-flash-001",
   kb_build: "anthropic/claude-3.5-haiku",
@@ -15,6 +17,20 @@ export const MODELS = {
 } as const;
 
 const ROUTER_URL = "https://openrouter.ai/api/v1";
+export const OPENROUTER_CHAT_URL = `${ROUTER_URL}/chat/completions`;
+
+/**
+ * Legacy model ids stored in the DB (Lovable gateway era) are remapped to
+ * OpenRouter slugs so old rows keep working.
+ */
+export function normalizeModel(model?: string | null): string {
+  const m = (model || "").trim();
+  if (!m) return MODELS.agent;
+  if (/^google\/gemini-3/i.test(m)) return MODELS.agent;
+  if (/^gpt-4$/i.test(m)) return MODELS.fallback;
+  if (!m.includes("/")) return MODELS.agent;
+  return m;
+}
 
 function headers(extra: Record<string, string> = {}): HeadersInit {
   return {
