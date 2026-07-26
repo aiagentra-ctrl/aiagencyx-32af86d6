@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-const MANYREACH_URL = "https://api.manyreach.com/api/v2/messages/reply";
+import { sendReply, extractMessageId } from "../_shared/manyreach.ts";
 
 function injectVars(t: string, v: Record<string, string>) {
   return t.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? `{${k}}`);
@@ -113,26 +113,10 @@ Deno.serve(async (req) => {
       metadata: { slug: lead.slug, lead_score: lead.lead_score, condition },
     };
 
-    const apiKey = Deno.env.get("MANYREACH_API_KEY");
-    let status = "sent"; let responseJson: any = null; let errorMessage: string | null = null;
-
-    if (!apiKey) {
-      status = "failed";
-      errorMessage = "MANYREACH_API_KEY not configured";
-    } else {
-      try {
-        const res = await fetch(MANYREACH_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-          body: JSON.stringify(payload),
-        });
-        responseJson = await res.json().catch(() => ({}));
-        if (!res.ok) { status = "failed"; errorMessage = `HTTP ${res.status}: ${JSON.stringify(responseJson).slice(0, 500)}`; }
-      } catch (e) {
-        status = "failed";
-        errorMessage = e instanceof Error ? e.message : "fetch failed";
-      }
-    }
+    const res = await sendReply(payload);
+    const responseJson: any = res.data ?? {};
+    const status = res.ok ? "sent" : "failed";
+    const errorMessage = res.ok ? null : res.error;
 
     await supabase.from("manyreach_logs").insert({
       lead_id: lead.id, slug: lead.slug, campaign_id: lead.campaign_id, thread_id: lead.message_thread_id,
@@ -142,7 +126,7 @@ Deno.serve(async (req) => {
     if (status === "sent") {
       const patch: any = {
         follow_up_sent_at: new Date().toISOString(),
-        follow_up_message_id: responseJson?.messageId || responseJson?.id || null,
+        follow_up_message_id: extractMessageId(responseJson),
         status: "followed_up",
       };
       if (condition === "case1") patch.followup_case1_sent = true;
