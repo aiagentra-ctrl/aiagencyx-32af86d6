@@ -1,6 +1,8 @@
 // Generate an AI reply for a prospect based on classification.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getOrCreateMemory, canSendDemoLink, stripDemoUrls } from "../_shared/memory.ts";
+import { getOrCreateMemory, canSendDemoLink, stripDemoUrls, memoryPromptBlock } from "../_shared/memory.ts";
+import { chatCompletion, MODELS, normalizeModel } from "../_shared/openrouter.ts";
+import { finalizeReply, DEFAULT_SENDER_NAME, senderName } from "../_shared/reply-format.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +10,30 @@ const corsHeaders = {
 };
 
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+
+// Hard output contract appended to every agent prompt.
+const FORMAT_RULES = (name: string, url: string) => `
+
+OUTPUT FORMAT (STRICT — the message is rejected if you break this):
+- Maximum TWO short sentences. No paragraphs. No bullet lists. No subject line.
+- If a link is included, put the RAW URL on its own line. Never wrap it in markdown, never write [text](url), never put brackets around anything.
+- End with exactly these two lines and nothing after them:
+Best,
+${name}
+- Never repeat the link. Never write "Regards," and "Best," together. Never put the sign-off inside brackets.
+${url ? `- The only allowed link is: ${url}` : "- Do not include any link."}
+
+Examples of correct output:
+Here it is: ${url || "https://example.com/demo"}
+
+Best,
+${name}
+---
+Got it 👍 — this was actually made specifically for you.
+${url || "https://example.com/demo"}
+
+Best,
+${name}`;
 
 // Map classification → node_prompts.node_name
 const CLASS_TO_NODE: Record<string, string> = {
@@ -44,12 +69,13 @@ Deno.serve(async (req) => {
     // Layer 1: memory check — if demo already sent, LOCK the link out.
     const demoAllowed = canSendDemoLink(memory);
     const usableDemoUrl = demoAllowed ? (demo_url || existingDemo?.demo_url || "") : "";
+    const name = senderName(prospect);
 
     const rawPrompt =
       nodePromptRow?.system_prompt ||
       legacyPromptRow?.system_prompt ||
       "Reply briefly and politely.";
-    const model = nodePromptRow?.model || "google/gemini-3-flash-preview";
+    const model = normalizeModel(nodePromptRow?.model) || MODELS.agent;
     // Substitute {{demo_url}} inside the agent's system prompt so the model
     // always has the exact URL available even if it ignores the user context.
     let systemPrompt = rawPrompt.replace(/\{\{\s*demo_url\s*\}\}/gi, usableDemoUrl);
@@ -59,6 +85,10 @@ Deno.serve(async (req) => {
     if (!demoAllowed) {
       systemPrompt += `\n\nSTRICT RULE: A demo link has already been sent to this prospect. Under no circumstances include a demo URL, demo link, or any URL of the form /demo/... in your reply. Focus on continuing the conversation.`;
     }
+
+    // Memory continuity + hard formatting contract.
+    systemPrompt += memoryPromptBlock(memory);
+    systemPrompt += FORMAT_RULES(name, demoAllowed ? usableDemoUrl : "");
 
     const lastIncoming = [...(messages || [])].reverse().find((m: any) => m.direction === "incoming");
     const context = `Prospect:
@@ -75,26 +105,34 @@ ${(messages || []).map((m) => `[${m.direction}] ${m.body}`).join("\n\n")}
 
 Write the reply body now.${demoAllowed ? " Use the demo_url exactly as given." : ""}`;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": LOVABLE_API_KEY },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: context },
-        ],
-        temperature: 0.7,
-        max_tokens: 350,
-      }),
-    });
-    if (!res.ok) {
-      const t = await res.text();
-      console.error("generate-reply LLM error:", res.status, t);
-      return new Response(JSON.stringify({ error: "llm_failed", status: res.status, detail: t }), { status: 502, headers: corsHeaders });
+    const messagesPayload = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: context },
+    ];
+
+    // Generate, then normalize + validate. Retry generation once on failure.
+    let reply = "";
+    let validation = { ok: false, errors: ["not_generated"] as string[] };
+    let usedModel = model;
+    let attempts = 0;
+
+    for (attempts = 1; attempts <= 2; attempts++) {
+      const out = await chatCompletion(model, messagesPayload, {
+        temperature: attempts === 1 ? 0.6 : 0.2,
+        max_tokens: 120,
+      });
+      if (!out) continue;
+      usedModel = out.usedModel;
+      const finalized = finalizeReply(out.content, name);
+      reply = finalized.text;
+      validation = { ok: finalized.ok, errors: finalized.errors };
+      if (finalized.ok) break;
     }
-    const j = await res.json();
-    let reply: string = (j?.choices?.[0]?.message?.content || "").trim();
+
+    if (!reply) {
+      console.error("generate-reply: no content from OpenRouter");
+      return new Response(JSON.stringify({ error: "llm_failed" }), { status: 502, headers: corsHeaders });
+    }
 
     // Layer 3: sanitizer — even if the model ignored both prior layers,
     // scrub any demo URL from the output.
@@ -110,7 +148,12 @@ Write the reply body now.${demoAllowed ? " Use the demo_url exactly as given." :
       demo_url: usableDemoUrl,
       demo_link_locked: !demoAllowed,
       sanitizer_fired: sanitized,
-      model,
+      model: usedModel,
+      sender_name: name || DEFAULT_SENDER_NAME,
+      valid: validation.ok,
+      needs_review: !validation.ok,
+      validation_errors: validation.errors,
+      attempts,
       node_prompt_used: !!nodePromptRow,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
