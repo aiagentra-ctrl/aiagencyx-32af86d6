@@ -22,7 +22,21 @@ type Event = {
   prospects?: { email: string; firstname: string | null; company: string | null };
 };
 type Seq = { id: string; name: string; trigger_type: string; is_active: boolean; created_at: string };
-type Step = { id?: string; sequence_template_id?: string; step_number: number; delay_value: number; delay_unit: "hours"|"days"|"weeks"; message_subject: string; message_body: string; include_demo_link: boolean };
+type CtaType = "link_only" | "demo_only" | "both";
+type Step = { id?: string; sequence_template_id?: string; step_number: number; delay_value: number; delay_unit: "hours"|"days"|"weeks"; message_subject: string; message_body: string; include_demo_link: boolean; cta_type: CtaType };
+
+const CTA_OPTIONS: { value: CtaType; label: string; desc: string }[] = [
+  { value: "link_only", label: "Open Link", desc: "Just the link — no demo prompt." },
+  { value: "demo_only", label: "Try Demo", desc: "Opens the chatbot / voice agent directly." },
+  { value: "both", label: "Both", desc: "Link plus the try-the-demo option." },
+];
+
+const ctaPreview = (cta: CtaType, url = "https://aiagentfor.lovable.app/acme-inc") =>
+  cta === "link_only"
+    ? `Open link: ${url}`
+    : cta === "demo_only"
+      ? `Try the demo (talk to the AI agent live): ${url}`
+      : `Open link: ${url}\nOr try the AI agent live on the same page: ${url}`;
 
 const TRIGGERS = [
   { key: "no_click", label: "No Link Click" },
