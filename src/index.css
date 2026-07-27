@@ -261,3 +261,159 @@
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
 }
+
+/* ==========================================================================
+   REAL ESTATE LANDING TEMPLATE — scoped design system (.re-page)
+   Warm ivory editorial canvas + deep ink + a single dynamic brand accent.
+   Deliberately distinct from the app shell and the e-commerce dark template.
+   ========================================================================== */
+.re-page {
+  /* Neutrals (HSL triplets) */
+  --re-canvas: 40 33% 98%;
+  --re-canvas-2: 38 26% 95%;
+  --re-surface: 0 0% 100%;
+  --re-ink: 30 10% 9%;
+  --re-ink-2: 30 6% 40%;
+  --re-ink-3: 30 6% 56%;
+  --re-line: 36 16% 89%;
+
+  /* Accent — overridden inline from the scraped brand colour */
+  --re-accent: #1d4ed8;
+  --re-accent-fg: #ffffff;
+  --re-accent-soft: rgba(29, 78, 216, 0.08);
+  --re-accent-ring: rgba(29, 78, 216, 0.22);
+
+  /* Elevation tuned for a light editorial surface */
+  --re-shadow-sm: 0 1px 2px hsl(30 10% 9% / 0.05), 0 2px 8px -4px hsl(30 10% 9% / 0.06);
+  --re-shadow-md: 0 2px 4px hsl(30 10% 9% / 0.04), 0 12px 32px -12px hsl(30 10% 9% / 0.14);
+  --re-shadow-lg: 0 4px 8px hsl(30 10% 9% / 0.04), 0 32px 64px -24px hsl(30 10% 9% / 0.22);
+
+  --re-ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  background-color: hsl(var(--re-canvas));
+  color: hsl(var(--re-ink));
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.re-page h1, .re-page h2, .re-page h3, .re-page h4 {
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.032em;
+  line-height: 1.03;
+  color: hsl(var(--re-ink));
+}
+
+/* Eyebrow / label micro-type */
+.re-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: hsl(var(--re-ink-3));
+}
+
+/* Buttons — one recognisable pattern used everywhere */
+.re-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 240ms var(--re-ease), box-shadow 240ms var(--re-ease),
+              background-color 240ms var(--re-ease), border-color 240ms var(--re-ease);
+}
+.re-btn:focus-visible {
+  outline: 2px solid var(--re-accent);
+  outline-offset: 3px;
+}
+.re-btn:active { transform: scale(0.975); }
+
+.re-btn-primary {
+  background-color: var(--re-accent);
+  color: var(--re-accent-fg);
+  box-shadow: 0 1px 2px hsl(30 10% 9% / 0.10), 0 10px 28px -10px var(--re-accent-ring);
+}
+.re-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px hsl(30 10% 9% / 0.10), 0 18px 40px -12px var(--re-accent-ring);
+}
+
+.re-btn-ghost {
+  background-color: hsl(var(--re-surface));
+  color: hsl(var(--re-ink));
+  border: 1px solid hsl(var(--re-line));
+  box-shadow: var(--re-shadow-sm);
+}
+.re-btn-ghost:hover {
+  transform: translateY(-2px);
+  border-color: var(--re-accent-ring);
+  box-shadow: var(--re-shadow-md);
+}
+
+.re-btn-lg { padding: 0.95rem 1.7rem; font-size: 1rem; }
+.re-btn-md { padding: 0.7rem 1.25rem; font-size: 0.9rem; }
+.re-btn-sm { padding: 0.5rem 0.95rem; font-size: 0.8125rem; }
+
+/* Cards */
+.re-card {
+  background-color: hsl(var(--re-surface));
+  border: 1px solid hsl(var(--re-line));
+  border-radius: 1.5rem;
+  box-shadow: var(--re-shadow-sm);
+  transition: transform 320ms var(--re-ease), box-shadow 320ms var(--re-ease),
+              border-color 320ms var(--re-ease);
+}
+.re-card-hover:hover {
+  transform: translateY(-4px);
+  border-color: var(--re-accent-ring);
+  box-shadow: var(--re-shadow-lg);
+}
+
+/* Hero atmosphere — a single soft accent wash, no rainbow gradients */
+.re-atmosphere {
+  background-image:
+    radial-gradient(60rem 34rem at 78% -8%, var(--re-accent-soft), transparent 62%),
+    radial-gradient(48rem 30rem at 4% 8%, hsl(var(--re-canvas-2)), transparent 60%);
+}
+
+/* Fine grid texture behind the reveal */
+.re-grid-texture {
+  background-image:
+    linear-gradient(hsl(var(--re-line) / 0.75) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--re-line) / 0.75) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(60% 60% at 50% 40%, #000 20%, transparent 78%);
+  -webkit-mask-image: radial-gradient(60% 60% at 50% 40%, #000 20%, transparent 78%);
+}
+
+/* Incoming-call pulse (hero focal point) */
+@keyframes re-ring {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+.re-ring { animation: re-ring 2.4s var(--re-ease) infinite; }
+
+@keyframes re-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+.re-float { animation: re-float 6s ease-in-out infinite; }
+
+@keyframes re-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.re-marquee { animation: re-marquee 32s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .re-page *,
+  .re-page *::before,
+  .re-page *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
