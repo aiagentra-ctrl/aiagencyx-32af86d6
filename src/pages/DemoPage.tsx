@@ -26,6 +26,7 @@ const DentalWhyClinicSection = lazy(() => import("@/components/demo/DentalWhyCli
 // Real-estate specific sections
 const PropertyShowcaseSection = lazy(() => import("@/components/demo/realestate/PropertyShowcaseSection"));
 const RealEstateValueSection = lazy(() => import("@/components/demo/realestate/RealEstateValueSection"));
+const RealEstateLandingPageV2 = lazy(() => import("@/components/demo/realestate/v2/RealEstateLandingPage"));
 
 // Ecommerce specific sections
 const ProductGridSection = lazy(() => import("@/components/demo/ecommerce/ProductGridSection"));
@@ -259,6 +260,47 @@ const DemoPage = () => {
           contactEmail={page.contact_email || undefined}
           contactPhone={page.contact_phone || undefined}
         />
+      </Suspense>
+    );
+  }
+
+  // REAL ESTATE gets its own dedicated premium landing template (v2).
+  if (isRealEstate) {
+    return (
+      <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>}>
+        <RealEstateLandingPageV2
+          companyName={companyName}
+          firstName={page.client_name?.split(/\s+/)[0] || dc.first_name || undefined}
+          logoUrl={logoUrl}
+          brandColor={dc.brand_color || linkedChatbot?.widget_config?.primaryColor}
+          headline={page.hero_title || undefined}
+          subheadline={page.hero_subtitle || undefined}
+          contactEmail={page.contact_email || undefined}
+          contactPhone={page.contact_phone || undefined}
+          calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
+          videoId={dc.proof_video_id || undefined}
+          voicePrompts={dc.voice_prompts?.map((p: any) => (typeof p === "string" ? p : p?.text)).filter(Boolean)}
+          chatPrompts={dc.chat_prompts}
+          callStatus={callStatus}
+          callSeconds={callSeconds}
+          onTryCall={startVapi}
+          onEndCall={endVapi}
+          onTryChat={openChatbot}
+        >
+          {linkedChatbot && (
+            <ChatWidget
+              chatbotId={linkedChatbot.id}
+              greeting={linkedChatbot.widget_config?.greeting}
+              logoUrl={logoUrl}
+              businessName={companyName}
+              calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
+              externalOpen={chatOpen}
+              onExternalOpenChange={setChatOpen}
+              navItems={chatbotNavItems}
+              industry={page.industry || undefined}
+            />
+          )}
+        </RealEstateLandingPageV2>
       </Suspense>
     );
   }
