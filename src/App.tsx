@@ -1,5 +1,4 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import REPreview from "@/pages/__REPreview";
 import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -25,7 +24,6 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Navigate to="/admin" replace />} />
-          <Route path="/__re-preview" element={<REPreview />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/demo/:slug" element={<DemoPage />} />
           <Route path="/chatbot/:slug" element={<ChatbotPage />} />
