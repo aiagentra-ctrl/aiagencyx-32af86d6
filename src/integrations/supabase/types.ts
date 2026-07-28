@@ -1817,6 +1817,84 @@ export type Database = {
           },
         ]
       }
+      property_listings: {
+        Row: {
+          address: string | null
+          bathrooms: number | null
+          bedrooms: number | null
+          chatbot_id: string
+          city: string | null
+          created_at: string
+          description_raw: string | null
+          embedding: string | null
+          features: string[] | null
+          hoa_fee: number | null
+          id: string
+          last_scraped: string | null
+          listing_agent: string | null
+          listing_id: string | null
+          lot_size: string | null
+          metadata: Json
+          photos: string[] | null
+          price: number | null
+          property_type: string | null
+          source_url: string | null
+          sqft: number | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          chatbot_id: string
+          city?: string | null
+          created_at?: string
+          description_raw?: string | null
+          embedding?: string | null
+          features?: string[] | null
+          hoa_fee?: number | null
+          id?: string
+          last_scraped?: string | null
+          listing_agent?: string | null
+          listing_id?: string | null
+          lot_size?: string | null
+          metadata?: Json
+          photos?: string[] | null
+          price?: number | null
+          property_type?: string | null
+          source_url?: string | null
+          sqft?: number | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          chatbot_id?: string
+          city?: string | null
+          created_at?: string
+          description_raw?: string | null
+          embedding?: string | null
+          features?: string[] | null
+          hoa_fee?: number | null
+          id?: string
+          last_scraped?: string | null
+          listing_agent?: string | null
+          listing_id?: string | null
+          lot_size?: string | null
+          metadata?: Json
+          photos?: string[] | null
+          price?: number | null
+          property_type?: string | null
+          source_url?: string | null
+          sqft?: number | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       prospect_activity_times: {
         Row: {
           created_at: string
@@ -2022,6 +2100,66 @@ export type Database = {
           updated_at?: string
           voice_tried_at?: string | null
           website_url?: string | null
+        }
+        Relationships: []
+      }
+      realestate_profiles: {
+        Row: {
+          agency_record: Json
+          booking_widget_detected: boolean
+          business_type: string | null
+          chatbot_id: string
+          compliance_notes: string[] | null
+          confidence: string | null
+          core_job: string[] | null
+          created_at: string
+          generated_prompt: string | null
+          id: string
+          key_differentiators: string[] | null
+          needs_human_review: boolean
+          property_types: string[] | null
+          service_area: string[] | null
+          suggested_agent_persona_name: string | null
+          tone_signals: string | null
+          updated_at: string
+        }
+        Insert: {
+          agency_record?: Json
+          booking_widget_detected?: boolean
+          business_type?: string | null
+          chatbot_id: string
+          compliance_notes?: string[] | null
+          confidence?: string | null
+          core_job?: string[] | null
+          created_at?: string
+          generated_prompt?: string | null
+          id?: string
+          key_differentiators?: string[] | null
+          needs_human_review?: boolean
+          property_types?: string[] | null
+          service_area?: string[] | null
+          suggested_agent_persona_name?: string | null
+          tone_signals?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agency_record?: Json
+          booking_widget_detected?: boolean
+          business_type?: string | null
+          chatbot_id?: string
+          compliance_notes?: string[] | null
+          confidence?: string | null
+          core_job?: string[] | null
+          created_at?: string
+          generated_prompt?: string | null
+          id?: string
+          key_differentiators?: string[] | null
+          needs_human_review?: boolean
+          property_types?: string[] | null
+          service_area?: string[] | null
+          suggested_agent_persona_name?: string | null
+          tone_signals?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2323,6 +2461,37 @@ export type Database = {
           source_url: string
           structured: Json
           title: string
+        }[]
+      }
+      match_listings_hybrid: {
+        Args: {
+          p_chatbot_id: string
+          p_filters?: Json
+          p_match_count?: number
+          p_query_embedding: string
+          p_query_text: string
+        }
+        Returns: {
+          address: string
+          bathrooms: number
+          bedrooms: number
+          city: string
+          combined_score: number
+          description_raw: string
+          features: string[]
+          hoa_fee: number
+          id: string
+          last_scraped: string
+          listing_agent: string
+          listing_id: string
+          photos: string[]
+          price: number
+          property_type: string
+          source_url: string
+          sqft: number
+          status: string
+          text_score: number
+          vector_score: number
         }[]
       }
       match_products: {
