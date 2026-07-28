@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildRealEstateVoicePrompt, isRealEstateIndustry } from "../_shared/realestate-prompt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -375,7 +376,7 @@ Deno.serve(async (req) => {
       templateVars
     );
 
-    const basePrompt = getVoicePrompt(
+    let basePrompt = getVoicePrompt(
       agentName,
       business_name,
       resolvedIndustry,
@@ -383,6 +384,23 @@ Deno.serve(async (req) => {
       knowledge_base || "",
       structured_data || {}
     );
+
+    // Real estate v3 master prompt — only when a classified profile exists and is confident.
+    if (chatbot_id && isRealEstateIndustry(resolvedIndustry)) {
+      const { data: reProfile } = await supabase
+        .from("realestate_profiles").select("*").eq("chatbot_id", chatbot_id).maybeSingle();
+      if (reProfile && reProfile.confidence && reProfile.confidence !== "low") {
+        basePrompt = buildRealEstateVoicePrompt({
+          agentName,
+          businessName: business_name,
+          profile: reProfile as any,
+          knowledgeBase: knowledge_base || "",
+          chatbotId: chatbot_id,
+        });
+        await supabase.from("realestate_profiles")
+          .update({ generated_prompt: basePrompt }).eq("chatbot_id", chatbot_id);
+      }
+    }
 
     // Load architected core facts + voice KB from chatbots row (if available)
     let coreFactsBlock = "";

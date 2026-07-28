@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 export default function WebhookUrlCard() {
   const [url, setUrl] = useState<string>("");
+  const [legacyUrl, setLegacyUrl] = useState<string>("");
   const [reveal, setReveal] = useState(false);
   const [testing, setTesting] = useState(false);
   const [last, setLast] = useState<{ ok: boolean; status?: number; ms?: number } | null>(null);
@@ -23,12 +24,14 @@ export default function WebhookUrlCard() {
         toast.error("Could not load webhook URL");
         return;
       }
-      setUrl(data?.url || "");
+      setUrl(data?.short_url || data?.url || "");
+      setLegacyUrl(data?.legacy_url || data?.url || "");
       if (!data?.has_secret) toast.error("INBOX_WEBHOOK_SECRET is not set on the server");
     })();
   }, []);
 
-  const masked = url.replace(/(secret=)[^&]+/i, "$1••••••••");
+  const mask = (u: string) => u.replace(/(secret=)[^&]+/i, "$1••••••••").replace(/(\/mr\/)[^/?]+/i, "$1••••••••");
+  const masked = mask(url);
 
   const copy = () => {
     navigator.clipboard.writeText(url);
@@ -90,8 +93,15 @@ export default function WebhookUrlCard() {
           </Button>
         </div>
         <div className="text-[10px] text-muted-foreground">
-          Paste this exact URL (including the <code className="px-1 rounded bg-muted">?secret=…</code> query string) into
-          ManyReach → Settings → Webhooks → Reply Webhook.
+          Paste this exact URL into ManyReach → Settings → Webhooks → Reply Webhook.
+          The older long URL still works — copy it if you'd rather not change existing wiring:
+          <button
+            type="button"
+            className="ml-1 underline underline-offset-2"
+            onClick={() => { navigator.clipboard.writeText(legacyUrl); toast.success("Legacy webhook URL copied"); }}
+          >
+            copy legacy URL
+          </button>
         </div>
       </CardContent>
     </Card>

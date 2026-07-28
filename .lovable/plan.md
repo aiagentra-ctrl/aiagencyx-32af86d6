@@ -1,66 +1,68 @@
 ## Goal
 
-A brand-new, standalone real-estate landing page template — not a variation of the existing demo layout. It follows the exact 6-section structure you specified, auto-populates from scraped company data, and is built to a premium SaaS visual standard.
+Add three things without touching existing behaviour: a real-estate scraper → classifier → v3 voice-prompt pipeline, a shorter ManyReach webhook, and one shared chatbot design system used by both e-commerce and real estate.
 
-## Structure (exactly as specified, no changes)
+Nothing existing is removed. New code is added alongside; existing e-commerce, dental, restaurant and generic flows keep their current paths.
 
-1. **Hero** — Nav (`{{Logo}} {{CompanyName}} | Try Demo | Book Call`), headline "{{FirstName}}, Your Leads Won't Wait — Will {{CompanyName}}?", subheadline, two buttons (📞 Talk to It Now = primary/heavy, 💬 Chat With It Now = secondary), micro-line "No sign-up. No script. Just try it.", phone mockup with "Incoming call from {{CompanyName}}" + a realistic buyer chat bubble.
-2. **Demo** — 🎙 Live Demo badge, personalized headline/subhead, Voice card + Chatbot card (stack full-width on mobile, voice card first).
-3. **The Reveal** — "We Didn't Just Build You a Chatbot, {{FirstName}}", dashboard preview image with caption "Already built for {{CompanyName}}. Already running.", 3 spaced flow points (⚡ / 📅 / 📊), closing line, Book a Call button.
-4. **Client Proof** — headline + subhead + the YouTube embed (`eOAyie0kWGQ`), responsive 16:9 wrapper.
-5. **Book a Call** — final CTA, Calendly button, subtitle, risk-reversal line.
-6. **Footer** — "Let's Work Together, {{FirstName}}", subhead, Book a Call button, logo/company/contact/year/Privacy/Terms.
+---
 
-Every Book a Call button → `https://calendly.com/aiagentra/new-meeting` (overridable per-page by the stored calendar URL, falling back to that link).
+## Phase 1 — Real estate data layer
 
-## Design direction (distinct from existing templates)
+New table `property_listings` matching your listing schema (listing_id, address, city, price, status, bedrooms, bathrooms, sqft, lot_size, property_type, description_raw, features, hoa_fee, listing_agent, photos, source_url, last_scraped) plus `chatbot_id` and an embedding column for RAG. Fields stay nullable — no inferred values.
 
-- **Light premium** editorial layout — near-white canvas, deep ink text, one disciplined brand accent pulled from the scraped logo colors (existing `brandColors` util). Accent used only on CTAs and the "Already built. Already running." caption. Deliberately different from the dark starfield e-commerce page and the current blue demo page.
-- **Typography**: two families only — a confident bold display face for headlines, a clean body face. Large size/weight contrast carries hierarchy, not color.
-- **Spacing**: generous section rhythm (tighter on mobile, expansive on desktop); Reveal section gets the most breathing room.
-- **Motion budget, one signature moment**: the Reveal dashboard fades + scales in on scroll, timed with its headline. Elsewhere: subtle hero phone "incoming call" pulse, gentle scroll-reveals on section headers, restrained hover lifts on the two demo cards and CTAs. Respects `prefers-reduced-motion`.
-- **Mobile-first**: single-column stacking, demo cards full-width with buttons above the fold, nav stays at two actions only.
+Agency-level record (service_area, services_offered, business_hours, license_numbers, contact/booking detection, fair-housing flag, raw FAQ pairs, testimonials) is stored on the existing chatbot record as structured JSON, so nothing else has to change.
 
-## Dynamic data
+A hybrid search function `match_listings_hybrid` mirrors the existing product search (vector + full-text), so retrieval behaves the same way the e-commerce side already does.
 
-Populated from the existing demo page record + linked chatbot research data:
+## Phase 2 — Scraper
 
-- `{{CompanyName}}` — company/business name
-- `{{FirstName}}` — contact first name from the page record, with a graceful fallback that rewrites headlines to work without a name (no empty commas)
-- `{{Logo}}` — scraped logo, initials fallback
-- Brand accent color derived from logo/brand color
-- Contact email/phone, calendar URL, and any scraped tagline/location used where they strengthen copy
+New edge function `scrape-realestate-listings`, modelled on the existing e-commerce scraper:
+- crawls listing pages, listings index, about/team, services, contact/booking, FAQ, testimonials, legal/fair-housing footer
+- strips nav/footer/script boilerplate before storing descriptions
+- respects robots.txt, rate-limits, stores `source_url` + `last_scraped` on every row
+- detects a real booking widget vs a plain contact form (this drives `booking_showings` later)
+- writes listings to `property_listings`, everything else into the existing knowledge-base table so the current RAG search keeps working
 
-All strings run through the existing `renderTemplate` variable substitution so admin-editable copy keeps working.
+Re-scrape is re-runnable per chatbot so price/status can be refreshed.
 
-## Technical plan
+## Phase 3 — Classifier
 
-- New folder `src/components/demo/realestate/v2/` with one file per section (`REHero`, `REDemo`, `REReveal`, `REProof`, `REBookCall`, `REFooter`) plus a `RealEstateLandingPage.tsx` composer — self-contained, no reuse of the existing demo sections.
-- `DemoPage.tsx`: add an early return for `isRealEstate` that renders the new page (same pattern as the e-commerce branch), passing company data, logo, brand color, VAPI key/assistant, calendar URL, and chat open handler. Existing `PropertyShowcaseSection` / `RealEstateValueSection` path is left in place but no longer used by that branch.
-- Voice call + chatbot wire into the existing VAPI start/end handlers and the chat widget already used on the demo page — the demo buttons are live, not decorative.
-- All colors go through semantic tokens; new tokens for this template added to the design system rather than hardcoded.
-- Section-level scroll/click tracking kept via the existing tracking helpers.
+New edge function `classify-realestate-business` using OpenRouter (same client the rest of the system uses). Feeds the agency record + listing sample + FAQ pairs, returns strict JSON: business_type, core_job, service_area, property_types, tone_signals, key_differentiators, compliance_notes, suggested_agent_persona_name, confidence.
 
-## One open item
+`booking_showings` is only allowed when a booking widget was actually detected. When confidence is `low`, the profile is saved and flagged for human fill-in instead of auto-generating the prompt.
 
-The Reveal section needs the dashboard screenshot you mentioned — it wasn't attached to this thread. I'll build the section with a polished placeholder frame (browser-chrome container, partial blur/fade at the edges) and drop your real screenshot in as soon as you upload it here.<a href="[https://ibb.co/v4tDH87m"><img](https://ibb.co/v4tDH87m"><img) src="[https://i.ibb.co/3mJk7HDW/Whats-App-Image-2026-07-27-at-12-38-35-AM.jpg](https://i.ibb.co/3mJk7HDW/Whats-App-Image-2026-07-27-at-12-38-35-AM.jpg)" alt="Whats-App-Image-2026-07-27-at-12-38-35-AM" border="0"></a>  image 
+## Phase 4 — v3 master prompt
 
-here is screeshot image use this imadashboard screenshot use this propely in ui her it is ge <a href="[https://ibb.co/v4tDH87m"><img](https://ibb.co/v4tDH87m"><img) src="[https://i.ibb.co/v4tDH87m/Whats-App-Image-2026-07-27-at-12-38-35-AM.jpg](https://i.ibb.co/v4tDH87m/Whats-App-Image-2026-07-27-at-12-38-35-AM.jpg)" alt="Whats-App-Image-2026-07-27-at-12-38-35-AM" border="0"></a>           Final QA & Testing
+A real-estate prompt builder added to the existing voice-prompt dispatcher (same place restaurant and dental branches live). It renders your full v3 spec: identity, tone, speaking style, calibrated disfluency, rapport/energy matching, the four business-type branches, Core-Knowledge-vs-RAG discipline, scope, Fair Housing overrides, guardrails, emotional expression limits, escalation and call length, with the worked examples.
 
-After everything is built, I need you to thoroughly test the entire project from start to finish.
+Optional sections (booking, incremental capture) only render when the classifier enabled them.
 
-Please verify:
+Per your answer: the prompt is applied automatically to the VAPI agent when a real-estate demo is created — except when confidence is `low`, where the existing generic prompt stays in place and the gaps are flagged in the dashboard.
 
-- Every UI component
-- Every animation and transition
-- Responsive design on all screen sizes
-- Every button, form, and link
-- Navigation and scrolling
-- Data loading and personalization
-- Performance and loading speed
-- Cross-browser compatibility
-- Overall user experience and visual consistency
+## Phase 5 — Webhook
 
-Fix any UI, UX, responsiveness, animation, or functionality issues before considering the project complete.
+Add a short path-token route: `/functions/v1/mr/<token>` (chosen over a header-only secret because ManyReach's webhook form doesn't reliably let you set custom headers). The token is compared constant-time against the existing secret, so no new secret is needed.
 
-Finally, create a complete end-to-end demo showing the entire user journey so we can review the finished experience. The final product should be production-ready with no unfinished sections or placeholder content.
+The existing `?key=` / `?secret=` / `x-webhook-key` forms keep working unchanged — pure backward compatibility. The handler acknowledges early and does the heavier work after responding, which cuts webhook response time. The admin webhook card shows the new short URL with the old one still copyable.
+
+## Phase 6 — Shared chatbot design system
+
+Extract the current e-commerce widget into a reusable, themeable chat kit:
+- shared shell (Home / Chats / FAQ tabs, launcher, panel sizing, animations, responsive/mobile full-screen behaviour)
+- shared message list, bubbles, typing state, input bar, quick chips, voice-call view
+- a theme layer (brand colour, logo, copy, tab labels) plus a card slot so e-commerce renders product cards and real estate renders listing cards
+
+E-commerce keeps its current look — it becomes the default theme. Real estate switches from the older widget to the same kit with a listings theme, so both look and behave identically.
+
+---
+
+## Technical notes
+
+- All new AI calls go through the existing OpenRouter client and shared retry/fallback helper.
+- New tables get RLS plus explicit grants, following the pattern already used by `products`.
+- Real-estate industry detection reuses the keyword match already in `DemoPage`.
+- No changes to follow-up sequences, inbox pipeline, dental/restaurant prompts, or the e-commerce landing page.
+
+## Verification
+
+Playwright screenshots of both widgets at desktop and mobile widths, a live scrape + classify run against a real real-estate site, and a webhook test through both the old and new URL forms.
