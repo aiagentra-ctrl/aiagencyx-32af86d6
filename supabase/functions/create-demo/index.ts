@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildRealEstateVoicePrompt, isRealEstateIndustry } from "../_shared/realestate-prompt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -877,7 +878,25 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
   if (!vapiKey) throw new Error("VAPI private key not configured. Set it in Admin → Settings.");
 
   const agentName = adminSettings.default_agent_name || "Alex";
-  const basePrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
+  let basePrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
+
+  // Real estate v3 master prompt — only when a classified profile exists and is confident.
+  if (chatbotId && isRealEstateIndustry(industry)) {
+    try {
+      const { data: reProfile } = await supabaseClient
+        .from("realestate_profiles").select("*").eq("chatbot_id", chatbotId).maybeSingle();
+      if (reProfile && reProfile.confidence && reProfile.confidence !== "low") {
+        basePrompt = buildRealEstateVoicePrompt({
+          agentName, businessName, profile: reProfile as any, knowledgeBase, chatbotId,
+        });
+        await supabaseClient.from("realestate_profiles")
+          .update({ generated_prompt: basePrompt }).eq("chatbot_id", chatbotId);
+      }
+    } catch (e) {
+      console.warn("[create-demo] real estate prompt skipped:", e instanceof Error ? e.message : e);
+    }
+  }
+
   const ragRules = chatbotId ? `
 
 ## RAG TOOL — STRICT RULES
@@ -1127,6 +1146,36 @@ Deno.serve(async (req) => {
 
     // Pre-generate chatbot id so the voice assistant can carry it as metadata for KB queries
     const preChatbotId = crypto.randomUUID();
+
+    // Real estate pipeline: scrape listings + agency record, then classify, before the
+    // voice assistant is built so the v3 master prompt can be filled in.
+    if (isRealEstateIndustry(resolvedIndustry)) {
+      try {
+        const fnBase = `${Deno.env.get("SUPABASE_URL")}/functions/v1`;
+        const authHeaders = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        };
+        const scrapeRes = await fetch(`${fnBase}/scrape-realestate-listings`, {
+          method: "POST", headers: authHeaders,
+          body: JSON.stringify({ chatbot_id: preChatbotId, website_url: formattedUrl, business_name }),
+        });
+        const scrapeJson = await scrapeRes.json().catch(() => ({}));
+        await log(supabase, "info", `Real estate scrape done for "${business_name}"`, scrapeJson);
+
+        const classifyRes = await fetch(`${fnBase}/classify-realestate-business`, {
+          method: "POST", headers: authHeaders,
+          body: JSON.stringify({ chatbot_id: preChatbotId }),
+        });
+        const classifyJson = await classifyRes.json().catch(() => ({}));
+        await log(supabase, "info", `Real estate classification for "${business_name}"`, classifyJson);
+      } catch (err) {
+        console.error("Real estate pipeline failed:", err);
+        await log(supabase, "warning", `Real estate pipeline failed for "${business_name}"`, {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     // Step 5: Create VAPI voice assistant
     let assistantId: string;
