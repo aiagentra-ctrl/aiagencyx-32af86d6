@@ -13,8 +13,9 @@ Deno.serve(async (req) => {
     const base = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "");
     const secret = Deno.env.get("INBOX_WEBHOOK_SECRET") || "";
     const url = `${base}/functions/v1/webhook-manyreach-reply?secret=${encodeURIComponent(secret)}`;
+    const short_url = `${base}/functions/v1/mr/${encodeURIComponent(secret)}`;
 
-    return new Response(JSON.stringify({ url, has_secret: !!secret }), {
+    return new Response(JSON.stringify({ url, short_url, legacy_url: url, has_secret: !!secret }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
