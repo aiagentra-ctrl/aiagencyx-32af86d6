@@ -44,7 +44,44 @@ export async function searchKB(chatbotId: string, query: string, limit = 5) {
     console.warn("match_kb_entries err", error);
     return [];
   }
-  return data || [];
+  const kb = data || [];
+
+  // Real estate: also surface matching property listings (no-op for other verticals).
+  try {
+    const { data: listings } = await supabase.rpc("match_listings_hybrid", {
+      p_chatbot_id: chatbotId,
+      p_query_embedding: emb as any,
+      p_query_text: query,
+      p_match_count: 3,
+      p_filters: {},
+    });
+    if (listings?.length) {
+      const asEntries = listings.map((l: any) => ({
+        id: l.id,
+        source_url: l.source_url,
+        content_type: "listing",
+        title: l.address || l.listing_id || "Listing",
+        content: [
+          l.address, l.city,
+          l.price ? `price ${l.price}` : null,
+          l.status ? `status ${l.status}` : null,
+          l.bedrooms ? `${l.bedrooms} bed` : null,
+          l.bathrooms ? `${l.bathrooms} bath` : null,
+          l.sqft ? `${l.sqft} sqft` : null,
+          l.hoa_fee ? `HOA ${l.hoa_fee}` : null,
+          (l.features || []).join(", "),
+          (l.description_raw || "").slice(0, 600),
+        ].filter(Boolean).join(" · "),
+        structured: l,
+        similarity: l.combined_score,
+      }));
+      return [...asEntries, ...kb].slice(0, Math.max(limit, 5));
+    }
+  } catch (e) {
+    console.warn("match_listings_hybrid skipped", e instanceof Error ? e.message : e);
+  }
+
+  return kb;
 }
 
 // Vapi tool-call shape: { message: { toolCalls: [{ id, function: { name, arguments } }], assistant: {...}, ... } }
