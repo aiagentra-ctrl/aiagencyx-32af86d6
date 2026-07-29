@@ -44,6 +44,7 @@ interface DemoPageData {
   client_name: string | null;
   company_name: string | null;
   industry: string | null;
+  website_url?: string | null;
   hero_title: string | null;
   hero_subtitle: string | null;
   calendly_url: string | null;
