@@ -76,8 +76,9 @@ const RENav = ({ companyName, logoUrl, onTryDemo, onBookCall }: RENavProps) => {
             onClick={onBookCall}
           >
             <CalendarCheck className="h-4 w-4" />
-            <span className="hidden xs:inline sm:inline">Book a Call</span>
-            <span className="sm:hidden xs:hidden">Book</span>
+            <span className="hidden sm:inline">Book a Call</span>
+            <span className="sm:hidden">Book</span>
+
           </button>
         </div>
       </nav>
