@@ -54,7 +54,7 @@ export default function WebhookUrlCard() {
   };
 
   return (
-    <Card className="border-primary/20 bg-gradient-to-br from-card to-primary/5">
+    <Card>
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
@@ -62,9 +62,9 @@ export default function WebhookUrlCard() {
               <Webhook className="h-4 w-4" />
             </div>
             <div>
-              <div className="font-semibold text-sm">Your Webhook URL</div>
+              <div className="font-semibold text-sm">Legacy webhook URLs</div>
               <div className="text-[11px] text-muted-foreground">
-                Paste this into ManyReach → Settings → Webhooks → Reply Webhook
+                Kept working for existing wiring. New integrations should use an endpoint above.
               </div>
             </div>
           </div>
@@ -93,8 +93,7 @@ export default function WebhookUrlCard() {
           </Button>
         </div>
         <div className="text-[10px] text-muted-foreground">
-          Paste this exact URL into ManyReach → Settings → Webhooks → Reply Webhook.
-          The older long URL still works — copy it if you'd rather not change existing wiring:
+          This URL carries the shared secret in the path. The older long query-string URL also still works:
           <button
             type="button"
             className="ml-1 underline underline-offset-2"
