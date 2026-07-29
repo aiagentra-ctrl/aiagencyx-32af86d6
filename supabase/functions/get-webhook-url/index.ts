@@ -7,6 +7,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -15,7 +17,20 @@ Deno.serve(async (req) => {
     const url = `${base}/functions/v1/webhook-manyreach-reply?secret=${encodeURIComponent(secret)}`;
     const short_url = `${base}/functions/v1/mr/${encodeURIComponent(secret)}`;
 
-    return new Response(JSON.stringify({ url, short_url, legacy_url: url, has_secret: !!secret }), {
+    // Preferred: the first active registered endpoint from the token registry.
+    let hook_url = "";
+    try {
+      const admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      const { data } = await admin
+        .from("webhook_endpoints").select("token")
+        .eq("active", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
+      if (data?.token) hook_url = `${base}/functions/v1/hook/${data.token}`;
+    } catch { /* registry optional */ }
+
+    return new Response(JSON.stringify({ hook_url, url, short_url, legacy_url: url, has_secret: !!secret }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
