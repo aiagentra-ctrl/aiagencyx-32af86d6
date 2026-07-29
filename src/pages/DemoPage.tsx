@@ -44,6 +44,7 @@ interface DemoPageData {
   client_name: string | null;
   company_name: string | null;
   industry: string | null;
+  website_url?: string | null;
   hero_title: string | null;
   hero_subtitle: string | null;
   calendly_url: string | null;
@@ -278,6 +279,7 @@ const DemoPage = () => {
           contactEmail={page.contact_email || undefined}
           contactPhone={page.contact_phone || undefined}
           calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
+          websiteUrl={page.website_url || undefined}
           videoId={dc.proof_video_id || undefined}
           voicePrompts={dc.voice_prompts?.map((p: any) => (typeof p === "string" ? p : p?.text)).filter(Boolean)}
           chatPrompts={dc.chat_prompts}

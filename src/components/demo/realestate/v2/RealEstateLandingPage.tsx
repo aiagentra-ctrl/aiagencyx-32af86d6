@@ -1,15 +1,16 @@
-import { useMemo } from "react";
-import { hexToRgba, getContrastColor } from "@/lib/brandColors";
+import { useCallback } from "react";
+import RENav from "./RENav";
 import REHero from "./REHero";
 import REDemo from "./REDemo";
 import REReveal from "./REReveal";
 import REProof from "./REProof";
 import REBookCall from "./REBookCall";
+import RECalendly from "./RECalendly";
 import REFooter from "./REFooter";
+import { companyDomainFrom } from "./personalize";
 import type { CallStatus } from "@/pages/DemoPage";
 
 const DEFAULT_CALENDLY = "https://calendly.com/aiagentra/new-meeting";
-const DEFAULT_ACCENT = "#1d4ed8";
 
 export interface RealEstateLandingPageProps {
   companyName: string;
@@ -20,6 +21,7 @@ export interface RealEstateLandingPageProps {
   subheadline?: string;
   contactEmail?: string;
   contactPhone?: string;
+  websiteUrl?: string;
   calendarUrl?: string;
   videoId?: string;
   voicePrompts?: string[];
@@ -32,19 +34,23 @@ export interface RealEstateLandingPageProps {
   children?: React.ReactNode;
 }
 
+const scrollTo = (id: string) => {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
 /**
- * Real-estate landing template (v2) — a standalone premium editorial page.
- * Distinct layout/palette from the generic and e-commerce demo templates.
+ * Real-estate landing template (v2) — alternating dark/light sections,
+ * orange-only CTAs, blue reserved for brand marks, fully personalised.
  */
 const RealEstateLandingPage = ({
   companyName,
   firstName,
   logoUrl,
-  brandColor,
   headline,
   subheadline,
   contactEmail,
-  contactPhone,
+  websiteUrl,
   calendarUrl,
   videoId,
   voicePrompts,
@@ -56,25 +62,19 @@ const RealEstateLandingPage = ({
   onTryChat,
   children,
 }: RealEstateLandingPageProps) => {
-  const accent = brandColor?.startsWith("#") ? brandColor : DEFAULT_ACCENT;
-
-  const accentVars = useMemo(
-    () =>
-      ({
-        "--re-accent": accent,
-        "--re-accent-fg": getContrastColor(accent),
-        "--re-accent-soft": hexToRgba(accent, 0.08),
-        "--re-accent-ring": hexToRgba(accent, 0.22),
-      }) as React.CSSProperties,
-    [accent],
-  );
-
-  const handleBookCall = () => {
-    window.open(calendarUrl || DEFAULT_CALENDLY, "_blank", "noopener,noreferrer");
-  };
+  const companyDomain = companyDomainFrom({ websiteUrl, contactEmail, companyName });
+  const handleBookCall = useCallback(() => scrollTo("book-call"), []);
+  const handleTryDemo = useCallback(() => scrollTo("demo-section"), []);
 
   return (
-    <div className="re-page min-h-screen" style={accentVars}>
+    <div className="re-page min-h-screen">
+      <RENav
+        companyName={companyName}
+        logoUrl={logoUrl}
+        onTryDemo={handleTryDemo}
+        onBookCall={handleBookCall}
+      />
+
       <REHero
         companyName={companyName}
         firstName={firstName}
@@ -86,12 +86,12 @@ const RealEstateLandingPage = ({
         onTryCall={onTryCall}
         onEndCall={onEndCall}
         onTryChat={onTryChat}
-        onBookCall={handleBookCall}
       />
 
       <main>
         <REDemo
           companyName={companyName}
+          firstName={firstName}
           callStatus={callStatus}
           callSeconds={callSeconds}
           onTryCall={onTryCall}
@@ -100,21 +100,17 @@ const RealEstateLandingPage = ({
           voicePrompts={voicePrompts}
           chatPrompts={chatPrompts}
         />
-        <REReveal companyName={companyName} />
-        <REProof videoId={videoId} />
+        <REReveal companyName={companyName} logoUrl={logoUrl} companyDomain={companyDomain} />
+        <REProof companyName={companyName} videoId={videoId} />
         <REBookCall
           companyName={companyName}
           firstName={firstName}
           onBookCall={handleBookCall}
         />
+        <RECalendly companyName={companyName} calendarUrl={calendarUrl || DEFAULT_CALENDLY} />
       </main>
 
-      <REFooter
-        companyName={companyName}
-        logoUrl={logoUrl}
-        contactEmail={contactEmail}
-        contactPhone={contactPhone}
-      />
+      <REFooter companyName={companyName} onBookCall={handleBookCall} />
 
       {children}
     </div>
