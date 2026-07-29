@@ -307,6 +307,20 @@
   --re-ease: cubic-bezier(0.16, 1, 0.3, 1);
 
   background-color: var(--re-dark);
+
+  /* Back-compat aliases so existing .re-* sections keep rendering while the
+     section components are migrated to the new dark/light tokens. */
+  --re-accent: var(--re-cta);
+  --re-accent-fg: var(--re-cta-fg);
+  --re-accent-soft: var(--re-brand-soft);
+  --re-accent-ring: var(--re-cta-ring);
+  --re-canvas: 0 0% 98%;
+  --re-canvas-2: 210 17% 95%;
+  --re-surface: 0 0% 100%;
+  --re-ink: 220 29% 7%;
+  --re-ink-2: 220 9% 34%;
+  --re-ink-3: 220 7% 52%;
+  --re-line: 220 13% 91%;
   color: var(--re-on-dark);
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
