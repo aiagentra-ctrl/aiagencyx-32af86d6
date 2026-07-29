@@ -75,16 +75,6 @@ export async function readBody(req: Request): Promise<any> {
   return { body: raw };
 }
 
-function _unusedPick<T = string>(obj: any, ...keys: string[]): T | undefined {
-  for (const k of keys) {
-    const parts = k.split(".");
-    let cur = obj;
-    for (const p of parts) cur = cur?.[p];
-    if (cur !== undefined && cur !== null && cur !== "") return cur as T;
-  }
-  return undefined;
-}
-
 export async function handleManyreachWebhook(
   req: Request,
   opts: {
