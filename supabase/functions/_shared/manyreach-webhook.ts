@@ -50,9 +50,49 @@ function pick<T = string>(obj: any, ...keys: string[]): T | undefined {
   return undefined;
 }
 
+/**
+ * Reads a webhook body regardless of content-type: JSON, form-encoded, or
+ * raw text. Never throws — an unreadable body becomes an empty object.
+ */
+export async function readBody(req: Request): Promise<any> {
+  const ct = (req.headers.get("content-type") || "").toLowerCase();
+  const raw = await req.text().catch(() => "");
+  if (!raw) return {};
+  if (ct.includes("application/x-www-form-urlencoded")) {
+    return Object.fromEntries(new URLSearchParams(raw).entries());
+  }
+  if (ct.includes("multipart/form-data")) {
+    try {
+      const fd = await new Response(raw, { headers: { "content-type": ct } }).formData();
+      return Object.fromEntries([...fd.entries()].map(([k, v]) => [k, String(v)]));
+    } catch { /* fall through */ }
+  }
+  try { return JSON.parse(raw); } catch { /* not json */ }
+  // Last resort: a form-ish or plain-text body.
+  if (raw.includes("=") && raw.includes("&")) {
+    return Object.fromEntries(new URLSearchParams(raw).entries());
+  }
+  return { body: raw };
+}
+
+function _unusedPick<T = string>(obj: any, ...keys: string[]): T | undefined {
+  for (const k of keys) {
+    const parts = k.split(".");
+    let cur = obj;
+    for (const p of parts) cur = cur?.[p];
+    if (cur !== undefined && cur !== null && cur !== "") return cur as T;
+  }
+  return undefined;
+}
+
 export async function handleManyreachWebhook(
   req: Request,
-  opts: { endpoint: string; secretOverride?: string | null } = { endpoint: "webhook-manyreach-reply" },
+  opts: {
+    endpoint: string;
+    secretOverride?: string | null;
+    /** Auth already established upstream (e.g. a registered webhook token). */
+    preAuthorized?: boolean;
+  } = { endpoint: "webhook-manyreach-reply" },
 ): Promise<Response> {
   const t0 = Date.now();
   let payload: any = {};
@@ -73,18 +113,28 @@ export async function handleManyreachWebhook(
 
   try {
     const url = new URL(req.url);
-    const key = opts.secretOverride
-      ?? url.searchParams.get("key")
-      ?? url.searchParams.get("secret")
-      ?? req.headers.get("x-webhook-key");
 
-    if (!secretMatches(key)) {
-      const r = { error: "unauthorized" };
-      finalize("failed", 401, r, "unauthorized");
-      return new Response(JSON.stringify(r), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!opts.preAuthorized) {
+      const key = opts.secretOverride
+        ?? url.searchParams.get("key")
+        ?? url.searchParams.get("secret")
+        ?? req.headers.get("x-webhook-key");
+
+      if (!secretMatches(key)) {
+        const r = { error: "unauthorized" };
+        finalize("failed", 401, r, "unauthorized");
+        return new Response(JSON.stringify(r), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
 
-    payload = await req.json().catch(() => ({}));
+    payload = await readBody(req);
+
+    // Query params are merged in (some providers pass fields on the query string).
+    const qs = Object.fromEntries(url.searchParams.entries());
+    delete qs.key; delete qs.secret;
+    if (Object.keys(qs).length && payload && typeof payload === "object" && !Array.isArray(payload)) {
+      payload = { ...qs, ...payload };
+    }
 
     const root: any = payload?.body && typeof payload.body === "object" ? payload.body : payload;
     const email = pick<string>(root, "prospect.email", "email", "from", "fromEmail", "sender", "data.email");
