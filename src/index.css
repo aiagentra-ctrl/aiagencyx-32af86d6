@@ -264,44 +264,75 @@
 
 /* ==========================================================================
    REAL ESTATE LANDING TEMPLATE — scoped design system (.re-page)
-   Warm ivory editorial canvas + deep ink + a single dynamic brand accent.
-   Deliberately distinct from the app shell and the e-commerce dark template.
+   Alternating dark/light sections. One font family (Inter) with weight doing
+   the hierarchy work. Blue = brand identity, orange = every single CTA
+   (isolation effect — the CTA never shares the brand hue).
    ========================================================================== */
 .re-page {
-  /* Neutrals (HSL triplets) */
-  --re-canvas: 40 33% 98%;
-  --re-canvas-2: 38 26% 95%;
-  --re-surface: 0 0% 100%;
-  --re-ink: 30 10% 9%;
-  --re-ink-2: 30 6% 40%;
-  --re-ink-3: 30 6% 56%;
-  --re-line: 36 16% 89%;
+  /* 60% — dominant surfaces */
+  --re-dark: #0B0F14;
+  --re-dark-2: #10161D;
+  --re-light: #FAFAFA;
+  --re-light-2: #F1F3F5;
 
-  /* Accent — overridden inline from the scraped brand colour */
-  --re-accent: #1d4ed8;
-  --re-accent-fg: #ffffff;
-  --re-accent-soft: rgba(29, 78, 216, 0.08);
-  --re-accent-ring: rgba(29, 78, 216, 0.22);
+  /* 30% — cards + secondary structure */
+  --re-card-dark: #151B23;
+  --re-line-dark: #232B35;
+  --re-card-light: #FFFFFF;
+  --re-line-light: #E5E7EB;
 
-  /* Elevation tuned for a light editorial surface */
-  --re-shadow-sm: 0 1px 2px hsl(30 10% 9% / 0.05), 0 2px 8px -4px hsl(30 10% 9% / 0.06);
-  --re-shadow-md: 0 2px 4px hsl(30 10% 9% / 0.04), 0 12px 32px -12px hsl(30 10% 9% / 0.14);
-  --re-shadow-lg: 0 4px 8px hsl(30 10% 9% / 0.04), 0 32px 64px -24px hsl(30 10% 9% / 0.22);
+  /* Text — never pure white on dark */
+  --re-on-dark: #F5F5F5;
+  --re-on-dark-2: #A8B1BD;
+  --re-on-dark-3: #6F7987;
+  --re-on-light: #111318;
+  --re-on-light-2: #4B5563;
+  --re-on-light-3: #79808D;
+
+  /* Brand accent (blue) — logo, icons, name highlights. Never on a button. */
+  --re-brand: #3B82F6;
+  --re-brand-soft: rgba(59, 130, 246, 0.12);
+  --re-brand-ring: rgba(59, 130, 246, 0.28);
+
+  /* 10% — CTA accent (orange). Every button, no exceptions. */
+  --re-cta: #F97316;
+  --re-cta-hover: #EA6A0C;
+  --re-cta-fg: #FFFFFF;
+  --re-cta-ring: rgba(249, 115, 22, 0.35);
+
+  --re-shadow-sm: 0 1px 2px rgb(11 15 20 / 0.06), 0 2px 8px -4px rgb(11 15 20 / 0.08);
+  --re-shadow-md: 0 2px 4px rgb(11 15 20 / 0.05), 0 12px 32px -12px rgb(11 15 20 / 0.16);
+  --re-shadow-lg: 0 4px 8px rgb(11 15 20 / 0.05), 0 32px 64px -24px rgb(11 15 20 / 0.28);
 
   --re-ease: cubic-bezier(0.16, 1, 0.3, 1);
 
-  background-color: hsl(var(--re-canvas));
-  color: hsl(var(--re-ink));
+  background-color: var(--re-dark);
+  color: var(--re-on-dark);
   font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 .re-page h1, .re-page h2, .re-page h3, .re-page h4 {
-  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: -0.032em;
-  line-height: 1.03;
-  color: hsl(var(--re-ink));
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+  line-height: 1.06;
 }
+
+/* Type scale — weight, not family, carries the hierarchy. */
+.re-h1 { font-size: clamp(2.35rem, 6vw, 3.5rem); font-weight: 800; letter-spacing: -0.02em; }
+.re-h2 { font-size: clamp(1.85rem, 4vw, 2.25rem); font-weight: 700; letter-spacing: -0.02em; }
+.re-body { font-size: 1.125rem; font-weight: 400; line-height: 1.65; }
+.re-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace; }
+
+/* Section tone helpers */
+.re-section-dark { background-color: var(--re-dark); color: var(--re-on-dark); }
+.re-section-dark h1, .re-section-dark h2, .re-section-dark h3 { color: var(--re-on-dark); }
+.re-section-light { background-color: var(--re-light); color: var(--re-on-light); }
+.re-section-light h1, .re-section-light h2, .re-section-light h3 { color: var(--re-on-light); }
+
+.re-muted-dark { color: var(--re-on-dark-2); }
+.re-muted-light { color: var(--re-on-light-2); }
+.re-brand-text { color: var(--re-brand); }
 
 /* Eyebrow / label micro-type */
 .re-eyebrow {
@@ -309,7 +340,7 @@
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: hsl(var(--re-ink-3));
+  color: var(--re-brand);
 }
 
 /* Buttons — one recognisable pattern used everywhere */
