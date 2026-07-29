@@ -278,6 +278,7 @@ const DemoPage = () => {
           contactEmail={page.contact_email || undefined}
           contactPhone={page.contact_phone || undefined}
           calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
+          websiteUrl={page.website_url || undefined}
           videoId={dc.proof_video_id || undefined}
           voicePrompts={dc.voice_prompts?.map((p: any) => (typeof p === "string" ? p : p?.text)).filter(Boolean)}
           chatPrompts={dc.chat_prompts}

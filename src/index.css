@@ -304,6 +304,14 @@
   --re-shadow-md: 0 2px 4px rgb(11 15 20 / 0.05), 0 12px 32px -12px rgb(11 15 20 / 0.16);
   --re-shadow-lg: 0 4px 8px rgb(11 15 20 / 0.05), 0 32px 64px -24px rgb(11 15 20 / 0.28);
 
+  /* Coded dashboard surface (REDashboard) */
+  --re-dash-bg: #F7F5EF;
+  --re-dash-card: #FFFFFF;
+  --re-dash-border: #E4E0D5;
+  --re-dash-text: #16181D;
+  --re-dash-muted: #6B6A63;
+  --re-dash-green: #3FA46A;
+
   --re-ease: cubic-bezier(0.16, 1, 0.3, 1);
 
   background-color: var(--re-dark);
