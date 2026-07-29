@@ -1,91 +1,92 @@
-import { useState } from "react";
 import { motion } from "framer-motion";
-import { Play } from "lucide-react";
+import { Check } from "lucide-react";
 
 export interface REProofProps {
+  companyName: string;
   videoId?: string;
 }
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
-const REProof = ({ videoId = "eOAyie0kWGQ" }: REProofProps) => {
-  const [playing, setPlaying] = useState(false);
+const OUTCOMES = [
+  "Enquiries answered in under 5 seconds, any hour",
+  "Viewings booked while the team is out on site",
+  "Every lead scored and followed up automatically",
+];
 
-  return (
-    <section
-      className="px-6 py-24 lg:px-10 lg:py-32"
-      style={{ background: "hsl(var(--re-ink))" }}
-    >
-      <div className="mx-auto max-w-[62rem]">
-        <motion.div
-          className="text-center"
-          initial={{ opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 0.8, ease }}
-        >
-          <span className="re-eyebrow" style={{ color: "hsl(0 0% 100% / 0.45)" }}>
-            Client proof
-          </span>
-          <h2
-            className="mt-5 text-[2.1rem] font-extrabold sm:text-[2.75rem]"
-            style={{ color: "hsl(0 0% 100%)" }}
-          >
-            Hear it from someone already running it.
-          </h2>
-        </motion.div>
+const REProof = ({ companyName, videoId }: REProofProps) => (
+  <section className="re-section-light px-5 py-16 sm:px-6 lg:px-10 lg:py-24">
+    <div className="mx-auto max-w-[78rem]">
+      <motion.div
+        className="max-w-[42rem]"
+        initial={{ opacity: 0, y: 22 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.75, ease }}
+      >
+        <span className="re-eyebrow">Proof</span>
+        <h2 className="re-h2 mt-4">Real estate teams like {companyName} are already running this.</h2>
+        <p className="re-body re-muted-light mt-4">
+          Same setup, same agent, live on their phones and their websites right now.
+        </p>
+      </motion.div>
 
+      <div className="mt-9 grid gap-6 lg:mt-12 lg:grid-cols-[1.35fr_0.65fr] lg:gap-10">
         <motion.div
-          className="relative mt-14 overflow-hidden rounded-[1.5rem]"
-          style={{
-            aspectRatio: "16 / 9",
-            background: "hsl(0 0% 100% / 0.06)",
-            border: "1px solid hsl(0 0% 100% / 0.10)",
-          }}
-          initial={{ opacity: 0, y: 40 }}
+          className="overflow-hidden rounded-[1.25rem]"
+          style={{ border: "1px solid var(--re-line-light)", boxShadow: "var(--re-shadow-md)" }}
+          initial={{ opacity: 0, y: 26 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.95, ease }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.7, ease }}
         >
-          {playing ? (
-            <iframe
-              className="absolute inset-0 h-full w-full"
-              src={`https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`}
-              title="Client testimonial"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              loading="lazy"
-            />
-          ) : (
-            <button
-              onClick={() => setPlaying(true)}
-              aria-label="Play client testimonial"
-              className="group absolute inset-0 h-full w-full"
-            >
-              <img
-                src={`https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`}
-                alt="Client testimonial video thumbnail"
-                className="h-full w-full object-cover opacity-80 transition-opacity duration-500 group-hover:opacity-95"
+          {videoId ? (
+            <div className="relative aspect-video w-full bg-black">
+              <iframe
+                className="absolute inset-0 h-full w-full"
+                src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+                title="Client proof video"
                 loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
+                allowFullScreen
               />
-              <span className="absolute inset-0 flex items-center justify-center">
-                <span
-                  className="flex h-20 w-20 items-center justify-center rounded-full transition-transform duration-300 group-hover:scale-110"
-                  style={{
-                    background: "var(--re-accent)",
-                    color: "var(--re-accent-fg)",
-                    boxShadow: "0 20px 50px -12px var(--re-accent-ring)",
-                  }}
-                >
-                  <Play className="ml-1 h-7 w-7 fill-current" />
-                </span>
-              </span>
-            </button>
+            </div>
+          ) : (
+            <div
+              className="flex aspect-video w-full items-center justify-center p-8 text-center"
+              style={{ background: "var(--re-light-2)" }}
+            >
+              <p className="re-body re-muted-light max-w-sm">
+                A walkthrough of the exact system running for a real estate team.
+              </p>
+            </div>
           )}
         </motion.div>
+
+        <motion.ul
+          className="space-y-3"
+          initial={{ opacity: 0, y: 26 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-60px" }}
+          transition={{ duration: 0.7, ease, delay: 0.08 }}
+        >
+          {OUTCOMES.map((o) => (
+            <li key={o} className="re-card-light flex items-start gap-3 p-5">
+              <span
+                className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+                style={{ background: "var(--re-brand-soft)" }}
+              >
+                <Check className="h-3 w-3" style={{ color: "var(--re-brand)" }} />
+              </span>
+              <span className="text-[0.9375rem] leading-relaxed" style={{ color: "var(--re-on-light-2)" }}>
+                {o}
+              </span>
+            </li>
+          ))}
+        </motion.ul>
       </div>
-    </section>
-  );
-};
+    </div>
+  </section>
+);
 
 export default REProof;
