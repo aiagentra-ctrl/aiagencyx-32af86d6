@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import WebhookLogsTab from "./inbox/WebhookLogsTab";
 import ErrorLogTab from "./inbox/ErrorLogTab";
+import WebhookEndpointsCard from "./inbox/WebhookEndpointsCard";
 import WebhookUrlCard from "./inbox/WebhookUrlCard";
 import WebhookSecretsCard from "./inbox/WebhookSecretsCard";
 import PipelineTracer from "./inbox/PipelineTracer";
@@ -33,6 +34,7 @@ export default function LogsPage() {
         </TabsContent>
         <TabsContent value="errors"><ErrorLogTab /></TabsContent>
         <TabsContent value="creds" className="space-y-4">
+          <WebhookEndpointsCard />
           <WebhookUrlCard />
           <WebhookSecretsCard />
           <Card>

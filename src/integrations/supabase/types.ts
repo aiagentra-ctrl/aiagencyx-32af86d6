@@ -2392,6 +2392,45 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_endpoints: {
+        Row: {
+          active: boolean
+          created_at: string
+          hit_count: number
+          id: string
+          label: string
+          last_status: number | null
+          last_used_at: string | null
+          provider: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          hit_count?: number
+          id?: string
+          label: string
+          last_status?: number | null
+          last_used_at?: string | null
+          provider?: string
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          hit_count?: number
+          id?: string
+          label?: string
+          last_status?: number | null
+          last_used_at?: string | null
+          provider?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           created_at: string
