@@ -64,22 +64,18 @@ Deno.serve(async (req) => {
     preAuthorized: true,
   });
 
-  // Delivery bookkeeping — never blocks the response.
-  const bump = admin.rpc("noop").then(() => {}).catch(() => {});
-  void bump;
-  admin
-    .from("webhook_endpoints")
-    .update({
+  // Delivery bookkeeping — fire-and-forget so it never adds latency.
+  const bookkeep = (async () => {
+    const { data: current } = await admin
+      .from("webhook_endpoints").select("hit_count").eq("id", endpoint.id).maybeSingle();
+    await admin.from("webhook_endpoints").update({
       last_used_at: new Date().toISOString(),
       last_status: res.status,
-      hit_count: (await admin
-        .from("webhook_endpoints")
-        .select("hit_count")
-        .eq("id", endpoint.id)
-        .maybeSingle()).data?.hit_count ?? 0 + 1,
-    })
-    .eq("id", endpoint.id)
-    .then(() => {}, () => {});
+      hit_count: (current?.hit_count ?? 0) + 1,
+    }).eq("id", endpoint.id);
+  })().catch((e) => console.error("[hook] bookkeeping failed:", e));
+  const runtime = (globalThis as any).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(bookkeep);
 
   console.log(`[hook] ${endpoint.label} → ${res.status} in ${Date.now() - started}ms`);
   return res;
