@@ -1,113 +1,74 @@
 import { motion } from "framer-motion";
-import { Filter, CalendarCheck, LayoutDashboard } from "lucide-react";
-import dashboardImg from "@/assets/re-dashboard.jpg";
+import REDashboard from "./REDashboard";
 
 export interface RERevealProps {
   companyName: string;
+  logoUrl?: string;
+  companyDomain: string;
 }
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
-const flow = [
-  {
-    icon: Filter,
-    label: "Qualify",
-    title: "It separates buyers from browsers",
-    body: "Budget, timeline, financing, area — asked naturally, captured every time, before the lead ever reaches a human.",
-  },
-  {
-    icon: CalendarCheck,
-    label: "Book",
-    title: "It puts viewings on the calendar",
-    body: "Qualified enquiries get an appointment while they're still interested, with confirmation and reminders handled automatically.",
-  },
-  {
-    icon: LayoutDashboard,
-    label: "Dashboard",
-    title: "You watch it all from one screen",
-    body: "Every call, chat and booked viewing lands in a live command centre with lead scoring and hot-lead alerts.",
-  },
+const POINTS = [
+  { k: "Never misses", v: "Every call, chat and DM answered in seconds — 24/7." },
+  { k: "Qualifies for you", v: "Budget, timeline and area captured before you pick up." },
+  { k: "Books itself", v: "Viewings land straight on the calendar, no back-and-forth." },
 ];
 
-const REReveal = ({ companyName }: RERevealProps) => (
-  <section className="relative overflow-hidden px-6 py-24 lg:px-10 lg:py-36">
-    <div className="pointer-events-none absolute inset-0 re-grid-texture" aria-hidden="true" />
+const REReveal = ({ companyName, logoUrl, companyDomain }: RERevealProps) => (
+  <section className="re-section-dark relative overflow-hidden px-5 py-16 sm:px-6 lg:px-10 lg:py-28">
+    <div className="re-grid-texture pointer-events-none absolute inset-0" aria-hidden="true" />
 
-    <div className="relative mx-auto max-w-[78rem]">
+    <div className="relative z-10 mx-auto max-w-[78rem]">
       <motion.div
-        className="mx-auto max-w-[42rem] text-center"
-        initial={{ opacity: 0, y: 26 }}
+        className="max-w-[42rem]"
+        initial={{ opacity: 0, y: 22 }}
         whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-100px" }}
-        transition={{ duration: 0.85, ease }}
+        viewport={{ once: true, margin: "-80px" }}
+        transition={{ duration: 0.75, ease }}
       >
-        <span className="re-eyebrow">The reveal</span>
-        <h2 className="mt-5 text-[2.25rem] font-extrabold sm:text-[3rem]">
-          We didn&rsquo;t just build you a chatbot.
+        <span className="re-eyebrow">Behind the agent</span>
+        <h2 className="re-h2 mt-4">
+          The agent is one part. This is {companyName}
+          &rsquo;s whole system.
         </h2>
-        <p
-          className="mx-auto mt-6 max-w-[34rem] text-[1.0625rem] leading-relaxed"
-          style={{ color: "hsl(var(--re-ink-2))" }}
-        >
-          Underneath the conversation sits a full lead engine for {companyName} — qualifying,
-          booking and reporting, around the clock.
+        <p className="re-body re-muted-dark mt-4">
+          Calls, email, WhatsApp, Instagram and lead scoring running in one place — with every
+          conversation feeding the same brain.
         </p>
       </motion.div>
 
-      <motion.figure
-        className="mx-auto mt-16 max-w-[62rem]"
-        initial={{ opacity: 0, y: 56, scale: 0.96 }}
-        whileInView={{ opacity: 1, y: 0, scale: 1 }}
-        viewport={{ once: true, margin: "-80px" }}
-        transition={{ duration: 1.05, ease }}
-      >
-        <div
-          className="overflow-hidden rounded-[1.75rem] p-2"
-          style={{
-            background: "hsl(var(--re-surface))",
-            border: "1px solid hsl(var(--re-line))",
-            boxShadow: "var(--re-shadow-lg)",
-          }}
-        >
-          <img
-            src={dashboardImg}
-            alt={`AI lead dashboard showing captured leads, booked viewings and live activity for ${companyName}`}
-            className="w-full rounded-[1.35rem]"
-            loading="lazy"
-          />
-        </div>
-      </motion.figure>
-
-      <div className="mt-20 grid gap-10 md:grid-cols-3 md:gap-8">
-        {flow.map((f, i) => (
-          <motion.div
-            key={f.label}
-            initial={{ opacity: 0, y: 28 }}
+      <ul className="mt-8 grid gap-3 sm:grid-cols-3 lg:mt-10">
+        {POINTS.map((p, i) => (
+          <motion.li
+            key={p.k}
+            className="re-card p-5"
+            initial={{ opacity: 0, y: 18 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.7, ease, delay: i * 0.12 }}
+            transition={{ duration: 0.55, ease, delay: i * 0.07 }}
           >
-            <div className="flex items-center gap-3">
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-full"
-                style={{ background: "var(--re-accent-soft)" }}
-              >
-                <f.icon className="h-[1.05rem] w-[1.05rem]" style={{ color: "var(--re-accent)" }} />
-              </div>
-              <span className="re-eyebrow">
-                {String(i + 1).padStart(2, "0")} — {f.label}
-              </span>
-            </div>
-            <h3 className="mt-5 text-[1.2rem] font-bold leading-snug">{f.title}</h3>
-            <p
-              className="mt-3 text-[0.95rem] leading-relaxed"
-              style={{ color: "hsl(var(--re-ink-2))" }}
-            >
-              {f.body}
+            <p className="text-[0.9375rem] font-bold" style={{ color: "var(--re-brand)" }}>
+              {p.k}
             </p>
-          </motion.div>
+            <p className="mt-1.5 text-[0.9375rem] leading-relaxed re-muted-dark">{p.v}</p>
+          </motion.li>
         ))}
-      </div>
+      </ul>
+
+      <motion.div
+        className="mt-10 lg:mt-14"
+        initial={{ opacity: 0, y: 34 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-60px" }}
+        transition={{ duration: 0.85, ease }}
+      >
+        <REDashboard
+          companyName={companyName}
+          logoUrl={logoUrl}
+          companyDomain={companyDomain}
+        />
+      </motion.div>
     </div>
   </section>
 );
