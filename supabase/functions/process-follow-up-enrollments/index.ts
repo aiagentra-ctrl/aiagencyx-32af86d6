@@ -105,13 +105,10 @@ Deno.serve(async (req) => {
 
       const { data: demo } = await supabase.from("inbox_demos").select("demo_url").eq("prospect_id", p.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
       const vars = buildProspectVars(p, demo?.demo_url);
-      // Exactly one CTA per step: link_only | demo_only | both.
-      const ctaType = normalizeCtaType(step.cta_type, step.include_demo_link);
-      const demoUrl = ctaType === "link_only" && !step.include_demo_link
-        ? (demo?.demo_url || "")
-        : (demo?.demo_url || "");
+      // Open editor: the step body is free text — send exactly what the operator wrote.
       const rawBody = substituteWithFallbacks(step.message_body, vars, fallbacks);
-      let body = renderStepBody(rawBody, ctaType, demoUrl);
+      let body = renderStepBody(rawBody);
+
       const subject = substituteWithFallbacks(step.message_subject || "Re: {{firstname}} overview", vars, fallbacks);
 
       if (!p.original_message_id) {
