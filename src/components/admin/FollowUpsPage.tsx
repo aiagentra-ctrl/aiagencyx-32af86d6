@@ -308,7 +308,7 @@ function SequenceBuilder() {
       await supabase.from("follow_up_steps").insert(steps.map((s, i) => ({
         sequence_template_id: (newSeq as any).id, step_number: i + 1,
         delay_value: s.delay_value, delay_unit: s.delay_unit,
-        message_subject: s.message_subject, message_body: s.message_body, include_demo_link: s.include_demo_link, cta_type: s.cta_type,
+        message_subject: s.message_subject, message_body: s.message_body, include_demo_link: s.include_demo_link,
       })));
     }
     toast.success("Duplicated");
