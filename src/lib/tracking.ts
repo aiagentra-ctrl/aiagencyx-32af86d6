@@ -311,6 +311,9 @@ export const trackSessionEnd = (slug: string, options?: { demoPageId?: string; b
       duration_seconds: durationSeconds,
       active_time_seconds: activeSeconds,
       max_scroll_depth: Math.max(...scrollMilestones, 0),
+      section: currentSection,
+      exit_section: currentSection,
+
       client_device: getClientDeviceInfo(),
     },
   });
