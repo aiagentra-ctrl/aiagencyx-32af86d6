@@ -1,87 +1,70 @@
+## What already exists (verified in the code)
 
-# Real-Estate Landing Page — full rebuild to the brief (50x the mockup)
-
-Everything lands in `src/components/demo/realestate/v2/`, so every real-estate demo page picks it up automatically. Build order follows the brief exactly: copy → color → type → layout → dashboard.
-
-## 1. Copy (locked, wired to variables)
-
-Variables: `{{FirstName}}`, `{{CompanyName}}`, `{{Logo}}`, `{{CompanyDomain}}` — resolved from the demo record, with graceful fallbacks (no raw `{{ }}` ever renders, no "there," no empty gaps).
-
-- Nav: `AI Agentra — for {CompanyName}` · Try Demo · Book a Call
-- Hero: eyebrow `AI agent for {CompanyName}` · H1 `{FirstName}, your leads won't wait — will {CompanyName}?` · sub `Every enquiry answered in seconds, day or night. See {CompanyName}'s agent answer a real question below.` · buttons `Hear {CompanyName}'s Agent` / `Try {CompanyName}'s Agent` · micro `No signup. No install. Speak to it in the next ten seconds.`
-- Demo: eyebrow `Live demo` · H2 `{FirstName}, this isn't a pitch. Talk to it yourself.` · sub `This agent has already read {CompanyName}'s website. Ask it anything a real buyer would.` · voice card `Answers the phone in one ring` · chat card `Same brain, on your website`
-- Reveal: keep existing structure, restyled
-- Proof: eyebrow `Client proof` · H2 `Real estate teams like {CompanyName} are already running this.` · sub `Hear it directly from someone using it right now.`
-- Final CTA: `See {CompanyName}'s full system, live.` · sub · button `See It Running for {CompanyName} →` · risk reversal `Free walkthrough • No commitment • See it running in 24 hours`
-
-`{{FirstName}}` capped at 3 uses page-wide (hero, demo, one more max) — enforced by a small counter helper so it can't silently drift.
-
-## 2. Color system (rewrite of the `.re-page` token block in `src/index.css`)
-
-| Role | Hex |
+| Area | Status today |
 |---|---|
-| Dark bg | `#0B0F14` |
-| Light bg | `#FAFAFA` |
-| Card on dark | `#151B23`, border `#232B35` |
-| Card on light | `#FFFFFF`, border `#E5E5E5` |
-| Text on dark | `#F5F5F5` / muted `#9CA3AF` |
-| Text on light | `#111318` / muted `#4B5563` |
-| Brand blue (logo, icons, name highlight only) | `#3B82F6` |
-| CTA orange (every button, no exceptions) | `#F97316`, hover `#EA6A0C` |
-| Footer | `#05070A` |
+| Reply classification | `inbox-classify` edge function returns Positive / Negative / Objection via LLM. Works. |
+| Reply templates | A `reply_templates` table exists but is **empty (0 rows)** — replies are currently AI-generated free text, not the two fixed templates you want. |
+| Geo lookup | Two different implementations: `track-event` does an ip-api lookup and only treats **Nepal (NP)** as owner traffic; `track-visitor` uses configurable allow/block lists in site settings. No India/Bangladesh/Pakistan exclusion, no "default to tracked" rule. |
+| Page tracking | Strong already: session start/end, active time, scroll depth (25/50/75/100%), section enter/leave, click heatmap, return-visit counting, device/browser/OS parsing, bot filtering. |
+| Demo engagement duration | **Missing.** No voice-call duration, no chatbot active-time duration, no 1s / 1–5s / 10s+ tier classification anywhere. |
+| Follow-up engine | Exists (`followup-evaluator`, `followup-dispatcher`, `followup-send`, `process-follow-up-enrollments`) but is driven by hour-based rules (48h/24h), not by engagement tier or a 3-minute window. |
+| Send-time matching | `get_best_send_time` DB function + `prospect_activity_times` already log reply hour/day — reusable for Follow-up 2/3 timing. |
+| CTA system | The fixed `cta_type` enum (`link_only` / `demo_only` / `both`) plus auto-appended CTA logic in `_shared/followup.ts` and the Follow-ups UI — this is what gets removed. |
+| Tracking dashboard | No dedicated page. Leads panel + Analytics panel exist but there is no per-lead unified timeline and no funnel summary. |
 
-Section rhythm: Hero dark → Demo light → Reveal dark → Proof light → Final CTA dark → Footer near-black. No green anywhere. No blue on a button. No pure `#FFFFFF` text on dark. Per-client brand color stays confined to the logo badge so the locked system never breaks.
+So: page-level tracking and the reply pipeline are largely built; **engagement-duration tiers, the geo rules, the 3-minute trigger, the open message editor and the whole Tracking page are the real work.**
 
-## 3. Typography
+---
 
-Inter 400–800 only; JetBrains Mono 600/700 **only** for dashboard stat numbers. Both self-hosted-style preloaded with `display=swap` and preconnect (speed rule).
+## Build plan
 
-H1 56/800/-0.02em → H2 36/700 → Proof + CTA 32/700 → Footer 24/700 · body 18/400 muted · card body 14/400 · buttons never below 15/600 · flow labels 13/700 brand blue.
+### 1. Reply templates (fixed, exact)
+- Seed two locked templates keyed to sentiment, rendered verbatim with no added greeting/sign-off:
+  - Negative → `{DemoLink}, but... this is done specially for you.`
+  - Positive → `Here you go: {DemoLink}` + blank line + `Let me know what you think about it.`
+- Add a keyword pre-check ("not interested", "remove me", "unsubscribe", "stop") that short-circuits to Negative before the LLM; everything non-negative → Positive.
+- Bypass the current AI reply-format/sign-off enforcement for these two templates so nothing is appended.
+- `{DemoLink}` resolves to the lead's own tracked demo URL; sending the reply enrols the lead in tracking.
 
-## 4. Layout, section by section
+### 2. Geo filter
+- Single shared helper used by every tracking entry point: excluded = NP, IN, BD, PK; tracked = US, CA, AU, GB, NZ + all Europe; **anything else defaults to tracked**.
+- Runs first, before any other event write. Excluded opens are still written but flagged `is_self_traffic = true` so they never reach metrics or trigger follow-ups.
+- Replaces the NP-only check and unifies the two divergent implementations.
 
-Rebuilt: `REHero`, `REDemo`, `REReveal`, `REProof`, `REBookCall`, `REFooter` + new `RENav`, `REDashboard`, `RECalendly`.
+### 3. Engagement duration + tiers
+- Voice: record call start/end from the Vapi widget → duration.
+- Chatbot: record active in-window time (typing/reading, idle-aware) — reuse the existing active-second tracker.
+- Tier: `<1s = not_tried`, `1–5s = tried`, `10s+ = warm`. Stored on the lead record and on each demo-interaction event.
 
-Section padding `88px 10%` desktop, tapering per breakpoint. Hero two-column 60/40 with the live phone/voice mockup; demo two cards; reveal 01/02/03 flow + the coded dashboard; proof video; CTA dark band; footer near-black.
+### 4. Follow-up engine rewrite
+- **Steps become a queue** (array of ordered steps), not three hardcoded slots.
+- Triggers: link opened + no interaction → FU1 *not-tried*; interaction ending with tier tried/warm and no reply within a **3-minute** window → FU1 *tried* / *warm*; no reply to FU1 → FU2; no reply to FU2 → FU3.
+- FU2/FU3 scheduled 2–3 days out **at the lead's previously-responsive time-of-day** (via the existing best-send-time data); fallback = time-of-day of the original demo-try/link-open.
+- Hard exits: any reply, Calendly booking, or reaching the configurable cap (default: stop after FU3).
 
-## 5. Coded dashboard (`REDashboard.tsx`) — replaces the static screenshot
+### 5. Open message editor (removes the CTA system)
+- Delete the `cta_type` presets, auto-appended CTA and the locked structure from the sequence editor and the send path.
+- Free-text body per step, independently editable, with an insert-at-cursor variable picker: `{{FirstName}}`, `{{CompanyName}}`, `{{DemoLink}}`, `{{VoiceAgentLink}}`, `{{ChatbotLink}}` + other lead fields.
+- Missing values fall back to safe defaults — raw `{{ }}` never renders.
+- "Add step" appends to the queue without touching existing steps.
 
-Exact Flowly replica from your HTML, as a real component:
-- Top bar `01 / COMMAND CENTRE` + `{CompanyName} Dashboard`
-- Sidebar: brand badge using `{{Logo}}` image with **initials fallback**, then Dashboard, AI Brain, Email, Calling, Instagram, WhatsApp, Lead Scoring, Content, SEO & Blog, Collapse
-- Header: `Dashboard overview` + admin card with `admin@{CompanyDomain}`
-- 8 stat cards (1,247 / 8 / 47 / 892 / 23 / 18.4% / 34 / $847.5) — numbers in JetBrains Mono, static across clients
-- "Today's quick stats" 5-up row
-- "Real-time activity" feed with live pulse dot and Hot/Warm badges
+### 6. New "Tracking" page (3 views)
+Events are captured first, UI second.
 
-Below 900px: sidebar hidden, stats 2-per-row, quick stats scroll row.
+New/extended events: time-to-first-interaction, total time on page, section reached + exit section (Hero/Demo/Reveal/Proof/Calendly), device+browser, channel tried, time-to-first-try, duration+tier, chat exchange count / call duration, reveal-section dwell, Calendly scrolled / widget-clicked / booking-completed (three distinct events), time from demo-try to Calendly click, return-visit count + which follow-up drove it.
 
-## 6. Calendly — inline, admin-controlled
+- **View 1 — Lead List:** table filterable/sortable by temperature (not-tried/tried/warm), country, current sequence step, booked Y/N, last activity.
+- **View 2 — Lead Detail / Thread:** one chronological timeline per lead — open → demo try (duration + tier) → FU1 sent (exact message body) → reply → FU2 → Calendly click → booking / sequence state. Every subsystem above writes into this same lead record.
+- **View 3 — Funnel Summary:** % opened, % tried (split by channel), % reached Reveal, % reached Calendly, % booked.
 
-New `RECalendly.tsx`: inline embed section, dark-themed via Calendly's color params, script loaded lazily only when the section approaches the viewport. Every "Book a Call" / CTA button smooth-scrolls to it — no new tab. URL resolution: per-client override → global `site_settings.calendar_url` → `https://calendly.com/aiagentra/new-meeting`, so changing it once in the admin panel changes it everywhere.
+Added to the admin sidebar as a new `tracking` nav item.
 
-## 7. Footer — agency, not client
-
-Client phone/email removed entirely. Shows AI Agentra: WhatsApp `+977 982 688 4653` as a `wa.me` link, `aigentron@gmail.com` as mailto, `www.aiagentra.com`. Contact text at 14px/500 with high contrast (fixes the legibility bug).
-
-## 8. Device + performance rules (third file, applied in full)
-
-- Mobile-first base CSS, `min-width` layering at 381 / 481 / 769 / 1025 / 1441
-- Hero H1 30–34 (XS–SM) → 38–42 (MD) → 48 (LG) → 56 (XL+); demo cards never side-by-side below 768px
-- Every tappable target ≥44×44px with ≥8px spacing; CTA buttons full-width below 480px; inputs/Calendly ≥48px
-- No hover-only affordances — tap equivalents everywhere
-- Speed: fonts preconnected + swap, Calendly and the proof video lazy-loaded on intersection, dashboard rendered as pure CSS/DOM (no image weight), reduced-motion respected, no layout-shift (explicit aspect ratios)
-
-## 9. Bug fix
-
-Investigate the floating "abc" overlay covering the final CTA with Playwright on a live demo route — almost certainly the chat widget launcher's z-index/position on this template — and fix it so nothing overlaps the CTA at any breakpoint.
-
-## Verification
-
-Playwright pass over a real demo URL: screenshots of every section at 375 / 768 / 1024 / 1440, contrast spot-checks on both themes, tap-target audit, confirmation that voice + chat handlers still fire, Calendly scrolls inline, logo-missing fallback renders initials, and the CTA is unobstructed.
+---
 
 ## Technical notes
+- New DB columns/tables: engagement tier + duration + reply-hour on the lead record, a self-traffic flag on tracking events, a per-step message table without `cta_type`, and Calendly/booking events. Migrations include GRANTs + RLS.
+- Reuses existing infrastructure rather than rebuilding: `link_events`, `prospect_activity_times`, `get_best_send_time`, the dispatcher cron, and the client tracking library.
+- The 3-minute window runs on the existing dispatcher schedule, so effective firing granularity depends on the cron interval — I'll tighten the interval so the 3-minute window is honoured closely.
 
-- New: `RENav.tsx`, `REDashboard.tsx`, `RECalendly.tsx`, plus a small `personalize.ts` helper for variable resolution and the FirstName cap.
-- Edited: `src/index.css` (`.re-page` token block rewrite + responsive type scale), all six existing `RE*` components, `RealEstateLandingPage.tsx`, `index.html` (font preconnect).
-- Untouched: webhooks, VAPI/chat wiring, e-commerce and generic templates, admin dashboard pages.
+## Sequencing
+Geo filter + duration tiers → reply templates → engine rewrite + editor → tracking events → the three dashboard views. Part 2's verification checklist is run after all of it, ending with the single end-to-end test lead.
