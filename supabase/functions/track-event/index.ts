@@ -147,6 +147,8 @@ Deno.serve(async (req) => {
       visitor_ip: visitorIp,
       country_code: countryCode,
       city,
+      is_self_traffic: isOwnerTraffic,
+
       user_agent: userAgent,
       referrer,
       metadata: {
