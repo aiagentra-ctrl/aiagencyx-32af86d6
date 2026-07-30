@@ -40,7 +40,11 @@ const VARIABLES: { name: string; desc: string }[] = [
   { name: "lastname", desc: "prospect's last name" },
   { name: "company", desc: "company name" },
   { name: "website", desc: "prospect website" },
-  { name: "demo_url", desc: "personalized demo link" },
+  { name: "demo_link", desc: "personalized demo link" },
+  { name: "demo_url", desc: "personalized demo link (alias)" },
+  { name: "voice_agent_link", desc: "demo link that opens the voice agent" },
+  { name: "chatbot_link", desc: "demo link that opens the chatbot" },
+  { name: "calendly_link", desc: "your booking link" },
   { name: "sender_name", desc: "your name" },
   { name: "sender_email", desc: "your email" },
   { name: "campaign_name", desc: "campaign name" },
@@ -56,13 +60,17 @@ function totalDays(steps: Step[]) {
 }
 
 function sampleSubstitute(t: string) {
+  const demo = "https://aiagentfor.lovable.app/acme-inc";
   return (t || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => ({
     firstname: "John", lastname: "Smith", company: "Acme Inc", website: "https://acme.com",
-    demo_url: "https://aiagentfor.lovable.app/acme-inc",
+    demo_link: demo, demo_url: demo,
+    voice_agent_link: `${demo}?open=voice`, chatbot_link: `${demo}?open=chat`,
+    calendly_link: "https://calendly.com/aiagentra/new-meeting",
     sender_name: "Alex", sender_email: "alex@agency.com", campaign_name: "Q3 SaaS",
     days_since_demo: "3", days_since_click: "2", days_since_open: "1",
   } as Record<string, string>)[k] ?? `{{${k}}}`);
 }
+
 
 export default function FollowUpsPage() {
   return (
