@@ -93,12 +93,17 @@ Deno.serve(async (req) => {
     }
 
     const rules = await loadCountryRules();
+    // Hard rule first: our own countries (NP/IN/BD/PK) never generate tracking.
+    if (isSelfTrafficCountry(countryCode)) {
+      return new Response(JSON.stringify({ ok: true, filtered: "self_traffic" }), { headers: corsHeaders });
+    }
     if (countryCode && rules.block.includes(countryCode)) {
       return new Response(JSON.stringify({ ok: true, filtered: "country_blocked" }), { headers: corsHeaders });
     }
     if (countryCode && rules.allow.length > 0 && !rules.allow.includes(countryCode)) {
       return new Response(JSON.stringify({ ok: true, filtered: "country_not_allowed" }), { headers: corsHeaders });
     }
+
 
     const { data: lead } = await supabase.from("demo_leads").select("*").eq("slug", slug).maybeSingle();
     if (!lead) {
