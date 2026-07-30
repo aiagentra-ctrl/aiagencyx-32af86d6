@@ -233,7 +233,7 @@ function SequenceBuilder() {
   const newSeq = async () => {
     const { data, error } = await supabase.from("follow_up_sequences_templates").insert({ name: "New Sequence", trigger_type: "custom" }).select("*").single();
     if (error) { toast.error(error.message); return; }
-    await supabase.from("follow_up_steps").insert({ sequence_template_id: (data as any).id, step_number: 1, delay_value: 0, delay_unit: "hours", message_subject: "Re: {{firstname}} overview", message_body: "Hi {{firstname}},\n\n", cta_type: "both" });
+    await supabase.from("follow_up_steps").insert({ sequence_template_id: (data as any).id, step_number: 1, delay_value: 0, delay_unit: "hours", message_subject: "Re: {{firstname}} overview", message_body: "Hi {{firstname}},\n\n{{demo_link}}\n" });
     await loadSeqs(); setSelectedId((data as any).id);
   };
   const deleteSeq = async (id: string) => {
