@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
           scheduling_debug: {
             sent_step: enr.current_step,
             sent_at: nowIso,
-            cta_type: ctaType,
+            step_number: enr.current_step,
             lag_ms: lagMs,
             was_overdue: lagMs > 15 * 60_000,
             raw_next_at: rawIso,
