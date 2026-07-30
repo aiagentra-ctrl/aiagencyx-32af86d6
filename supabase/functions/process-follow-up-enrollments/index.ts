@@ -1,7 +1,7 @@
 // Sequence engine: processes due enrollments, substitutes variables, sends
 // current step via ManyReach, and advances the enrollment.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildProspectVars, renderStepBody, normalizeCtaType } from "../_shared/followup.ts";
+import { buildProspectVars, renderStepBody } from "../_shared/followup.ts";
 import { sendReply, extractMessageId } from "../_shared/manyreach.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
