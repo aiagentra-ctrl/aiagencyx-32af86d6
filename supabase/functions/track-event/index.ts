@@ -116,9 +116,12 @@ Deno.serve(async (req) => {
       blockedIps = ipSettingResult.data.value.split(",").map((ip: string) => ip.trim());
     }
 
-    const isOwnerCountry = countryCode === "NP";
+    // Geo rule: NP / IN / BD / PK are our own traffic. Everything else — including
+    // unknown countries — is treated as real client traffic and tracked.
+    const isOwnerCountry = isSelfTrafficCountry(countryCode);
     const isBlockedIp = blockedIps.includes(visitorIp);
     const isOwnerTraffic = isOwnerCountry || isBlockedIp;
+
 
     // Check duplicate
     if (duplicateResult.data && duplicateResult.data.length > 0) {
