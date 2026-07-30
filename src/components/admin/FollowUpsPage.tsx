@@ -258,6 +258,9 @@ function SequenceBuilder() {
     loadSeqs(); loadSteps(selectedId);
   };
 
+  const bodyRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+
+
   const addStep = () => setSteps([...steps, { step_number: steps.length + 1, delay_value: 2, delay_unit: "days", message_subject: "Re: {{firstname}} overview", message_body: "", include_demo_link: true }]);
   const removeStep = (i: number) => setSteps(steps.filter((_, idx) => idx !== i));
   const updateStep = (i: number, patch: Partial<Step>) => setSteps(steps.map((s, idx) => idx === i ? { ...s, ...patch } : s));
