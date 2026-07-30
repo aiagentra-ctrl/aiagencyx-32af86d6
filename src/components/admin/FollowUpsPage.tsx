@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,21 +22,8 @@ type Event = {
   prospects?: { email: string; firstname: string | null; company: string | null };
 };
 type Seq = { id: string; name: string; trigger_type: string; is_active: boolean; created_at: string };
-type CtaType = "link_only" | "demo_only" | "both";
-type Step = { id?: string; sequence_template_id?: string; step_number: number; delay_value: number; delay_unit: "hours"|"days"|"weeks"; message_subject: string; message_body: string; include_demo_link: boolean; cta_type: CtaType };
+type Step = { id?: string; sequence_template_id?: string; step_number: number; delay_value: number; delay_unit: "hours"|"days"|"weeks"; message_subject: string; message_body: string; include_demo_link: boolean };
 
-const CTA_OPTIONS: { value: CtaType; label: string; desc: string }[] = [
-  { value: "link_only", label: "Open Link", desc: "Just the link — no demo prompt." },
-  { value: "demo_only", label: "Try Demo", desc: "Opens the chatbot / voice agent directly." },
-  { value: "both", label: "Both", desc: "Link plus the try-the-demo option." },
-];
-
-const ctaPreview = (cta: CtaType, url = "https://aiagentfor.lovable.app/acme-inc") =>
-  cta === "link_only"
-    ? `Open link: ${url}`
-    : cta === "demo_only"
-      ? `Try the demo (talk to the AI agent live): ${url}`
-      : `Open link: ${url}\nOr try the AI agent live on the same page: ${url}`;
 
 const TRIGGERS = [
   { key: "no_click", label: "No Link Click" },
@@ -53,7 +40,11 @@ const VARIABLES: { name: string; desc: string }[] = [
   { name: "lastname", desc: "prospect's last name" },
   { name: "company", desc: "company name" },
   { name: "website", desc: "prospect website" },
-  { name: "demo_url", desc: "personalized demo link" },
+  { name: "demo_link", desc: "personalized demo link" },
+  { name: "demo_url", desc: "personalized demo link (alias)" },
+  { name: "voice_agent_link", desc: "demo link that opens the voice agent" },
+  { name: "chatbot_link", desc: "demo link that opens the chatbot" },
+  { name: "calendly_link", desc: "your booking link" },
   { name: "sender_name", desc: "your name" },
   { name: "sender_email", desc: "your email" },
   { name: "campaign_name", desc: "campaign name" },
@@ -69,13 +60,17 @@ function totalDays(steps: Step[]) {
 }
 
 function sampleSubstitute(t: string) {
+  const demo = "https://aiagentfor.lovable.app/acme-inc";
   return (t || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => ({
     firstname: "John", lastname: "Smith", company: "Acme Inc", website: "https://acme.com",
-    demo_url: "https://aiagentfor.lovable.app/acme-inc",
+    demo_link: demo, demo_url: demo,
+    voice_agent_link: `${demo}?open=voice`, chatbot_link: `${demo}?open=chat`,
+    calendly_link: "https://calendly.com/aiagentra/new-meeting",
     sender_name: "Alex", sender_email: "alex@agency.com", campaign_name: "Q3 SaaS",
     days_since_demo: "3", days_since_click: "2", days_since_open: "1",
   } as Record<string, string>)[k] ?? `{{${k}}}`);
 }
+
 
 export default function FollowUpsPage() {
   return (
@@ -232,10 +227,8 @@ function SequenceBuilder() {
   };
   const loadSteps = async (id: string) => {
     const { data } = await supabase.from("follow_up_steps").select("*").eq("sequence_template_id", id).order("step_number");
-    setSteps(((data as any[]) || []).map((s) => ({
-      ...s,
-      cta_type: (["link_only", "demo_only", "both"].includes(s.cta_type) ? s.cta_type : (s.include_demo_link ? "both" : "link_only")) as CtaType,
-    })) as Step[]);
+    setSteps(((data as any[]) || []).map((s) => ({ ...s })) as Step[]);
+
   };
   useEffect(() => { loadSeqs(); }, []);
   useEffect(() => {
@@ -248,7 +241,7 @@ function SequenceBuilder() {
   const newSeq = async () => {
     const { data, error } = await supabase.from("follow_up_sequences_templates").insert({ name: "New Sequence", trigger_type: "custom" }).select("*").single();
     if (error) { toast.error(error.message); return; }
-    await supabase.from("follow_up_steps").insert({ sequence_template_id: (data as any).id, step_number: 1, delay_value: 0, delay_unit: "hours", message_subject: "Re: {{firstname}} overview", message_body: "Hi {{firstname}},\n\n", cta_type: "both" });
+    await supabase.from("follow_up_steps").insert({ sequence_template_id: (data as any).id, step_number: 1, delay_value: 0, delay_unit: "hours", message_subject: "Re: {{firstname}} overview", message_body: "Hi {{firstname}},\n\n{{demo_link}}\n" });
     await loadSeqs(); setSelectedId((data as any).id);
   };
   const deleteSeq = async (id: string) => {
@@ -273,10 +266,29 @@ function SequenceBuilder() {
     loadSeqs(); loadSteps(selectedId);
   };
 
-  const addStep = () => setSteps([...steps, { step_number: steps.length + 1, delay_value: 2, delay_unit: "days", message_subject: "Re: {{firstname}} overview", message_body: "", include_demo_link: true, cta_type: "both" }]);
+  const bodyRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
+
+
+  const addStep = () => setSteps([...steps, { step_number: steps.length + 1, delay_value: 2, delay_unit: "days", message_subject: "Re: {{firstname}} overview", message_body: "", include_demo_link: true }]);
   const removeStep = (i: number) => setSteps(steps.filter((_, idx) => idx !== i));
   const updateStep = (i: number, patch: Partial<Step>) => setSteps(steps.map((s, idx) => idx === i ? { ...s, ...patch } : s));
-  const insertVar = (i: number, v: string) => updateStep(i, { message_body: (steps[i].message_body || "") + `{{${v}}}` });
+  // Insert the variable at the caret position of the step's body textarea (falls back to append).
+  const insertVar = (i: number, v: string) => {
+    const token = `{{${v}}}`;
+    const el = bodyRefs.current[i];
+    const body = steps[i].message_body || "";
+    if (!el) { updateStep(i, { message_body: body + token }); return; }
+    const start = el.selectionStart ?? body.length;
+    const end = el.selectionEnd ?? start;
+    const next = body.slice(0, start) + token + body.slice(end);
+    updateStep(i, { message_body: next });
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + token.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
 
   // Health check — detect unresolved chips, over-long delays, empty body, missing subject, duplicate step delays
   const healthIssues = useMemo(() => {
@@ -304,7 +316,7 @@ function SequenceBuilder() {
       await supabase.from("follow_up_steps").insert(steps.map((s, i) => ({
         sequence_template_id: (newSeq as any).id, step_number: i + 1,
         delay_value: s.delay_value, delay_unit: s.delay_unit,
-        message_subject: s.message_subject, message_body: s.message_body, include_demo_link: s.include_demo_link, cta_type: s.cta_type,
+        message_subject: s.message_subject, message_body: s.message_body, include_demo_link: s.include_demo_link,
       })));
     }
     toast.success("Duplicated");
@@ -329,8 +341,8 @@ function SequenceBuilder() {
         delay_value: s.delay_value ?? 1, delay_unit: s.delay_unit ?? "days",
         message_subject: s.message_subject || "", message_body: s.message_body || "",
         include_demo_link: !!s.include_demo_link,
-        cta_type: (["link_only", "demo_only", "both"].includes(s.cta_type) ? s.cta_type : "both") as CtaType,
       })));
+
       setImportOpen(false); setImportText("");
       toast.success("Imported — click Save to persist.");
     } catch (e: any) { toast.error("Invalid JSON"); }
@@ -451,30 +463,22 @@ function SequenceBuilder() {
                       </button>
                     ))}
                   </div>
-                  <Textarea value={s.message_body} onChange={(e) => updateStep(i, { message_body: e.target.value })} rows={6} placeholder="Write your message. Use variable chips above to insert placeholders." />
-                  <div className="space-y-1.5">
-                    <div className="text-xs font-medium">Call to action</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {CTA_OPTIONS.map((o) => (
-                        <button
-                          key={o.value}
-                          type="button"
-                          onClick={() => updateStep(i, { cta_type: o.value, include_demo_link: o.value !== "link_only" })}
-                          className={`rounded-md border p-2 text-left transition ${s.cta_type === o.value ? "border-primary bg-primary/10" : "hover:bg-muted/50"}`}
-                        >
-                          <div className="text-xs font-medium">{o.label}</div>
-                          <div className="text-[10px] text-muted-foreground leading-snug">{o.desc}</div>
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">The CTA is appended automatically — don't paste links in the body.</p>
-                  </div>
+                  <Textarea
+                    ref={(el) => { bodyRefs.current[i] = el; }}
+                    value={s.message_body}
+                    onChange={(e) => updateStep(i, { message_body: e.target.value })}
+                    rows={7}
+                    placeholder="Write the full message, including your own link or CTA. Click a variable chip to insert it at the cursor."
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Free text — nothing is appended automatically. Insert <code>{"{{demo_link}}"}</code> wherever you want the personalized demo link.
+                  </p>
                   <details className="text-xs">
                     <summary className="cursor-pointer text-muted-foreground">Preview with sample data</summary>
                     <div className="mt-2 rounded border bg-muted/30 p-2 whitespace-pre-wrap">
                       <div className="font-medium">{sampleSubstitute(s.message_subject)}</div>
                       <div className="mt-1">{sampleSubstitute(s.message_body)}</div>
-                      <div className="mt-2 text-primary whitespace-pre-wrap">{ctaPreview(s.cta_type)}</div>
+
                     </div>
                   </details>
                 </div>
@@ -504,7 +508,7 @@ function SequenceBuilder() {
                 <div className="text-[10px] uppercase text-muted-foreground">Step {i + 1} · after {s.delay_value}{s.delay_unit[0]}</div>
                 <div className="font-medium text-sm mt-1">{sampleSubstitute(s.message_subject)}</div>
                 <div className="text-xs whitespace-pre-wrap mt-2">{sampleSubstitute(s.message_body)}</div>
-                <div className="text-xs text-primary mt-2 whitespace-pre-wrap">{ctaPreview(s.cta_type)}</div>
+                
               </div>
             ))}
           </div>

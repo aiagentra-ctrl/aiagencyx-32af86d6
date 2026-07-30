@@ -1,7 +1,7 @@
 // Sequence engine: processes due enrollments, substitutes variables, sends
 // current step via ManyReach, and advances the enrollment.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildProspectVars, renderStepBody, normalizeCtaType } from "../_shared/followup.ts";
+import { buildProspectVars, renderStepBody } from "../_shared/followup.ts";
 import { sendReply, extractMessageId } from "../_shared/manyreach.ts";
 
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
@@ -82,10 +82,16 @@ Deno.serve(async (req) => {
       if (!p) { await release({}); continue; }
       if (p.automation_paused) { await release({}); continue; }
 
-      // Cancel if prospect replied after start
+      // ── Hard exit 1: prospect replied after the sequence started
       const { data: reply } = await supabase.from("inbox_messages").select("id").eq("prospect_id", p.id).eq("direction", "incoming").gt("created_at", enr.started_at).limit(1);
       if (reply && reply.length) {
         await release({ status: "responded", completed_at: nowIso });
+        cancelled++; continue;
+      }
+
+      // ── Hard exit 2: prospect booked a call on Calendly
+      if (p.calendly_booked_at) {
+        await release({ status: "booked", completed_at: nowIso });
         cancelled++; continue;
       }
 
@@ -96,6 +102,14 @@ Deno.serve(async (req) => {
         cancelled++; continue;
       }
 
+      // ── Hard exit 3: sequence cap reached
+      const cap = Number(seq.max_steps ?? 3);
+      if (Number.isFinite(cap) && cap > 0 && enr.current_step > cap) {
+        await release({ status: "completed", completed_at: nowIso, next_step_at: null });
+        continue;
+      }
+
+
       const { data: steps } = await supabase.from("follow_up_steps").select("*").eq("sequence_template_id", enr.sequence_template_id).order("step_number", { ascending: true });
       const step = (steps || []).find((s: any) => s.step_number === enr.current_step);
       if (!step) {
@@ -105,13 +119,10 @@ Deno.serve(async (req) => {
 
       const { data: demo } = await supabase.from("inbox_demos").select("demo_url").eq("prospect_id", p.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
       const vars = buildProspectVars(p, demo?.demo_url);
-      // Exactly one CTA per step: link_only | demo_only | both.
-      const ctaType = normalizeCtaType(step.cta_type, step.include_demo_link);
-      const demoUrl = ctaType === "link_only" && !step.include_demo_link
-        ? (demo?.demo_url || "")
-        : (demo?.demo_url || "");
+      // Open editor: the step body is free text — send exactly what the operator wrote.
       const rawBody = substituteWithFallbacks(step.message_body, vars, fallbacks);
-      let body = renderStepBody(rawBody, ctaType, demoUrl);
+      let body = renderStepBody(rawBody);
+
       const subject = substituteWithFallbacks(step.message_subject || "Re: {{firstname}} overview", vars, fallbacks);
 
       if (!p.original_message_id) {
@@ -167,7 +178,7 @@ Deno.serve(async (req) => {
           scheduling_debug: {
             sent_step: enr.current_step,
             sent_at: nowIso,
-            cta_type: ctaType,
+            step_number: enr.current_step,
             lag_ms: lagMs,
             was_overdue: lagMs > 15 * 60_000,
             raw_next_at: rawIso,

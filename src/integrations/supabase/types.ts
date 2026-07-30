@@ -422,6 +422,8 @@ export type Database = {
       demo_leads: {
         Row: {
           bcc_emails: Json | null
+          calendly_booked_at: string | null
+          calendly_clicked_at: string | null
           campaign_id: string | null
           campaign_name: string | null
           cc_emails: Json | null
@@ -429,10 +431,15 @@ export type Database = {
           company: string | null
           country_code: string | null
           created_at: string
+          deepest_section: string | null
+          demo_engagement_seconds: number
           demo_page_id: string | null
           demo_tried: boolean
           demo_type_tried: string | null
           engagement: Json
+          engagement_channel: string | null
+          engagement_tier: string
+          exit_section: string | null
           feedback_link_clicked: boolean
           feedback_link_clicked_at: string | null
           feedback_link_visit_count: number
@@ -462,6 +469,8 @@ export type Database = {
         }
         Insert: {
           bcc_emails?: Json | null
+          calendly_booked_at?: string | null
+          calendly_clicked_at?: string | null
           campaign_id?: string | null
           campaign_name?: string | null
           cc_emails?: Json | null
@@ -469,10 +478,15 @@ export type Database = {
           company?: string | null
           country_code?: string | null
           created_at?: string
+          deepest_section?: string | null
+          demo_engagement_seconds?: number
           demo_page_id?: string | null
           demo_tried?: boolean
           demo_type_tried?: string | null
           engagement?: Json
+          engagement_channel?: string | null
+          engagement_tier?: string
+          exit_section?: string | null
           feedback_link_clicked?: boolean
           feedback_link_clicked_at?: string | null
           feedback_link_visit_count?: number
@@ -502,6 +516,8 @@ export type Database = {
         }
         Update: {
           bcc_emails?: Json | null
+          calendly_booked_at?: string | null
+          calendly_clicked_at?: string | null
           campaign_id?: string | null
           campaign_name?: string | null
           cc_emails?: Json | null
@@ -509,10 +525,15 @@ export type Database = {
           company?: string | null
           country_code?: string | null
           created_at?: string
+          deepest_section?: string | null
+          demo_engagement_seconds?: number
           demo_page_id?: string | null
           demo_tried?: boolean
           demo_type_tried?: string | null
           engagement?: Json
+          engagement_channel?: string | null
+          engagement_tier?: string
+          exit_section?: string | null
           feedback_link_clicked?: boolean
           feedback_link_clicked_at?: string | null
           feedback_link_visit_count?: number
@@ -881,6 +902,7 @@ export type Database = {
           description: string | null
           id: string
           is_active: boolean
+          max_steps: number
           name: string
           trigger_type: string
           updated_at: string
@@ -891,6 +913,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          max_steps?: number
           name: string
           trigger_type?: string
           updated_at?: string
@@ -901,6 +924,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_active?: boolean
+          max_steps?: number
           name?: string
           trigger_type?: string
           updated_at?: string
@@ -910,7 +934,6 @@ export type Database = {
       follow_up_steps: {
         Row: {
           created_at: string
-          cta_type: Database["public"]["Enums"]["cta_type"]
           delay_unit: string
           delay_value: number
           id: string
@@ -924,7 +947,6 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          cta_type?: Database["public"]["Enums"]["cta_type"]
           delay_unit?: string
           delay_value?: number
           id?: string
@@ -938,7 +960,6 @@ export type Database = {
         }
         Update: {
           created_at?: string
-          cta_type?: Database["public"]["Enums"]["cta_type"]
           delay_unit?: string
           delay_value?: number
           id?: string
@@ -1422,6 +1443,7 @@ export type Database = {
           demo_page_id: string | null
           event_type: string
           id: string
+          is_self_traffic: boolean
           link_type: string
           metadata: Json | null
           referrer: string | null
@@ -1439,6 +1461,7 @@ export type Database = {
           demo_page_id?: string | null
           event_type: string
           id?: string
+          is_self_traffic?: boolean
           link_type?: string
           metadata?: Json | null
           referrer?: string | null
@@ -1456,6 +1479,7 @@ export type Database = {
           demo_page_id?: string | null
           event_type?: string
           id?: string
+          is_self_traffic?: boolean
           link_type?: string
           metadata?: Json | null
           referrer?: string | null
@@ -2004,16 +2028,23 @@ export type Database = {
       prospects: {
         Row: {
           automation_paused: boolean
+          calendly_booked_at: string | null
+          calendly_clicked_at: string | null
           campaign_id: string | null
           campaign_name: string | null
           chatbot_tried_at: string | null
           client_memory: Json
           company: string | null
+          country_code: string | null
           created_at: string
+          demo_engagement_seconds: number
           demo_link_clicked_at: string | null
           demo_page_opened_at: string | null
           demo_sent_at: string | null
           email: string
+          engagement_channel: string | null
+          engagement_tier: string
+          first_interaction_at: string | null
           firstname: string | null
           followup_attempts: number
           followup_status: string
@@ -2021,9 +2052,11 @@ export type Database = {
           hot_lead_open_count: number
           id: string
           is_hot_lead: boolean
+          is_self_traffic: boolean
           is_test_data: boolean
           last_activity_at: string | null
           last_classification: string | null
+          last_interaction_at: string | null
           last_message_at: string | null
           max_followup_attempts: number
           next_followup_at: string | null
@@ -2037,16 +2070,23 @@ export type Database = {
         }
         Insert: {
           automation_paused?: boolean
+          calendly_booked_at?: string | null
+          calendly_clicked_at?: string | null
           campaign_id?: string | null
           campaign_name?: string | null
           chatbot_tried_at?: string | null
           client_memory?: Json
           company?: string | null
+          country_code?: string | null
           created_at?: string
+          demo_engagement_seconds?: number
           demo_link_clicked_at?: string | null
           demo_page_opened_at?: string | null
           demo_sent_at?: string | null
           email: string
+          engagement_channel?: string | null
+          engagement_tier?: string
+          first_interaction_at?: string | null
           firstname?: string | null
           followup_attempts?: number
           followup_status?: string
@@ -2054,9 +2094,11 @@ export type Database = {
           hot_lead_open_count?: number
           id?: string
           is_hot_lead?: boolean
+          is_self_traffic?: boolean
           is_test_data?: boolean
           last_activity_at?: string | null
           last_classification?: string | null
+          last_interaction_at?: string | null
           last_message_at?: string | null
           max_followup_attempts?: number
           next_followup_at?: string | null
@@ -2070,16 +2112,23 @@ export type Database = {
         }
         Update: {
           automation_paused?: boolean
+          calendly_booked_at?: string | null
+          calendly_clicked_at?: string | null
           campaign_id?: string | null
           campaign_name?: string | null
           chatbot_tried_at?: string | null
           client_memory?: Json
           company?: string | null
+          country_code?: string | null
           created_at?: string
+          demo_engagement_seconds?: number
           demo_link_clicked_at?: string | null
           demo_page_opened_at?: string | null
           demo_sent_at?: string | null
           email?: string
+          engagement_channel?: string | null
+          engagement_tier?: string
+          first_interaction_at?: string | null
           firstname?: string | null
           followup_attempts?: number
           followup_status?: string
@@ -2087,9 +2136,11 @@ export type Database = {
           hot_lead_open_count?: number
           id?: string
           is_hot_lead?: boolean
+          is_self_traffic?: boolean
           is_test_data?: boolean
           last_activity_at?: string | null
           last_classification?: string | null
+          last_interaction_at?: string | null
           last_message_at?: string | null
           max_followup_attempts?: number
           next_followup_at?: string | null
@@ -2583,7 +2634,7 @@ export type Database = {
       }
     }
     Enums: {
-      cta_type: "link_only" | "demo_only" | "both"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2710,8 +2761,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-      cta_type: ["link_only", "demo_only", "both"],
-    },
+    Enums: {},
   },
 } as const

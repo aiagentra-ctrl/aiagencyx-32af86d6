@@ -80,10 +80,15 @@ const stopActivityTracking = () => {
 
 // ── Section engagement tracking ──
 const sectionTimers = new Map<string, number>();
+// Last section the visitor entered — reported as the exit section on session end.
+let currentSection: string | null = null;
 
 export const trackSectionEnter = (section: string) => {
   sectionTimers.set(section, Date.now());
+  currentSection = section;
 };
+
+export const getCurrentSection = () => currentSection;
 
 export const trackSectionLeave = (slug: string, section: string, options?: { demoPageId?: string; businessName?: string }) => {
   const startTime = sectionTimers.get(section);
@@ -96,6 +101,39 @@ export const trackSectionLeave = (slug: string, section: string, options?: { dem
     metadata: { section, duration_seconds: duration },
   });
 };
+
+// ── Demo engagement duration (voice + chat) ──
+// <1s = not tried, 1–10s = tried, 10s+ = warm lead. Classification happens
+// server-side; the client only reports the measured duration.
+const engagementStarts = new Map<"voice" | "chat", number>();
+
+export const startDemoEngagement = (channel: "voice" | "chat") => {
+  engagementStarts.set(channel, Date.now());
+};
+
+export const endDemoEngagement = (
+  slug: string,
+  channel: "voice" | "chat",
+  options?: { demoPageId?: string; chatbotId?: string; businessName?: string },
+) => {
+  const start = engagementStarts.get(channel);
+  if (!start) return 0;
+  engagementStarts.delete(channel);
+  const seconds = Math.round((Date.now() - start) / 1000);
+  trackEvent(slug, channel === "voice" ? "voice_ended" : "chat_ended", {
+    ...options,
+    metadata: { engagement_seconds: seconds, channel, section: currentSection },
+  });
+  return seconds;
+};
+
+// ── Calendly ──
+export const trackCalendlyClick = (slug: string, options?: { demoPageId?: string; businessName?: string }) =>
+  trackEvent(slug, "calendly_click", { ...options, metadata: { section: currentSection } });
+
+export const trackCalendlyBooked = (slug: string, options?: { demoPageId?: string; businessName?: string }) =>
+  trackEvent(slug, "calendly_booked", { ...options, metadata: { section: currentSection } });
+
 
 // ── Scroll depth tracking ──
 const scrollMilestones = new Set<number>();
@@ -273,6 +311,9 @@ export const trackSessionEnd = (slug: string, options?: { demoPageId?: string; b
       duration_seconds: durationSeconds,
       active_time_seconds: activeSeconds,
       max_scroll_depth: Math.max(...scrollMilestones, 0),
+      section: currentSection,
+      exit_section: currentSection,
+
       client_device: getClientDeviceInfo(),
     },
   });
@@ -297,6 +338,8 @@ export const trackSessionEnd = (slug: string, options?: { demoPageId?: string; b
         time_seconds: durationSeconds,
         active_time_seconds: activeSeconds,
         scroll_depth: Math.max(...scrollMilestones, 0),
+        section: currentSection,
+
       },
     });
     const visitorUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-visitor`;

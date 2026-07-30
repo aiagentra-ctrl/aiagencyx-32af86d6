@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { engagementTier, isSelfTrafficCountry } from "../_shared/geo.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,12 +95,17 @@ Deno.serve(async (req) => {
     }
 
     const rules = await loadCountryRules();
+    // Hard rule first: our own countries (NP/IN/BD/PK) never generate tracking.
+    if (isSelfTrafficCountry(countryCode)) {
+      return new Response(JSON.stringify({ ok: true, filtered: "self_traffic" }), { headers: corsHeaders });
+    }
     if (countryCode && rules.block.includes(countryCode)) {
       return new Response(JSON.stringify({ ok: true, filtered: "country_blocked" }), { headers: corsHeaders });
     }
     if (countryCode && rules.allow.length > 0 && !rules.allow.includes(countryCode)) {
       return new Response(JSON.stringify({ ok: true, filtered: "country_not_allowed" }), { headers: corsHeaders });
     }
+
 
     const { data: lead } = await supabase.from("demo_leads").select("*").eq("slug", slug).maybeSingle();
     if (!lead) {
@@ -133,14 +140,47 @@ Deno.serve(async (req) => {
     let voiceJustTried = false;
     let chatJustTried = false;
 
-    if (event_type === "voice_call_started" || event_type === "voice_interaction") {
-      demoTried = true; demoTypeTried = "voice"; eng.demo_tried = true;
-      if (!triedVoice) { triedVoice = true; voiceFirstAt = new Date().toISOString(); voiceJustTried = true; }
+    // ── Engagement duration classifier (voice + chat) ──
+    // <1s = not tried, 1–10s = tried, 10s+ = warm lead.
+    const durSeconds = Number(metadata.engagement_seconds ?? metadata.duration_seconds ?? 0) || 0;
+    let engSeconds = Number(lead.demo_engagement_seconds || 0);
+    let engChannel = lead.engagement_channel || null;
+    let engTier = lead.engagement_tier || "not_tried";
+
+    const applyEngagement = (channel: "voice" | "chat") => {
+      if (durSeconds > engSeconds) { engSeconds = durSeconds; engChannel = channel; }
+      const tier = engagementTier(engSeconds);
+      engTier = tier;
+      eng.engagement_seconds = engSeconds;
+      eng.engagement_tier = tier;
+      eng.engagement_channel = engChannel;
+    };
+
+    if (event_type === "voice_call_started" || event_type === "voice_interaction" || event_type === "voice_ended") {
+      applyEngagement("voice");
+      if (engTier !== "not_tried") {
+        demoTried = true; demoTypeTried = "voice"; eng.demo_tried = true;
+        if (!triedVoice) { triedVoice = true; voiceFirstAt = new Date().toISOString(); voiceJustTried = true; }
+      }
     }
-    if (event_type === "chatbot_message_sent" || event_type === "chatbot_interaction") {
-      demoTried = true; demoTypeTried = demoTypeTried || "chatbot"; eng.demo_tried = true;
-      if (!triedChat) { triedChat = true; chatFirstAt = new Date().toISOString(); chatJustTried = true; }
+    if (event_type === "chatbot_message_sent" || event_type === "chatbot_interaction" || event_type === "chat_ended") {
+      applyEngagement("chat");
+      if (engTier !== "not_tried") {
+        demoTried = true; demoTypeTried = demoTypeTried || "chatbot"; eng.demo_tried = true;
+        if (!triedChat) { triedChat = true; chatFirstAt = new Date().toISOString(); chatJustTried = true; }
+      }
     }
+
+    // ── Calendly tracking ──
+    let calendlyClickedAt = lead.calendly_clicked_at;
+    let calendlyBookedAt = lead.calendly_booked_at;
+    if (event_type === "calendly_click" && !calendlyClickedAt) calendlyClickedAt = new Date().toISOString();
+    if (event_type === "calendly_booked" && !calendlyBookedAt) calendlyBookedAt = new Date().toISOString();
+
+    // ── Exit section (last section the visitor was looking at) ──
+    const exitSection = typeof metadata.section === "string" && metadata.section
+      ? metadata.section
+      : (lead.exit_section || null);
 
     // Feedback link tracking
     let fbClicked = lead.feedback_link_clicked;
@@ -150,6 +190,7 @@ Deno.serve(async (req) => {
       fbVisits++;
       if (!fbClicked) { fbClicked = true; fbClickedAt = new Date().toISOString(); }
     }
+
 
     const { score, tier } = computeScore(eng);
 
@@ -169,7 +210,14 @@ Deno.serve(async (req) => {
       feedback_link_clicked: fbClicked,
       feedback_link_clicked_at: fbClickedAt,
       feedback_link_visit_count: fbVisits,
+      demo_engagement_seconds: engSeconds,
+      engagement_channel: engChannel,
+      engagement_tier: engTier,
+      calendly_clicked_at: calendlyClickedAt,
+      calendly_booked_at: calendlyBookedAt,
+      exit_section: exitSection,
     };
+
     if (fingerprint && !lead.fingerprint) updates.fingerprint = fingerprint;
     if (lead.status === "pending" || lead.status === "visited_no_demo") {
       updates.status = demoTried ? "visited_demo_tried" : "visited_no_demo";
