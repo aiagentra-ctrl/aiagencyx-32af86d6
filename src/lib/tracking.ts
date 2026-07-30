@@ -338,6 +338,8 @@ export const trackSessionEnd = (slug: string, options?: { demoPageId?: string; b
         time_seconds: durationSeconds,
         active_time_seconds: activeSeconds,
         scroll_depth: Math.max(...scrollMilestones, 0),
+        section: currentSection,
+
       },
     });
     const visitorUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-visitor`;
