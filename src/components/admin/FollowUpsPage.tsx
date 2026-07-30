@@ -258,10 +258,26 @@ function SequenceBuilder() {
     loadSeqs(); loadSteps(selectedId);
   };
 
-  const addStep = () => setSteps([...steps, { step_number: steps.length + 1, delay_value: 2, delay_unit: "days", message_subject: "Re: {{firstname}} overview", message_body: "", include_demo_link: true, cta_type: "both" }]);
+  const addStep = () => setSteps([...steps, { step_number: steps.length + 1, delay_value: 2, delay_unit: "days", message_subject: "Re: {{firstname}} overview", message_body: "", include_demo_link: true }]);
   const removeStep = (i: number) => setSteps(steps.filter((_, idx) => idx !== i));
   const updateStep = (i: number, patch: Partial<Step>) => setSteps(steps.map((s, idx) => idx === i ? { ...s, ...patch } : s));
-  const insertVar = (i: number, v: string) => updateStep(i, { message_body: (steps[i].message_body || "") + `{{${v}}}` });
+  // Insert the variable at the caret position of the step's body textarea (falls back to append).
+  const insertVar = (i: number, v: string) => {
+    const token = `{{${v}}}`;
+    const el = bodyRefs.current[i];
+    const body = steps[i].message_body || "";
+    if (!el) { updateStep(i, { message_body: body + token }); return; }
+    const start = el.selectionStart ?? body.length;
+    const end = el.selectionEnd ?? start;
+    const next = body.slice(0, start) + token + body.slice(end);
+    updateStep(i, { message_body: next });
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + token.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
 
   // Health check — detect unresolved chips, over-long delays, empty body, missing subject, duplicate step delays
   const healthIssues = useMemo(() => {
