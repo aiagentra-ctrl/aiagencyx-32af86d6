@@ -140,14 +140,47 @@ Deno.serve(async (req) => {
     let voiceJustTried = false;
     let chatJustTried = false;
 
-    if (event_type === "voice_call_started" || event_type === "voice_interaction") {
-      demoTried = true; demoTypeTried = "voice"; eng.demo_tried = true;
-      if (!triedVoice) { triedVoice = true; voiceFirstAt = new Date().toISOString(); voiceJustTried = true; }
+    // ── Engagement duration classifier (voice + chat) ──
+    // <1s = not tried, 1–10s = tried, 10s+ = warm lead.
+    const durSeconds = Number(metadata.engagement_seconds ?? metadata.duration_seconds ?? 0) || 0;
+    let engSeconds = Number(lead.demo_engagement_seconds || 0);
+    let engChannel = lead.engagement_channel || null;
+    let engTier = lead.engagement_tier || "not_tried";
+
+    const applyEngagement = (channel: "voice" | "chat") => {
+      if (durSeconds > engSeconds) { engSeconds = durSeconds; engChannel = channel; }
+      const tier = engagementTier(engSeconds);
+      engTier = tier;
+      eng.engagement_seconds = engSeconds;
+      eng.engagement_tier = tier;
+      eng.engagement_channel = engChannel;
+    };
+
+    if (event_type === "voice_call_started" || event_type === "voice_interaction" || event_type === "voice_ended") {
+      applyEngagement("voice");
+      if (engTier !== "not_tried") {
+        demoTried = true; demoTypeTried = "voice"; eng.demo_tried = true;
+        if (!triedVoice) { triedVoice = true; voiceFirstAt = new Date().toISOString(); voiceJustTried = true; }
+      }
     }
-    if (event_type === "chatbot_message_sent" || event_type === "chatbot_interaction") {
-      demoTried = true; demoTypeTried = demoTypeTried || "chatbot"; eng.demo_tried = true;
-      if (!triedChat) { triedChat = true; chatFirstAt = new Date().toISOString(); chatJustTried = true; }
+    if (event_type === "chatbot_message_sent" || event_type === "chatbot_interaction" || event_type === "chat_ended") {
+      applyEngagement("chat");
+      if (engTier !== "not_tried") {
+        demoTried = true; demoTypeTried = demoTypeTried || "chatbot"; eng.demo_tried = true;
+        if (!triedChat) { triedChat = true; chatFirstAt = new Date().toISOString(); chatJustTried = true; }
+      }
     }
+
+    // ── Calendly tracking ──
+    let calendlyClickedAt = lead.calendly_clicked_at;
+    let calendlyBookedAt = lead.calendly_booked_at;
+    if (event_type === "calendly_click" && !calendlyClickedAt) calendlyClickedAt = new Date().toISOString();
+    if (event_type === "calendly_booked" && !calendlyBookedAt) calendlyBookedAt = new Date().toISOString();
+
+    // ── Exit section (last section the visitor was looking at) ──
+    const exitSection = typeof metadata.section === "string" && metadata.section
+      ? metadata.section
+      : (lead.exit_section || null);
 
     // Feedback link tracking
     let fbClicked = lead.feedback_link_clicked;
@@ -157,6 +190,7 @@ Deno.serve(async (req) => {
       fbVisits++;
       if (!fbClicked) { fbClicked = true; fbClickedAt = new Date().toISOString(); }
     }
+
 
     const { score, tier } = computeScore(eng);
 
