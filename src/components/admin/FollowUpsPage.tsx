@@ -500,7 +500,7 @@ function SequenceBuilder() {
                 <div className="text-[10px] uppercase text-muted-foreground">Step {i + 1} · after {s.delay_value}{s.delay_unit[0]}</div>
                 <div className="font-medium text-sm mt-1">{sampleSubstitute(s.message_subject)}</div>
                 <div className="text-xs whitespace-pre-wrap mt-2">{sampleSubstitute(s.message_body)}</div>
-                <div className="text-xs text-primary mt-2 whitespace-pre-wrap">{ctaPreview(s.cta_type)}</div>
+                
               </div>
             ))}
           </div>
