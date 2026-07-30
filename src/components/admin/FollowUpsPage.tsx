@@ -455,30 +455,22 @@ function SequenceBuilder() {
                       </button>
                     ))}
                   </div>
-                  <Textarea value={s.message_body} onChange={(e) => updateStep(i, { message_body: e.target.value })} rows={6} placeholder="Write your message. Use variable chips above to insert placeholders." />
-                  <div className="space-y-1.5">
-                    <div className="text-xs font-medium">Call to action</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {CTA_OPTIONS.map((o) => (
-                        <button
-                          key={o.value}
-                          type="button"
-                          onClick={() => updateStep(i, { cta_type: o.value, include_demo_link: o.value !== "link_only" })}
-                          className={`rounded-md border p-2 text-left transition ${s.cta_type === o.value ? "border-primary bg-primary/10" : "hover:bg-muted/50"}`}
-                        >
-                          <div className="text-xs font-medium">{o.label}</div>
-                          <div className="text-[10px] text-muted-foreground leading-snug">{o.desc}</div>
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">The CTA is appended automatically — don't paste links in the body.</p>
-                  </div>
+                  <Textarea
+                    ref={(el) => { bodyRefs.current[i] = el; }}
+                    value={s.message_body}
+                    onChange={(e) => updateStep(i, { message_body: e.target.value })}
+                    rows={7}
+                    placeholder="Write the full message, including your own link or CTA. Click a variable chip to insert it at the cursor."
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Free text — nothing is appended automatically. Insert <code>{"{{demo_link}}"}</code> wherever you want the personalized demo link.
+                  </p>
                   <details className="text-xs">
                     <summary className="cursor-pointer text-muted-foreground">Preview with sample data</summary>
                     <div className="mt-2 rounded border bg-muted/30 p-2 whitespace-pre-wrap">
                       <div className="font-medium">{sampleSubstitute(s.message_subject)}</div>
                       <div className="mt-1">{sampleSubstitute(s.message_body)}</div>
-                      <div className="mt-2 text-primary whitespace-pre-wrap">{ctaPreview(s.cta_type)}</div>
+
                     </div>
                   </details>
                 </div>
