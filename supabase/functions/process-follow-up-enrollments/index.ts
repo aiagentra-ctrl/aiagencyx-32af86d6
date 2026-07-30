@@ -82,10 +82,16 @@ Deno.serve(async (req) => {
       if (!p) { await release({}); continue; }
       if (p.automation_paused) { await release({}); continue; }
 
-      // Cancel if prospect replied after start
+      // ── Hard exit 1: prospect replied after the sequence started
       const { data: reply } = await supabase.from("inbox_messages").select("id").eq("prospect_id", p.id).eq("direction", "incoming").gt("created_at", enr.started_at).limit(1);
       if (reply && reply.length) {
         await release({ status: "responded", completed_at: nowIso });
+        cancelled++; continue;
+      }
+
+      // ── Hard exit 2: prospect booked a call on Calendly
+      if (p.calendly_booked_at) {
+        await release({ status: "booked", completed_at: nowIso });
         cancelled++; continue;
       }
 
@@ -95,6 +101,14 @@ Deno.serve(async (req) => {
         await release({ status: "cancelled", completed_at: nowIso });
         cancelled++; continue;
       }
+
+      // ── Hard exit 3: sequence cap reached
+      const cap = Number(seq.max_steps ?? 3);
+      if (Number.isFinite(cap) && cap > 0 && enr.current_step > cap) {
+        await release({ status: "completed", completed_at: nowIso, next_step_at: null });
+        continue;
+      }
+
 
       const { data: steps } = await supabase.from("follow_up_steps").select("*").eq("sequence_template_id", enr.sequence_template_id).order("step_number", { ascending: true });
       const step = (steps || []).find((s: any) => s.step_number === enr.current_step);
