@@ -219,10 +219,8 @@ function SequenceBuilder() {
   };
   const loadSteps = async (id: string) => {
     const { data } = await supabase.from("follow_up_steps").select("*").eq("sequence_template_id", id).order("step_number");
-    setSteps(((data as any[]) || []).map((s) => ({
-      ...s,
-      cta_type: (["link_only", "demo_only", "both"].includes(s.cta_type) ? s.cta_type : (s.include_demo_link ? "both" : "link_only")) as CtaType,
-    })) as Step[]);
+    setSteps(((data as any[]) || []).map((s) => ({ ...s })) as Step[]);
+
   };
   useEffect(() => { loadSeqs(); }, []);
   useEffect(() => {
