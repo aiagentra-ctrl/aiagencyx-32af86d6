@@ -21,13 +21,20 @@ export function substituteVars(tpl: string, vars: Record<string, string>): strin
   return (tpl || "").replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (vars[k] ?? ""));
 }
 
+export const CALENDLY_URL = "https://calendly.com/aiagentra/new-meeting";
+
 export function buildProspectVars(p: any, demoUrl?: string | null): Record<string, string> {
+  const demo = demoUrl || "";
   return {
     firstname: p.firstname || "there",
     lastname: p.lastname || "",
     company: p.company || "your company",
     website: p.website_url || "",
-    demo_url: demoUrl || "",
+    demo_url: demo,
+    demo_link: demo,
+    voice_agent_link: demo ? `${demo}${demo.includes("?") ? "&" : "?"}open=voice` : "",
+    chatbot_link: demo ? `${demo}${demo.includes("?") ? "&" : "?"}open=chat` : "",
+    calendly_link: CALENDLY_URL,
     sender_name: (p.sender_name && String(p.sender_name).trim()) || DEFAULT_SENDER_NAME,
     sender_email: p.sender_email || "",
     campaign_name: p.campaign_name || "",
@@ -38,64 +45,15 @@ export function buildProspectVars(p: any, demoUrl?: string | null): Record<strin
 }
 
 // ---------------------------------------------------------------------------
-// CTA engine — every follow-up step emits EXACTLY ONE of three CTA blocks.
+// Open message editor: step bodies are free text. Nothing is appended and no
+// author-written link is stripped — what the operator writes is what is sent.
 // ---------------------------------------------------------------------------
 
-export const CTA_TYPES = ["link_only", "demo_only", "both"] as const;
-export type CtaType = typeof CTA_TYPES[number];
-
-export const CTA_LABELS: Record<CtaType, string> = {
-  link_only: "Open Link",
-  demo_only: "Try Demo",
-  both: "Both",
-};
-
-export function normalizeCtaType(value: unknown, includeDemoLink?: boolean): CtaType {
-  const v = String(value || "").trim() as CtaType;
-  if ((CTA_TYPES as readonly string[]).includes(v)) return v;
-  return includeDemoLink ? "both" : "link_only";
+/** Collapse excess blank lines and trim. That is the only transformation applied. */
+export function renderStepBody(rawBody: string): string {
+  return (rawBody || "").replace(/\n{4,}/g, "\n\n\n").trim();
 }
 
-/** Render the single CTA block for a step. Returns "" when no URL is available. */
-export function buildCta(ctaType: CtaType, demoUrl: string): string {
-  const url = (demoUrl || "").trim();
-  if (!url) return "";
-  switch (ctaType) {
-    case "link_only":
-      return url;
-    case "demo_only":
-      return `Try the AI agent live here: ${url}`;
-    case "both":
-    default:
-      return `${url}\n(Open it and click the AI agent to try it live.)`;
-  }
-}
-
-/**
- * Strip any CTA the template author typed manually — links, bare demo URLs and
- * "try the demo" style lines — so a step can never emit duplicate or zero CTAs.
- */
-export function stripManualCta(body: string, demoUrl?: string | null): string {
-  let t = body || "";
-  // markdown links -> label only
-  t = t.replace(/\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, "$1");
-  if (demoUrl) t = t.split(demoUrl).join("");
-  t = t.replace(/https?:\/\/[^\s<>()\[\]"']+/g, "");
-  t = t.replace(/\{\{\s*demo_url\s*\}\}/gi, "");
-  return t
-    .split(/\r?\n/)
-    .filter((l) => !/^\s*\(?\s*(open it and click|try the ai agent)/i.test(l))
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-/** Full step body: cleaned template text + exactly one CTA block. */
-export function renderStepBody(rawBody: string, ctaType: CtaType, demoUrl: string): string {
-  const base = stripManualCta(rawBody, demoUrl);
-  const cta = buildCta(ctaType, demoUrl);
-  return [base, cta].filter(Boolean).join("\n\n").trim();
-}
 
 export const FOLLOWUP_PROMPTS: Record<TriggerKey, string> = {
   no_click_48h:
