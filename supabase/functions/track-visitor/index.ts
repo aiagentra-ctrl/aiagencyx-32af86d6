@@ -210,7 +210,14 @@ Deno.serve(async (req) => {
       feedback_link_clicked: fbClicked,
       feedback_link_clicked_at: fbClickedAt,
       feedback_link_visit_count: fbVisits,
+      demo_engagement_seconds: engSeconds,
+      engagement_channel: engChannel,
+      engagement_tier: engTier,
+      calendly_clicked_at: calendlyClickedAt,
+      calendly_booked_at: calendlyBookedAt,
+      exit_section: exitSection,
     };
+
     if (fingerprint && !lead.fingerprint) updates.fingerprint = fingerprint;
     if (lead.status === "pending" || lead.status === "visited_no_demo") {
       updates.status = demoTried ? "visited_demo_tried" : "visited_no_demo";
