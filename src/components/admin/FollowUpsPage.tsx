@@ -333,7 +333,7 @@ function SequenceBuilder() {
         delay_value: s.delay_value ?? 1, delay_unit: s.delay_unit ?? "days",
         message_subject: s.message_subject || "", message_body: s.message_body || "",
         include_demo_link: !!s.include_demo_link,
-        cta_type: (["link_only", "demo_only", "both"].includes(s.cta_type) ? s.cta_type : "both") as CtaType,
+        })));
       })));
       setImportOpen(false); setImportText("");
       toast.success("Imported — click Save to persist.");
