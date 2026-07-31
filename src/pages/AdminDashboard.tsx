@@ -16,6 +16,7 @@ import ActivityLogViewer from "@/components/admin/ActivityLogViewer";
 import { Link } from "react-router-dom";
 import TemplatesPanel from "@/components/admin/TemplatesPanel";
 import LeadsPanel from "@/components/admin/LeadsPanel";
+import TrackingPage from "@/components/admin/TrackingPage";
 import FollowUpTemplatesPanel from "@/components/admin/FollowUpTemplatesPanel";
 import KnowledgeBasePanel from "@/components/admin/KnowledgeBasePanel";
 import InboxManagerPanel from "@/components/admin/InboxManagerPanel";
@@ -217,6 +218,7 @@ function AdminSections(props: {
         <TabsTrigger value="settings">Settings</TabsTrigger>
         <TabsTrigger value="analytics">Analytics</TabsTrigger>
         <TabsTrigger value="leads">Leads</TabsTrigger>
+        <TabsTrigger value="tracking">Tracking</TabsTrigger>
         <TabsTrigger value="templates">Templates</TabsTrigger>
         <TabsTrigger value="followups">Follow-Ups</TabsTrigger>
         <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
@@ -360,6 +362,10 @@ function AdminSections(props: {
           </TabsContent>
 
           {/* Leads Tab */}
+          <TabsContent value="tracking">
+            <TrackingPage />
+          </TabsContent>
+
           <TabsContent value="leads">
             <LeadsPanel />
           </TabsContent>
