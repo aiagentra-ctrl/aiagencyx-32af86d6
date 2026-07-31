@@ -10,6 +10,7 @@ const corsHeaders = {
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 import { chatCompletion, MODELS } from "../_shared/openrouter.ts";
 import { setLeadStatus } from "../_shared/memory.ts";
+import { keywordSentiment } from "../_shared/sentiment.ts";
 
 async function loadClassifierPrompt(): Promise<string> {
   const { data } = await supabase
@@ -80,8 +81,18 @@ Deno.serve(async (req) => {
       ruleFired = "demo_sent=true → post_demo Positive";
     }
 
+    // Deterministic keyword sentiment overrides the model so the locked
+    // reply templates fire consistently.
+    const kw = keywordSentiment(current?.body || "");
+    if (kw && kw !== classification) {
+      classification = kw;
+      ruleFired = `keyword_override→${kw}`;
+    } else if (kw) {
+      ruleFired = `${ruleFired}+keyword_confirmed`;
+    }
+
     await supabase.from("inbox_messages")
-      .update({ classification, classified_by: "ai" }).eq("id", message_id);
+      .update({ classification, classified_by: ruleFired.startsWith("keyword_override") ? "keyword" : "ai" }).eq("id", message_id);
     await supabase.from("prospects")
       .update({ last_classification: classification }).eq("id", prospect_id);
     // Memory continuity: persist lead status so later turns remember a decline.
