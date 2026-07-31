@@ -91,6 +91,47 @@ Deno.serve(async (req) => {
     systemPrompt += FORMAT_RULES(name, demoAllowed ? usableDemoUrl : "");
 
     const lastIncoming = [...(messages || [])].reverse().find((m: any) => m.direction === "incoming");
+
+    // ---------------------------------------------------------------------
+    // Locked template path: deterministic keyword sentiment wins over the LLM.
+    // The stored template is sent verbatim, with only the locked variables
+    // (notably {DemoLink} = this lead's own tracked demo URL) substituted.
+    // ---------------------------------------------------------------------
+    const kw = keywordSentiment(lastIncoming?.body || "");
+    if (kw) {
+      const phase = memory?.demo_link_sent ? "post_demo" : "pre_demo";
+      const { data: tplRows } = await supabase
+        .from("reply_templates")
+        .select("body, phase, is_default")
+        .eq("classification", kw)
+        .eq("is_default", true);
+      const tpl = (tplRows || []).find((t: any) => t.phase === phase) || (tplRows || [])[0];
+      if (tpl?.body) {
+        const trackedDemoUrl = demo_url || existingDemo?.demo_url || "";
+        const text = renderTemplate(tpl.body, {
+          demo_url: trackedDemoUrl,
+          firstname: prospect.firstname || "there",
+          company: prospect.company || "your team",
+          sender_name: name || DEFAULT_SENDER_NAME,
+        });
+        return new Response(JSON.stringify({
+          reply: text,
+          demo_url: trackedDemoUrl,
+          demo_link_locked: false,
+          sanitizer_fired: false,
+          model: "locked_template",
+          sender_name: name || DEFAULT_SENDER_NAME,
+          valid: true,
+          needs_review: false,
+          validation_errors: [],
+          attempts: 0,
+          node_prompt_used: false,
+          template_used: `${kw}:${tpl.phase}`,
+          keyword_sentiment: kw,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
+
     const context = `Prospect:
 - firstname: ${prospect.firstname || "there"}
 - company: ${prospect.company || "(unknown)"}
