@@ -10,7 +10,7 @@ export interface REBookCallProps {
 const ease = [0.16, 1, 0.3, 1] as const;
 
 const REBookCall = ({ companyName, firstName, onBookCall }: REBookCallProps) => (
-  <section className="re-section-dark relative overflow-hidden px-5 py-16 sm:px-6 lg:px-10 lg:py-28">
+  <section className="re-section-dark relative overflow-hidden px-5 py-11 sm:px-6 lg:px-10 lg:py-16">
     <div
       className="pointer-events-none absolute inset-0"
       aria-hidden="true"

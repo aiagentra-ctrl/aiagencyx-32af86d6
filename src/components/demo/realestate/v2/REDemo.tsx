@@ -53,7 +53,7 @@ const REDemo = ({
   return (
     <section
       id="demo-section"
-      className="re-section-light scroll-mt-20 px-5 py-16 sm:px-6 lg:px-10 lg:py-24"
+      className="re-section-light scroll-mt-20 px-5 py-10 sm:px-6 lg:px-10 lg:py-14"
     >
       <div className="mx-auto max-w-[78rem]">
         <motion.div
@@ -64,18 +64,18 @@ const REDemo = ({
           transition={{ duration: 0.75, ease }}
         >
           <span className="re-eyebrow">Live demo</span>
-          <h2 className="re-h2 mt-4">
+          <h2 className="re-h2 mt-3">
             {firstName ? `${firstName}, this` : "This"} isn&rsquo;t a pitch. Talk to it yourself.
           </h2>
-          <p className="re-body re-muted-light mt-4">
+          <p className="re-body re-muted-light mt-3">
             This agent has already read {co} website. Ask it anything a real buyer would.
           </p>
         </motion.div>
 
-        <div className="mt-10 grid gap-5 lg:mt-14 lg:grid-cols-2 lg:gap-6">
+        <div className="mt-6 grid gap-4 lg:mt-8 lg:grid-cols-2 lg:gap-5">
           {/* Voice */}
           <motion.div
-            className="re-card-light re-card-hover p-6 sm:p-8 lg:p-10"
+            className="re-card-light re-card-hover p-5 sm:p-6 lg:p-7"
             initial={{ opacity: 0, y: 26 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
@@ -105,7 +105,7 @@ const REDemo = ({
               )}
             </div>
 
-            <div className="mt-7">
+            <div className="mt-5">
               {isLive ? (
                 <button
                   type="button"
@@ -128,8 +128,8 @@ const REDemo = ({
               )}
             </div>
 
-            <p className="re-eyebrow mt-8">Try saying</p>
-            <ul className="mt-3.5 space-y-2.5">
+            <p className="re-eyebrow mt-6">Try saying</p>
+            <ul className="mt-3 space-y-2">
               {vp.slice(0, 4).map((p) => (
                 <li
                   key={p}
@@ -144,7 +144,7 @@ const REDemo = ({
 
           {/* Chat */}
           <motion.div
-            className="re-card-light re-card-hover p-6 sm:p-8 lg:p-10"
+            className="re-card-light re-card-hover p-5 sm:p-6 lg:p-7"
             initial={{ opacity: 0, y: 26 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
@@ -168,7 +168,7 @@ const REDemo = ({
               </div>
             </div>
 
-            <div className="mt-7">
+            <div className="mt-5">
               <button
                 type="button"
                 className="re-btn re-btn-primary re-btn-lg min-h-[48px] w-full"
@@ -179,8 +179,8 @@ const REDemo = ({
               </button>
             </div>
 
-            <p className="re-eyebrow mt-8">Try asking</p>
-            <ul className="mt-3.5 space-y-2.5">
+            <p className="re-eyebrow mt-6">Try asking</p>
+            <ul className="mt-3 space-y-2">
               {cp.slice(0, 4).map((p) => (
                 <li key={p}>
                   <button

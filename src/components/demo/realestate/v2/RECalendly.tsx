@@ -40,7 +40,7 @@ const RECalendly = ({ companyName, calendarUrl }: RECalendlyProps) => {
     <section
       id="book-call"
       ref={ref}
-      className="re-section-dark scroll-mt-16 px-5 pb-16 sm:px-6 lg:px-10 lg:pb-24"
+      className="re-section-dark scroll-mt-16 px-5 pb-11 sm:px-6 lg:px-10 lg:pb-16"
     >
       <div className="mx-auto max-w-[62rem]">
         <div
