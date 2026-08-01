@@ -15,7 +15,7 @@ const SITE = "www.aiagentra.com";
  * details are deliberately absent. High-contrast text on near-black.
  */
 const REFooter = ({ companyName, onBookCall }: REFooterProps) => (
-  <footer className="px-5 py-14 sm:px-6 lg:px-10 lg:py-16" style={{ background: "#05070A" }}>
+  <footer className="px-5 py-10 sm:px-6 lg:px-10 lg:py-12" style={{ background: "#05070A" }}>
     <div className="mx-auto max-w-[78rem]">
       <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
         <div>

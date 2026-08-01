@@ -46,7 +46,7 @@ const REHero = ({
 
   return (
     <section className="re-section-dark re-atmosphere relative overflow-hidden">
-      <div className="relative z-10 mx-auto grid max-w-[78rem] items-center gap-12 px-5 pb-16 pt-10 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:px-10 lg:pb-28 lg:pt-16">
+      <div className="relative z-10 mx-auto grid max-w-[78rem] items-center gap-9 px-5 pb-11 pt-8 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12 lg:px-10 lg:pb-16 lg:pt-12">
         {/* Copy */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -58,7 +58,7 @@ const REHero = ({
             AI agent for {companyName}
           </span>
 
-          <h1 className="re-h1 mt-5">
+          <h1 className="re-h1 mt-4">
             {headline ?? (
               <>
                 {firstName ? `${firstName}, your ` : "Your "}leads won&rsquo;t wait —{" "}
@@ -67,12 +67,12 @@ const REHero = ({
             )}
           </h1>
 
-          <p className="re-body re-muted-dark mt-6 max-w-[35rem]" style={{ textWrap: "pretty" }}>
+          <p className="re-body re-muted-dark mt-4 max-w-[35rem]" style={{ textWrap: "pretty" }}>
             {subheadline ??
               `Every enquiry answered in seconds, day or night. See ${co} agent answer a real question below.`}
           </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             {isLive ? (
               <button
                 type="button"
@@ -103,7 +103,7 @@ const REHero = ({
             </button>
           </div>
 
-          <p className="mt-5 text-[0.8125rem]" style={{ color: "var(--re-on-dark-3)" }}>
+          <p className="mt-4 text-[0.8125rem]" style={{ color: "var(--re-on-dark-3)" }}>
             No signup. No install. Speak to it in the next ten seconds.
           </p>
         </motion.div>

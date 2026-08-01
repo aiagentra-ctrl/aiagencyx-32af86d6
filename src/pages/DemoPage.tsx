@@ -274,8 +274,6 @@ const DemoPage = () => {
           firstName={page.client_name?.split(/\s+/)[0] || dc.first_name || undefined}
           logoUrl={logoUrl}
           brandColor={dc.brand_color || linkedChatbot?.widget_config?.primaryColor}
-          headline={page.hero_title || undefined}
-          subheadline={page.hero_subtitle || undefined}
           contactEmail={page.contact_email || undefined}
           contactPhone={page.contact_phone || undefined}
           calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
