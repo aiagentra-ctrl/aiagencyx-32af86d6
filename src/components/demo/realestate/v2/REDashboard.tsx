@@ -4,6 +4,8 @@ export interface REDashboardProps {
   companyName: string;
   logoUrl?: string;
   companyDomain: string;
+  /** Force the full desktop layout regardless of viewport (used by the mobile preview/expand). */
+  forceWide?: boolean;
 }
 
 const NAV = [
@@ -49,7 +51,11 @@ const ACTIVITY = [
  * prospect gets a personalised version ({{CompanyName}}, {{Logo}}, {{CompanyDomain}}).
  * Stat numbers and activity names stay illustrative across all clients.
  */
-const REDashboard = ({ companyName, logoUrl, companyDomain }: REDashboardProps) => (
+const REDashboard = ({ companyName, logoUrl, companyDomain, forceWide }: REDashboardProps) => {
+  const w = (base: string, wide: string, responsive: string) =>
+    `${base} ${forceWide ? wide : responsive}`;
+
+  return (
   <div
     className="overflow-hidden rounded-[1.25rem]"
     style={{
@@ -67,10 +73,10 @@ const REDashboard = ({ companyName, logoUrl, companyDomain }: REDashboardProps) 
       <span className="truncate">{companyName} Dashboard</span>
     </div>
 
-    <div className="grid min-h-[26rem] grid-cols-1 min-[900px]:grid-cols-[15.5rem_1fr]">
+    <div className={w("grid min-h-[26rem]", "grid-cols-[15.5rem_1fr]", "grid-cols-1 min-[900px]:grid-cols-[15.5rem_1fr]")}>
       {/* Sidebar — illustrative, hidden on small screens */}
       <aside
-        className="hidden flex-col p-5 min-[900px]:flex"
+        className={w("flex-col p-5", "flex", "hidden min-[900px]:flex")}
         style={{ borderRight: "1px solid var(--re-dash-border)" }}
       >
         <div className="mb-8 flex items-center gap-2.5 px-1">
@@ -143,7 +149,7 @@ const REDashboard = ({ companyName, logoUrl, companyDomain }: REDashboardProps) 
             >
               A
             </span>
-            <div className="hidden sm:block">
+            <div className={forceWide ? "block" : "hidden sm:block"}>
               <p className="text-[0.8125rem] font-bold" style={{ color: "var(--re-dash-text)" }}>
                 Admin user
               </p>
@@ -155,7 +161,7 @@ const REDashboard = ({ companyName, logoUrl, companyDomain }: REDashboardProps) 
         </div>
 
         {/* Stat cards */}
-        <div className="mb-3.5 grid grid-cols-2 gap-2.5 sm:gap-3.5 min-[900px]:grid-cols-4">
+        <div className={w("mb-3.5 grid gap-2.5 sm:gap-3.5", "grid-cols-4", "grid-cols-2 min-[900px]:grid-cols-4")}>
           {STATS.map((s) => (
             <div
               key={s.label}
@@ -196,7 +202,7 @@ const REDashboard = ({ companyName, logoUrl, companyDomain }: REDashboardProps) 
           <p className="mb-4 text-[1rem] font-bold" style={{ color: "var(--re-dash-text)" }}>
             Today&rsquo;s quick stats
           </p>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 min-[900px]:grid-cols-5">
+          <div className={w("grid gap-2.5", "grid-cols-5", "grid-cols-2 sm:grid-cols-3 min-[900px]:grid-cols-5")}>
             {QUICK.map((q) => (
               <div
                 key={q.label}
@@ -280,6 +286,7 @@ const REDashboard = ({ companyName, logoUrl, companyDomain }: REDashboardProps) 
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export default REDashboard;
