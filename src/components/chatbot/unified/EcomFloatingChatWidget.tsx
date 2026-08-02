@@ -1,3 +1,4 @@
+import type React from "react";
 import { forwardRef, useImperativeHandle, useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageCircle, X } from "lucide-react";
