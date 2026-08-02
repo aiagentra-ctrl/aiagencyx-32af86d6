@@ -34,7 +34,7 @@ interface Props {
   /** Copy overrides so non-ecommerce verticals read correctly. */
   heroTagline?: string;
   introBlurb?: string;
-  tipLabel?: string;
+  tipLabel?: React.ReactNode;
 }
 
 const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>(({

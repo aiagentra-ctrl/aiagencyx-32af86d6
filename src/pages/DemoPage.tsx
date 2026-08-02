@@ -27,6 +27,8 @@ const DentalWhyClinicSection = lazy(() => import("@/components/demo/DentalWhyCli
 const PropertyShowcaseSection = lazy(() => import("@/components/demo/realestate/PropertyShowcaseSection"));
 const RealEstateValueSection = lazy(() => import("@/components/demo/realestate/RealEstateValueSection"));
 const RealEstateLandingPageV2 = lazy(() => import("@/components/demo/realestate/v2/RealEstateLandingPage"));
+const REVoiceCall = lazy(() => import("@/components/demo/realestate/v2/REVoiceCall"));
+const REChatWidget = lazy(() => import("@/components/chatbot/unified/EcomFloatingChatWidget"));
 
 // Ecommerce specific sections
 const ProductGridSection = lazy(() => import("@/components/demo/ecommerce/ProductGridSection"));
