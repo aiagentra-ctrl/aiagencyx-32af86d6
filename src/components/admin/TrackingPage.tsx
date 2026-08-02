@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowUpDown, RefreshCw, Flame, Thermometer, Snowflake, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import LeadThreadDialog from "./tracking/LeadThreadDialog";
 
 type Prospect = {
   id: string;
@@ -62,6 +63,8 @@ const TrackingPage = () => {
   const [country, setCountry] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("last_activity");
   const [sortAsc, setSortAsc] = useState(false);
+  const [selected, setSelected] = useState<Prospect | null>(null);
+
 
   const load = async () => {
     setLoading(true);
@@ -235,7 +238,8 @@ const TrackingPage = () => {
                       {rows.map((p) => {
                         const t = TEMP[p.engagement_tier || "not_tried"] || TEMP.not_tried;
                         return (
-                          <TableRow key={p.id}>
+                          <TableRow key={p.id} className="cursor-pointer" onClick={() => setSelected(p)}>
+
                             <TableCell>
                               <div className="font-medium text-foreground">{p.company || "—"}</div>
                               <div className="text-xs text-muted-foreground">{p.firstname || p.email}</div>
@@ -312,8 +316,11 @@ const TrackingPage = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <LeadThreadDialog prospect={selected} onOpenChange={(o) => !o && setSelected(null)} />
     </div>
   );
 };
+
 
 export default TrackingPage;

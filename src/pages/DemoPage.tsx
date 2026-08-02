@@ -27,6 +27,8 @@ const DentalWhyClinicSection = lazy(() => import("@/components/demo/DentalWhyCli
 const PropertyShowcaseSection = lazy(() => import("@/components/demo/realestate/PropertyShowcaseSection"));
 const RealEstateValueSection = lazy(() => import("@/components/demo/realestate/RealEstateValueSection"));
 const RealEstateLandingPageV2 = lazy(() => import("@/components/demo/realestate/v2/RealEstateLandingPage"));
+const REVoiceCall = lazy(() => import("@/components/demo/realestate/v2/REVoiceCall"));
+const REChatWidget = lazy(() => import("@/components/chatbot/unified/EcomFloatingChatWidget"));
 
 // Ecommerce specific sections
 const ProductGridSection = lazy(() => import("@/components/demo/ecommerce/ProductGridSection"));
@@ -80,6 +82,8 @@ const DemoPage = () => {
   const [scrolledPastHero, setScrolledPastHero] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [callError, setCallError] = useState<string | null>(null);
 
   const resolvedSlug = (() => {
     if (slug) return slug;
@@ -93,40 +97,48 @@ const DemoPage = () => {
     const fetchPage = async () => {
       if (!resolvedSlug) { setError("Demo page not found"); setLoading(false); return; }
 
-      let { data, error: fetchError } = await supabase
-        .from("demo_pages").select("*").eq("slug", resolvedSlug).single();
+      // Page + global settings go out together — the settings row never depends
+      // on the page row, so waiting for it serially only added latency.
+      const [pageRes, settingsRes] = await Promise.all([
+        supabase.from("demo_pages").select("*").eq("slug", resolvedSlug).maybeSingle(),
+        supabase.from("site_settings").select("value").eq("key", "calendar_url").maybeSingle(),
+      ]);
 
-      if (fetchError || !data) {
+      let data = pageRes.data;
+      if (!data) {
         const subResult = await supabase
-          .from("demo_pages").select("*").eq("custom_subdomain", resolvedSlug).single();
+          .from("demo_pages").select("*").eq("custom_subdomain", resolvedSlug).maybeSingle();
         data = subResult.data;
-        fetchError = subResult.error;
       }
 
-      if (fetchError || !data) { setError("Demo page not found"); setLoading(false); return; }
-
-      setPage(data as unknown as DemoPageData);
-      setLoading(false);
-
-      const [settingsRes, chatbotRes] = await Promise.all([
-        supabase.from("site_settings").select("*").eq("key", "calendar_url").maybeSingle(),
-        supabase.from("chatbots").select("id, widget_config, research_data, logo_url")
-          .eq("demo_page_id", data.id).eq("status", "active").maybeSingle(),
-      ]);
+      if (!data) { setError("Demo page not found"); setLoading(false); return; }
 
       if (settingsRes.data && (settingsRes.data as any).value) {
         setGlobalCalendarUrl((settingsRes.data as any).value);
       }
+
+      // Paint the page as soon as the page row lands.
+      setPage(data as unknown as DemoPageData);
+      setLoading(false);
+
+      const chatbotRes = await supabase
+        .from("chatbots").select("id, widget_config, research_data, logo_url")
+        .eq("demo_page_id", data.id).eq("status", "active").maybeSingle();
       if (chatbotRes.data) setLinkedChatbot(chatbotRes.data as unknown as LinkedChatbot);
 
-      // Track page view + session start + scroll/click tracking + return visits
-      const opts = { demoPageId: data.id, businessName: data.business_name };
-      trackEvent(data.slug, "page_view", opts);
-      trackSessionStart(data.slug, opts);
-      startScrollTracking(data.slug, opts);
-      startClickTracking(data.slug, opts);
-      trackReturnVisit(data.slug, opts);
+      // Tracking is never allowed to compete with first paint.
+      const startTracking = () => {
+        const opts = { demoPageId: data!.id, businessName: data!.business_name };
+        trackEvent(data!.slug, "page_view", opts);
+        trackSessionStart(data!.slug, opts);
+        startScrollTracking(data!.slug, opts);
+        startClickTracking(data!.slug, opts);
+        trackReturnVisit(data!.slug, opts);
+      };
+      if (typeof requestIdleCallback === "function") requestIdleCallback(startTracking, { timeout: 2000 });
+      else setTimeout(startTracking, 300);
     };
+
 
     fetchPage();
 
@@ -162,31 +174,72 @@ const DemoPage = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // ── VAPI warm-up ──────────────────────────────────────────────────────
+  // The SDK used to be imported inside the click handler, so the download +
+  // client construction happened while the user was already waiting. It is now
+  // preloaded and constructed on idle, leaving only `start()` on the click.
+  const vapiRef = useRef<any>(null);
+  const vapiWarm = useRef<Promise<any> | null>(null);
+
+  const warmVapi = useCallback((): Promise<any> | null => {
+    if (!page?.vapi_key) return null;
+    if (vapiWarm.current) return vapiWarm.current;
+    vapiWarm.current = import("@vapi-ai/web")
+      .then(({ default: Vapi }) => {
+        const vapi = new Vapi(page.vapi_key);
+        vapi.on("call-start", () => {
+          setCallError(null);
+          setCallStatus("connected");
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
+        });
+        vapi.on("call-end", () => {
+          setCallStatus("ended");
+          if (timerRef.current) clearInterval(timerRef.current);
+        });
+        vapi.on("error", (e: any) => {
+          console.error("Vapi error:", e);
+          setCallError("The voice agent couldn't connect. Check your mic permission and try again.");
+          setCallStatus("idle");
+          if (timerRef.current) clearInterval(timerRef.current);
+        });
+        vapiRef.current = vapi;
+        setVapiInstance(vapi);
+        return vapi;
+      })
+      .catch((err) => {
+        console.error("Vapi preload failed:", err);
+        vapiWarm.current = null;
+        return null;
+      });
+    return vapiWarm.current;
+  }, [page]);
+
+  useEffect(() => {
+    if (!page?.vapi_key) return;
+    const run = () => { warmVapi(); };
+    if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 2500 });
+    else setTimeout(run, 400);
+  }, [page, warmVapi]);
+
   const startVapi = useCallback(async () => {
     if (!page || callStatus === "calling" || callStatus === "connected") return;
+    setCallError(null);
+    setCallStatus("calling");
+    setCallSeconds(0);
+    setVoiceOpen(true);
+    if (resolvedSlug) trackEvent(resolvedSlug, "voice_call_started", { demoPageId: page.id, businessName: page.business_name });
     try {
-      setCallStatus("calling");
-      setCallSeconds(0);
-      if (resolvedSlug) trackEvent(resolvedSlug, "voice_call_started", { demoPageId: page.id, businessName: page.business_name });
-      const { default: Vapi } = await import("@vapi-ai/web");
-      const vapi = new Vapi(page.vapi_key);
-
-      vapi.on("call-start", () => {
-        setCallStatus("connected");
-        timerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
-      });
-      vapi.on("call-end", () => {
-        setCallStatus("ended");
-        if (timerRef.current) clearInterval(timerRef.current);
-      });
-
-      vapi.start(page.assistant_id);
-      setVapiInstance(vapi);
+      const vapi = vapiRef.current || (await warmVapi());
+      if (!vapi) throw new Error("voice agent unavailable");
+      await vapi.start(page.assistant_id);
     } catch (err) {
-      console.error("Vapi initialization failed:", err);
+      console.error("Vapi start failed:", err);
+      setCallError("The voice agent couldn't connect. Check your mic permission and try again.");
       setCallStatus("idle");
     }
-  }, [page, callStatus]);
+  }, [page, callStatus, resolvedSlug, warmVapi]);
+
 
   const endVapi = useCallback(() => {
     if (vapiInstance) {
@@ -287,20 +340,34 @@ const DemoPage = () => {
           onEndCall={endVapi}
           onTryChat={openChatbot}
         >
+          {/* Voice lives in its own overlay — it must never open the chatbot. */}
+          <REVoiceCall
+            open={voiceOpen}
+            companyName={companyName}
+            callStatus={callStatus}
+            callSeconds={callSeconds}
+            error={callError}
+            onEndCall={endVapi}
+            onRetry={startVapi}
+            onClose={() => { setVoiceOpen(false); if (callStatus === "connected" || callStatus === "calling") endVapi(); }}
+          />
           {linkedChatbot && (
-            <ChatWidget
+            <REChatWidget
               chatbotId={linkedChatbot.id}
-              greeting={linkedChatbot.widget_config?.greeting}
-              logoUrl={logoUrl}
               businessName={companyName}
-              calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
-              externalOpen={chatOpen}
-              onExternalOpenChange={setChatOpen}
-              navItems={chatbotNavItems}
-              industry={page.industry || undefined}
+              logoUrl={logoUrl}
+              greeting={linkedChatbot.widget_config?.greeting}
+              visitorFirstName={page.client_name?.split(/\s+/)[0] || dc.first_name || undefined}
+              suggestionChips={dc.chat_prompts}
+              open={chatOpen}
+              onOpenChange={setChatOpen}
+              heroTagline={`What would you like to know about ${companyName}?`}
+              introBlurb={`I've read ${companyName}'s whole site. Ask me about listings, pricing, viewings or the areas we cover.`}
+              tipLabel={<>👋 Ask <strong>{companyName}</strong>'s AI anything</>}
             />
           )}
         </RealEstateLandingPageV2>
+
       </Suspense>
     );
   }

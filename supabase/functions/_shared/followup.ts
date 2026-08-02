@@ -5,6 +5,7 @@ export const TRIGGER_KEYS = [
   "no_click_48h",
   "clicked_no_open",
   "opened_no_try",
+  "tried_any_agent",
   "tried_voice_only",
   "tried_chat_only",
   "tried_both_no_reply",
@@ -62,6 +63,8 @@ export const FOLLOWUP_PROMPTS: Record<TriggerKey, string> = {
     "Prospect clicked the link but never opened the page. Write a 1-2 sentence nudge acknowledging they may have gotten busy, and re-share the link: {{demo_url}}",
   opened_no_try:
     "Prospect opened the demo page but didn't try the voice agent or chatbot. Write a friendly 1-2 sentence follow-up encouraging them to click the AI agent to see it in action. Include: {{demo_url}}",
+  tried_any_agent:
+    "Prospect tried the AI agent (voice or chatbot — either counts) but hasn't replied. Write a 1-2 sentence follow-up acknowledging they've seen the agent in action and asking one direct question about setting it up for {{company}}. Include: {{demo_url}}",
   tried_voice_only:
     "Prospect tried the voice agent but not the chatbot. Write a 1-2 sentence follow-up inviting them to also try the chatbot on the same page. Include: {{demo_url}}",
   tried_chat_only:

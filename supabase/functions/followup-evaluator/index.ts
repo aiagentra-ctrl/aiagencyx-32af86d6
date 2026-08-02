@@ -29,20 +29,43 @@ Deno.serve(async (req) => {
       .not("demo_sent_at", "is", null)
       .limit(500);
 
+    // Any prospect who has EVER replied is permanently out of the follow-up engine.
+    const ids = (prospects || []).map((p: any) => p.id);
+    const repliedIds = new Set<string>();
+    if (ids.length) {
+      const { data: replies } = await supabase
+        .from("inbox_messages")
+        .select("prospect_id")
+        .eq("direction", "incoming")
+        .in("prospect_id", ids);
+      for (const r of replies || []) repliedIds.add(r.prospect_id);
+    }
+
     let created = 0;
     for (const p of prospects || []) {
       if (p.automation_paused) continue;
+      if (repliedIds.has(p.id)) continue;
+      if (p.calendly_booked_at) continue;
       if ((p.followup_attempts ?? 0) >= (p.max_followup_attempts ?? 2)) continue;
 
       // pick trigger
       const triedVoice = !!p.voice_tried_at;
       const triedChat = !!p.chatbot_tried_at;
+      const triedAny = triedVoice || triedChat;
       const opened = !!p.demo_page_opened_at;
       const clicked = !!p.demo_link_clicked_at;
       const demoAge = hoursAgo(p.demo_sent_at);
+      const lastTryAt = [p.voice_tried_at, p.chatbot_tried_at]
+        .filter(Boolean)
+        .sort()
+        .slice(-1)[0] as string | undefined;
 
       let triggerKey: string | null = null;
-      if (triedVoice && triedChat && hoursAgo(p.last_activity_at) >= (rulesByKey.get("tried_both_no_reply")?.delay_hours ?? 72)) triggerKey = "tried_both_no_reply";
+      // "Any agent tried" — fires when either channel was used. Checked first so a
+      // single sequence covers both signals; channel-specific rules stay available
+      // and take over when the any-agent rule is disabled.
+      if (triedAny && rulesByKey.has("tried_any_agent") && hoursAgo(lastTryAt) >= (rulesByKey.get("tried_any_agent")?.delay_hours ?? 48)) triggerKey = "tried_any_agent";
+      else if (triedVoice && triedChat && hoursAgo(p.last_activity_at) >= (rulesByKey.get("tried_both_no_reply")?.delay_hours ?? 72)) triggerKey = "tried_both_no_reply";
       else if (triedVoice && !triedChat && hoursAgo(p.voice_tried_at) >= (rulesByKey.get("tried_voice_only")?.delay_hours ?? 48)) triggerKey = "tried_voice_only";
       else if (triedChat && !triedVoice && hoursAgo(p.chatbot_tried_at) >= (rulesByKey.get("tried_chat_only")?.delay_hours ?? 48)) triggerKey = "tried_chat_only";
       else if (opened && !triedVoice && !triedChat && hoursAgo(p.demo_page_opened_at) >= (rulesByKey.get("opened_no_try")?.delay_hours ?? 24)) triggerKey = "opened_no_try";

@@ -29,6 +29,7 @@ const TRIGGERS = [
   { key: "no_click", label: "No Link Click" },
   { key: "clicked_no_open", label: "Clicked, No Page Open" },
   { key: "opened_no_interaction", label: "Opened, No Interaction" },
+  { key: "tried_any_agent", label: "Any Agent Tried (voice or chat)" },
   { key: "tried_voice_only", label: "Tried Voice Only" },
   { key: "tried_chat_only", label: "Tried Chat Only" },
   { key: "full_engage_no_reply", label: "Full Engagement, No Reply" },

@@ -45,6 +45,10 @@ interface Props {
   featuredProducts?: Product[];
   faqs?: FaqItem[];
   className?: string;
+  /** Overrides the shopping-specific greeting line on the home screen. */
+  heroTagline?: string;
+  /** Overrides the "I know this whole store" assistant intro. */
+  introBlurb?: string;
 }
 
 const DEFAULT_CHIPS = ["🏆 Bestsellers", "🎁 Gifts", "💰 Under $100", "📦 Track order"];
@@ -116,6 +120,7 @@ function relTime(ts: number) {
 const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
   chatbotId, businessName, logoUrl, productCount, vapiKey, assistantId,
   suggestionChips, visitorFirstName, featuredProducts = [], faqs, className,
+  heroTagline, introBlurb,
 }, ref) => {
   const [tab, setTab] = useState<Tab>("home");
   const [inChat, setInChat] = useState(false); // chat sub-screen inside 'home' flow
@@ -320,6 +325,7 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
               onOpenProduct={(p) => sendMessage(`Tell me about ${p.name}`)}
               hasVoice={Boolean(vapiKey && assistantId)}
               productCount={productCount}
+              heroTagline={heroTagline}
             />
           )}
           {tab === "home" && inChat && (
@@ -328,6 +334,7 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
               businessName={businessName}
               logoUrl={logoUrl}
               productCount={productCount}
+              introBlurb={introBlurb}
               messages={messages}
               isLoading={isLoading}
               chips={chips}
@@ -378,7 +385,7 @@ export default EcomChatShell;
 
 function HomeScreen({
   businessName, logoUrl, firstName, chips, recent, featuredProducts,
-  onAsk, onChip, onOpenRecent, onStartVoice, onOpenProduct, hasVoice, productCount,
+  onAsk, onChip, onOpenRecent, onStartVoice, onOpenProduct, hasVoice, productCount, heroTagline,
 }: any) {
   return (
     <motion.div
@@ -403,7 +410,7 @@ function HomeScreen({
           )}
         </div>
         <h2 className="text-2xl font-bold leading-tight">Hi {firstName} 👋</h2>
-        <p className="mt-1 text-xl font-light leading-snug opacity-95">What are you shopping for today?</p>
+        <p className="mt-1 text-xl font-light leading-snug opacity-95">{heroTagline || "What are you shopping for today?"}</p>
         {/* curved cutout */}
         <svg viewBox="0 0 400 40" preserveAspectRatio="none" className="absolute -bottom-px left-0 h-10 w-full text-[#0a0a0a]">
           <path d="M0,0 C120,50 280,50 400,0 L400,40 L0,40 Z" fill="currentColor" />
@@ -510,7 +517,7 @@ function MiniProductCard({ p, onClick }: { p: Product; onClick: () => void }) {
 // ================= CHAT =================
 
 function ChatScreen({
-  businessName, logoUrl, productCount, messages, isLoading, chips, input, setInput,
+  businessName, logoUrl, productCount, introBlurb, messages, isLoading, chips, input, setInput,
   onBack, onSend, onChip, onNewChat, onToggleVoice, voiceState, hasVoice, scrollRef, inputRef,
 }: any) {
   const voiceActive = voiceState === "listening" || voiceState === "speaking";
@@ -547,7 +554,7 @@ function ChatScreen({
             </div>
             <h3 className="mt-4 text-lg font-bold text-white">Hi, I'm the {businessName} AI 🛍️</h3>
             <p className="mt-1.5 max-w-[280px] text-sm text-white/60">
-              {productCount ? `I know all ${productCount} products in the store.` : "I know this whole store."} Ask me anything — sizing, shipping, gift ideas, or product recs.
+              {introBlurb || `${productCount ? `I know all ${productCount} products in the store.` : "I know this whole store."} Ask me anything — sizing, shipping, gift ideas, or product recs.`}
             </p>
             <div className="mt-6 grid w-full max-w-[280px] grid-cols-2 gap-2">
               {chips.map((c: string) => (

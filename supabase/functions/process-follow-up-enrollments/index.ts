@@ -82,8 +82,9 @@ Deno.serve(async (req) => {
       if (!p) { await release({}); continue; }
       if (p.automation_paused) { await release({}); continue; }
 
-      // ── Hard exit 1: prospect replied after the sequence started
-      const { data: reply } = await supabase.from("inbox_messages").select("id").eq("prospect_id", p.id).eq("direction", "incoming").gt("created_at", enr.started_at).limit(1);
+      // ── Hard exit 1: prospect replied at ANY point (any step, any sequence).
+      // Once a lead replies — positive or negative — every future follow-up stops.
+      const { data: reply } = await supabase.from("inbox_messages").select("id").eq("prospect_id", p.id).eq("direction", "incoming").limit(1);
       if (reply && reply.length) {
         await release({ status: "responded", completed_at: nowIso });
         cancelled++; continue;
