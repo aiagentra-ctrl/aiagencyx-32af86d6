@@ -80,6 +80,8 @@ const DemoPage = () => {
   const [scrolledPastHero, setScrolledPastHero] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [callError, setCallError] = useState<string | null>(null);
 
   const resolvedSlug = (() => {
     if (slug) return slug;
@@ -170,31 +172,72 @@ const DemoPage = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // ── VAPI warm-up ──────────────────────────────────────────────────────
+  // The SDK used to be imported inside the click handler, so the download +
+  // client construction happened while the user was already waiting. It is now
+  // preloaded and constructed on idle, leaving only `start()` on the click.
+  const vapiRef = useRef<any>(null);
+  const vapiWarm = useRef<Promise<any> | null>(null);
+
+  const warmVapi = useCallback((): Promise<any> | null => {
+    if (!page?.vapi_key) return null;
+    if (vapiWarm.current) return vapiWarm.current;
+    vapiWarm.current = import("@vapi-ai/web")
+      .then(({ default: Vapi }) => {
+        const vapi = new Vapi(page.vapi_key);
+        vapi.on("call-start", () => {
+          setCallError(null);
+          setCallStatus("connected");
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
+        });
+        vapi.on("call-end", () => {
+          setCallStatus("ended");
+          if (timerRef.current) clearInterval(timerRef.current);
+        });
+        vapi.on("error", (e: any) => {
+          console.error("Vapi error:", e);
+          setCallError("The voice agent couldn't connect. Check your mic permission and try again.");
+          setCallStatus("idle");
+          if (timerRef.current) clearInterval(timerRef.current);
+        });
+        vapiRef.current = vapi;
+        setVapiInstance(vapi);
+        return vapi;
+      })
+      .catch((err) => {
+        console.error("Vapi preload failed:", err);
+        vapiWarm.current = null;
+        return null;
+      });
+    return vapiWarm.current;
+  }, [page]);
+
+  useEffect(() => {
+    if (!page?.vapi_key) return;
+    const run = () => { warmVapi(); };
+    if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 2500 });
+    else setTimeout(run, 400);
+  }, [page, warmVapi]);
+
   const startVapi = useCallback(async () => {
     if (!page || callStatus === "calling" || callStatus === "connected") return;
+    setCallError(null);
+    setCallStatus("calling");
+    setCallSeconds(0);
+    setVoiceOpen(true);
+    if (resolvedSlug) trackEvent(resolvedSlug, "voice_call_started", { demoPageId: page.id, businessName: page.business_name });
     try {
-      setCallStatus("calling");
-      setCallSeconds(0);
-      if (resolvedSlug) trackEvent(resolvedSlug, "voice_call_started", { demoPageId: page.id, businessName: page.business_name });
-      const { default: Vapi } = await import("@vapi-ai/web");
-      const vapi = new Vapi(page.vapi_key);
-
-      vapi.on("call-start", () => {
-        setCallStatus("connected");
-        timerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
-      });
-      vapi.on("call-end", () => {
-        setCallStatus("ended");
-        if (timerRef.current) clearInterval(timerRef.current);
-      });
-
-      vapi.start(page.assistant_id);
-      setVapiInstance(vapi);
+      const vapi = vapiRef.current || (await warmVapi());
+      if (!vapi) throw new Error("voice agent unavailable");
+      await vapi.start(page.assistant_id);
     } catch (err) {
-      console.error("Vapi initialization failed:", err);
+      console.error("Vapi start failed:", err);
+      setCallError("The voice agent couldn't connect. Check your mic permission and try again.");
       setCallStatus("idle");
     }
-  }, [page, callStatus]);
+  }, [page, callStatus, resolvedSlug, warmVapi]);
+
 
   const endVapi = useCallback(() => {
     if (vapiInstance) {
