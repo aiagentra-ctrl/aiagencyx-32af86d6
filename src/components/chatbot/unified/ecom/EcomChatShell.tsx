@@ -517,7 +517,7 @@ function MiniProductCard({ p, onClick }: { p: Product; onClick: () => void }) {
 // ================= CHAT =================
 
 function ChatScreen({
-  businessName, logoUrl, productCount, messages, isLoading, chips, input, setInput,
+  businessName, logoUrl, productCount, introBlurb, messages, isLoading, chips, input, setInput,
   onBack, onSend, onChip, onNewChat, onToggleVoice, voiceState, hasVoice, scrollRef, inputRef,
 }: any) {
   const voiceActive = voiceState === "listening" || voiceState === "speaking";
