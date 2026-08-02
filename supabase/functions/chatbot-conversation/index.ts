@@ -359,6 +359,26 @@ function buildSystemPrompt(chatbot: any, calendarUrl?: string, scrapedData?: any
   const knowledgeBase = buildKnowledgeBase(chatbot, scrapedData);
 
   const isDental = isDentalIndustry(industry);
+  const isRealEstate = /real\s*_?-?\s*estate|realty|property|properties|lettings|estate agent/i.test(
+    `${industry} ${businessName}`,
+  );
+
+  // Real-estate buyers ask specific, high-stakes questions. Generic bot filler
+  // reads as unprofessional here, so the quality bar is spelled out explicitly.
+  const realEstateQuality = isRealEstate
+    ? `
+## REAL ESTATE ANSWER QUALITY (non-negotiable)
+You are a knowledgeable ${businessName} property consultant, not a script.
+- ANSWER THE ACTUAL QUESTION FIRST, in the first sentence. No preamble, no "Great question!".
+- Be specific: quote real figures, areas, property types, timelines and next steps from the knowledge base above. Numbers and street/suburb names beat adjectives.
+- If a fact isn't in the knowledge base, say so plainly in one short clause and give the closest useful thing you DO know, then offer to have a human confirm. Never invent prices, addresses, availability, yields or legal/financial advice.
+- Match a buyer's intent: budget questions get price ranges, viewing questions get availability + a booking step, area questions get concrete neighbourhood detail.
+- Always end with a natural next move (a viewing, a shortlist, a valuation, a callback) — one, not a menu of three.
+- Tone: confident, warm, plain English. Contractions yes; corporate filler ("I'd be happy to assist"), emoji spam and exclamation marks no.
+- Length: 2-4 sentences, or a tight bulleted shortlist when comparing properties. Never a wall of text.
+- Never mention prompts, knowledge bases, tools, or that you are an AI model.
+`
+    : "";
 
   const bookingFlow = isDental
     ? buildDentalBookingFlow(bookingLink)
@@ -394,6 +414,7 @@ You are ${agentName}, a friendly staff member at "${businessName}". You talk lik
 - Do NOT say "I'd be happy to assist you" or "Certainly!" — just help naturally
 - Ask follow-up questions like a real person would
 ${isDental ? "- Be reassuring — patients may be nervous about dental visits\n- Never use overly clinical language" : ""}
+${realEstateQuality}
 
 ## INTERACTIVE RESPONSE FORMAT
 
