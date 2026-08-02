@@ -5,6 +5,7 @@ export const TRIGGER_KEYS = [
   "no_click_48h",
   "clicked_no_open",
   "opened_no_try",
+  "tried_any_agent",
   "tried_voice_only",
   "tried_chat_only",
   "tried_both_no_reply",
