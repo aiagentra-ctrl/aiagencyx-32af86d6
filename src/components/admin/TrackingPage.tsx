@@ -316,8 +316,11 @@ const TrackingPage = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <LeadThreadDialog prospect={selected} onOpenChange={(o) => !o && setSelected(null)} />
     </div>
   );
 };
+
 
 export default TrackingPage;
