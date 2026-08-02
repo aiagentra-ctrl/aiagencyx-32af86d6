@@ -28,14 +28,28 @@ interface Props {
   contained?: boolean;
   /** Initial open state (for preview) */
   defaultOpen?: boolean;
+  /** Controlled open state (e.g. opened by a page CTA). */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Copy overrides so non-ecommerce verticals read correctly. */
+  heroTagline?: string;
+  introBlurb?: string;
+  tipLabel?: string;
 }
 
 const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>(({
   chatbotId, businessName, logoUrl, productCount, vapiKey, assistantId,
   suggestionChips, greeting, visitorFirstName, featuredProducts, faqs,
   contained = false, defaultOpen = false,
+  open: openProp, onOpenChange, heroTagline, introBlurb, tipLabel,
 }, ref) => {
-  const [open, setOpen] = useState(defaultOpen);
+  const [openState, setOpenState] = useState(defaultOpen);
+  const open = openProp !== undefined ? openProp : openState;
+  const setOpen = (v: boolean | ((p: boolean) => boolean)) => {
+    const next = typeof v === "function" ? (v as (p: boolean) => boolean)(open) : v;
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const [showTip, setShowTip] = useState(false);
   const chatRef = useRef<EcomChatShellHandle>(null);
 
@@ -77,7 +91,7 @@ const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>((
                 initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
                 className="mr-1 max-w-[220px] rounded-2xl rounded-br-sm border border-black/5 bg-white px-3 py-2 text-sm text-slate-700 shadow-lg"
               >
-                👋 Chat with <strong>{businessName}</strong>'s AI
+                {tipLabel || <>👋 Chat with <strong>{businessName}</strong>'s AI</>}
               </motion.div>
             )}
             <button
@@ -136,6 +150,8 @@ const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>((
                 visitorFirstName={visitorFirstName}
                 featuredProducts={featuredProducts}
                 faqs={faqs}
+                heroTagline={heroTagline}
+                introBlurb={introBlurb}
                 className="h-full"
               />
             ) : (
