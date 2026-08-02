@@ -63,6 +63,8 @@ const TrackingPage = () => {
   const [country, setCountry] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("last_activity");
   const [sortAsc, setSortAsc] = useState(false);
+  const [selected, setSelected] = useState<Prospect | null>(null);
+
 
   const load = async () => {
     setLoading(true);
@@ -236,7 +238,8 @@ const TrackingPage = () => {
                       {rows.map((p) => {
                         const t = TEMP[p.engagement_tier || "not_tried"] || TEMP.not_tried;
                         return (
-                          <TableRow key={p.id}>
+                          <TableRow key={p.id} className="cursor-pointer" onClick={() => setSelected(p)}>
+
                             <TableCell>
                               <div className="font-medium text-foreground">{p.company || "—"}</div>
                               <div className="text-xs text-muted-foreground">{p.firstname || p.email}</div>
