@@ -93,40 +93,48 @@ const DemoPage = () => {
     const fetchPage = async () => {
       if (!resolvedSlug) { setError("Demo page not found"); setLoading(false); return; }
 
-      let { data, error: fetchError } = await supabase
-        .from("demo_pages").select("*").eq("slug", resolvedSlug).single();
+      // Page + global settings go out together — the settings row never depends
+      // on the page row, so waiting for it serially only added latency.
+      const [pageRes, settingsRes] = await Promise.all([
+        supabase.from("demo_pages").select("*").eq("slug", resolvedSlug).maybeSingle(),
+        supabase.from("site_settings").select("value").eq("key", "calendar_url").maybeSingle(),
+      ]);
 
-      if (fetchError || !data) {
+      let data = pageRes.data;
+      if (!data) {
         const subResult = await supabase
-          .from("demo_pages").select("*").eq("custom_subdomain", resolvedSlug).single();
+          .from("demo_pages").select("*").eq("custom_subdomain", resolvedSlug).maybeSingle();
         data = subResult.data;
-        fetchError = subResult.error;
       }
 
-      if (fetchError || !data) { setError("Demo page not found"); setLoading(false); return; }
-
-      setPage(data as unknown as DemoPageData);
-      setLoading(false);
-
-      const [settingsRes, chatbotRes] = await Promise.all([
-        supabase.from("site_settings").select("*").eq("key", "calendar_url").maybeSingle(),
-        supabase.from("chatbots").select("id, widget_config, research_data, logo_url")
-          .eq("demo_page_id", data.id).eq("status", "active").maybeSingle(),
-      ]);
+      if (!data) { setError("Demo page not found"); setLoading(false); return; }
 
       if (settingsRes.data && (settingsRes.data as any).value) {
         setGlobalCalendarUrl((settingsRes.data as any).value);
       }
+
+      // Paint the page as soon as the page row lands.
+      setPage(data as unknown as DemoPageData);
+      setLoading(false);
+
+      const chatbotRes = await supabase
+        .from("chatbots").select("id, widget_config, research_data, logo_url")
+        .eq("demo_page_id", data.id).eq("status", "active").maybeSingle();
       if (chatbotRes.data) setLinkedChatbot(chatbotRes.data as unknown as LinkedChatbot);
 
-      // Track page view + session start + scroll/click tracking + return visits
-      const opts = { demoPageId: data.id, businessName: data.business_name };
-      trackEvent(data.slug, "page_view", opts);
-      trackSessionStart(data.slug, opts);
-      startScrollTracking(data.slug, opts);
-      startClickTracking(data.slug, opts);
-      trackReturnVisit(data.slug, opts);
+      // Tracking is never allowed to compete with first paint.
+      const startTracking = () => {
+        const opts = { demoPageId: data!.id, businessName: data!.business_name };
+        trackEvent(data!.slug, "page_view", opts);
+        trackSessionStart(data!.slug, opts);
+        startScrollTracking(data!.slug, opts);
+        startClickTracking(data!.slug, opts);
+        trackReturnVisit(data!.slug, opts);
+      };
+      if (typeof requestIdleCallback === "function") requestIdleCallback(startTracking, { timeout: 2000 });
+      else setTimeout(startTracking, 300);
     };
+
 
     fetchPage();
 
