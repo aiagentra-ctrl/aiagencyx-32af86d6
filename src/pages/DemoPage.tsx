@@ -338,20 +338,34 @@ const DemoPage = () => {
           onEndCall={endVapi}
           onTryChat={openChatbot}
         >
+          {/* Voice lives in its own overlay — it must never open the chatbot. */}
+          <REVoiceCall
+            open={voiceOpen}
+            companyName={companyName}
+            callStatus={callStatus}
+            callSeconds={callSeconds}
+            error={callError}
+            onEndCall={endVapi}
+            onRetry={startVapi}
+            onClose={() => { setVoiceOpen(false); if (callStatus === "connected" || callStatus === "calling") endVapi(); }}
+          />
           {linkedChatbot && (
-            <ChatWidget
+            <REChatWidget
               chatbotId={linkedChatbot.id}
-              greeting={linkedChatbot.widget_config?.greeting}
-              logoUrl={logoUrl}
               businessName={companyName}
-              calendarUrl={page.calendly_url || globalCalendarUrl || undefined}
-              externalOpen={chatOpen}
-              onExternalOpenChange={setChatOpen}
-              navItems={chatbotNavItems}
-              industry={page.industry || undefined}
+              logoUrl={logoUrl}
+              greeting={linkedChatbot.widget_config?.greeting}
+              visitorFirstName={page.client_name?.split(/\s+/)[0] || dc.first_name || undefined}
+              suggestionChips={dc.chat_prompts}
+              open={chatOpen}
+              onOpenChange={setChatOpen}
+              heroTagline={`What would you like to know about ${companyName}?`}
+              introBlurb={`I've read ${companyName}'s whole site. Ask me about listings, pricing, viewings or the areas we cover.`}
+              tipLabel={<>👋 Ask <strong>{companyName}</strong>'s AI anything</>}
             />
           )}
         </RealEstateLandingPageV2>
+
       </Suspense>
     );
   }
