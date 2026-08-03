@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   MousePointerClick, Eye, Phone, MessageSquare, CalendarClock, CalendarCheck,
-  Mail, Reply, Layers, Loader2,
+  Mail, Reply, Layers, Loader2, Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
