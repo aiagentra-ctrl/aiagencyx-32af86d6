@@ -358,11 +358,14 @@ const DemoPage = () => {
               logoUrl={logoUrl}
               greeting={linkedChatbot.widget_config?.greeting}
               visitorFirstName={page.client_name?.split(/\s+/)[0] || dc.first_name || undefined}
-              suggestionChips={dc.chat_prompts}
+              suggestionChips={dc.chat_prompts?.length ? dc.chat_prompts : RE_CHAT_CHIPS}
+              faqs={realEstateFaqs(companyName)}
               open={chatOpen}
               onOpenChange={setChatOpen}
-              heroTagline={`What would you like to know about ${companyName}?`}
+              heroGreeting={`Hi, I'm ${companyName}'s AI 👋`}
+              heroTagline={`Ask me about listings, viewings, pricing or the areas we cover.`}
               introBlurb={`I've read ${companyName}'s whole site. Ask me about listings, pricing, viewings or the areas we cover.`}
+              sampleRecent={{ label: "Popular question", text: "Can I book a viewing this week?" }}
               tipLabel={<>👋 Ask <strong>{companyName}</strong>'s AI anything</>}
             />
           )}
