@@ -27,7 +27,18 @@
   <meta name="twitter:description" content="Hi! I created this AI agent specifically for your business. Please check it out and let me know your feedback. I&#39;d love to hear your thoughts and any suggestion">
 </head>
   <body>
+    <style>
+      /* Instant paint shell: the dark page ground is visible before any JS runs. */
+      html, body { margin: 0; background: #0B0F14; }
+      #root:empty::before {
+        content: "";
+        display: block;
+        height: 100vh;
+        background: radial-gradient(120% 80% at 50% 0%, #151B23 0%, #0B0F14 60%);
+      }
+    </style>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
   </body>
 </html>
