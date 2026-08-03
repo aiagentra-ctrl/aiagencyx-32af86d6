@@ -44,7 +44,7 @@ const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>((
   chatbotId, businessName, logoUrl, productCount, vapiKey, assistantId,
   suggestionChips, greeting, visitorFirstName, featuredProducts, faqs,
   contained = false, defaultOpen = false,
-  open: openProp, onOpenChange, heroTagline, introBlurb, tipLabel,
+  open: openProp, onOpenChange, heroTagline, introBlurb, tipLabel, heroGreeting, sampleRecent,
 }, ref) => {
   const [openState, setOpenState] = useState(defaultOpen);
   const open = openProp !== undefined ? openProp : openState;
