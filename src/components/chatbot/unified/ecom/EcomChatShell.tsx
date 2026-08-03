@@ -124,7 +124,7 @@ function relTime(ts: number) {
 const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
   chatbotId, businessName, logoUrl, productCount, vapiKey, assistantId,
   suggestionChips, visitorFirstName, featuredProducts = [], faqs, className,
-  heroTagline, introBlurb,
+  heroTagline, introBlurb, heroGreeting, sampleRecent,
 }, ref) => {
   const [tab, setTab] = useState<Tab>("home");
   const [inChat, setInChat] = useState(false); // chat sub-screen inside 'home' flow
