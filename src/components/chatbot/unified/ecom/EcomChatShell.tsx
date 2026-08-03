@@ -392,6 +392,7 @@ export default EcomChatShell;
 function HomeScreen({
   businessName, logoUrl, firstName, chips, recent, featuredProducts,
   onAsk, onChip, onOpenRecent, onStartVoice, onOpenProduct, hasVoice, productCount, heroTagline,
+  heroGreeting, sampleRecent,
 }: any) {
   return (
     <motion.div
