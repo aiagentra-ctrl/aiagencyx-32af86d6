@@ -178,6 +178,43 @@ const LeadThreadDialog = ({ prospect, onOpenChange }: Props) => {
         }
       }
 
+      // Chatbot transcript — every visitor and AI message, in order.
+      const seenMsg = new Set<string>();
+      const pushChat = (role: string, content: string, at: string) => {
+        const text = (content || "").trim();
+        if (!text) return;
+        const key = `${role}|${text}|${at}`;
+        if (seenMsg.has(key)) return;
+        seenMsg.add(key);
+        const isUser = role === "user";
+        out.push({
+          at,
+          kind: isUser ? "visitor_msg" : "ai_msg",
+          title: isUser ? "Visitor asked the chatbot" : "AI replied",
+          body: text,
+        });
+      };
+      for (const m of chatMessages) pushChat(m.role, m.content, m.created_at);
+      for (const c of chatConversations) {
+        const base = new Date(c.created_at || c.updated_at || Date.now()).getTime();
+        const arr = Array.isArray(c.messages) ? c.messages : [];
+        arr.forEach((m: any, i: number) => {
+          const at = m?.created_at || m?.timestamp || new Date(base + i * 1000).toISOString();
+          pushChat(m?.role, m?.content ?? m?.text ?? "", at);
+        });
+      }
+
+      // Voice call summary — duration and tier from the lead record.
+      if (prospect.voice_tried_at && prospect.demo_engagement_seconds > 0) {
+        out.push({
+          at: prospect.voice_tried_at,
+          kind: "voice",
+          title: "Voice call engagement",
+          detail: `${Math.round(prospect.demo_engagement_seconds)}s · tier: ${prospect.engagement_tier || "not_tried"}${prospect.engagement_channel ? ` · channel: ${prospect.engagement_channel}` : ""}`,
+        });
+      }
+
+
       for (const ev of (evRes.data || []) as any[]) {
         if (!ev.sent_at && ev.status !== "sent") continue;
         out.push({
