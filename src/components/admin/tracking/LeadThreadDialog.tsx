@@ -30,7 +30,7 @@ export type ThreadProspect = {
 
 type Item = {
   at: string;
-  kind: "open" | "click" | "section" | "voice" | "chat" | "calendly" | "booked" | "sent" | "reply";
+  kind: "open" | "click" | "section" | "voice" | "chat" | "calendly" | "booked" | "sent" | "reply" | "visitor_msg" | "ai_msg";
   title: string;
   detail?: string;
   body?: string;
@@ -47,6 +47,8 @@ const ICONS: Record<Item["kind"], React.ReactNode> = {
   booked: <CalendarCheck className="h-3.5 w-3.5" />,
   sent: <Mail className="h-3.5 w-3.5" />,
   reply: <Reply className="h-3.5 w-3.5" />,
+  visitor_msg: <MessageSquare className="h-3.5 w-3.5" />,
+  ai_msg: <Bot className="h-3.5 w-3.5" />,
 };
 
 const TONE: Record<Item["kind"], string> = {
@@ -59,6 +61,8 @@ const TONE: Record<Item["kind"], string> = {
   booked: "bg-emerald-100 text-emerald-800",
   sent: "bg-orange-100 text-orange-800",
   reply: "bg-sky-100 text-sky-800",
+  visitor_msg: "bg-violet-100 text-violet-700",
+  ai_msg: "bg-slate-200 text-slate-700",
 };
 
 const when = (d?: string | null) =>
