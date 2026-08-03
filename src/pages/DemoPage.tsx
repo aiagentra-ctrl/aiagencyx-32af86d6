@@ -279,12 +279,25 @@ const DemoPage = () => {
   }, []);
 
   if (loading) {
+    // Hero-shaped skeleton instead of a bare spinner: first contentful paint
+    // happens as soon as React mounts, not after the database round-trip.
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="min-h-screen" style={{ background: "#0B0F14" }}>
+        <div className="mx-auto max-w-3xl px-6 pt-28 text-center">
+          <p className="text-sm font-semibold tracking-wide" style={{ color: "#3B82F6" }}>
+            Loading your AI agent…
+          </p>
+          <div className="mt-6 space-y-4" aria-hidden>
+            <div className="mx-auto h-10 w-full animate-pulse rounded-lg" style={{ background: "#151B23" }} />
+            <div className="mx-auto h-10 w-4/5 animate-pulse rounded-lg" style={{ background: "#151B23" }} />
+            <div className="mx-auto mt-8 h-5 w-3/5 animate-pulse rounded" style={{ background: "#151B23" }} />
+            <div className="mx-auto mt-10 h-12 w-56 animate-pulse rounded-full" style={{ background: "#1c2430" }} />
+          </div>
+        </div>
       </div>
     );
   }
+
 
   if (error || !page) {
     return (
