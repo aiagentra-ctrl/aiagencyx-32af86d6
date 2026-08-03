@@ -35,6 +35,8 @@ interface Props {
   /** Copy overrides so non-ecommerce verticals read correctly. */
   heroTagline?: string;
   introBlurb?: string;
+  heroGreeting?: string;
+  sampleRecent?: { text: string; label?: string };
   tipLabel?: React.ReactNode;
 }
 
@@ -42,7 +44,7 @@ const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>((
   chatbotId, businessName, logoUrl, productCount, vapiKey, assistantId,
   suggestionChips, greeting, visitorFirstName, featuredProducts, faqs,
   contained = false, defaultOpen = false,
-  open: openProp, onOpenChange, heroTagline, introBlurb, tipLabel,
+  open: openProp, onOpenChange, heroTagline, introBlurb, tipLabel, heroGreeting, sampleRecent,
 }, ref) => {
   const [openState, setOpenState] = useState(defaultOpen);
   const open = openProp !== undefined ? openProp : openState;
@@ -153,6 +155,8 @@ const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>((
                 faqs={faqs}
                 heroTagline={heroTagline}
                 introBlurb={introBlurb}
+                heroGreeting={heroGreeting}
+                sampleRecent={sampleRecent}
                 className="h-full"
               />
             ) : (

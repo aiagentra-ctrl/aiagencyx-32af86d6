@@ -49,6 +49,10 @@ interface Props {
   heroTagline?: string;
   /** Overrides the "I know this whole store" assistant intro. */
   introBlurb?: string;
+  /** Overrides the "Hi {firstName} 👋" home greeting line. */
+  heroGreeting?: string;
+  /** Illustrative suggestion shown in the "Recent Conversation" slot when there is no real history. */
+  sampleRecent?: { text: string; label?: string };
 }
 
 const DEFAULT_CHIPS = ["🏆 Bestsellers", "🎁 Gifts", "💰 Under $100", "📦 Track order"];
@@ -120,7 +124,7 @@ function relTime(ts: number) {
 const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
   chatbotId, businessName, logoUrl, productCount, vapiKey, assistantId,
   suggestionChips, visitorFirstName, featuredProducts = [], faqs, className,
-  heroTagline, introBlurb,
+  heroTagline, introBlurb, heroGreeting, sampleRecent,
 }, ref) => {
   const [tab, setTab] = useState<Tab>("home");
   const [inChat, setInChat] = useState(false); // chat sub-screen inside 'home' flow
@@ -326,6 +330,8 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
               hasVoice={Boolean(vapiKey && assistantId)}
               productCount={productCount}
               heroTagline={heroTagline}
+              heroGreeting={heroGreeting}
+              sampleRecent={sampleRecent}
             />
           )}
           {tab === "home" && inChat && (
@@ -386,6 +392,7 @@ export default EcomChatShell;
 function HomeScreen({
   businessName, logoUrl, firstName, chips, recent, featuredProducts,
   onAsk, onChip, onOpenRecent, onStartVoice, onOpenProduct, hasVoice, productCount, heroTagline,
+  heroGreeting, sampleRecent,
 }: any) {
   return (
     <motion.div
@@ -409,7 +416,7 @@ function HomeScreen({
             </div>
           )}
         </div>
-        <h2 className="text-2xl font-bold leading-tight">Hi {firstName} 👋</h2>
+        <h2 className="text-2xl font-bold leading-tight">{heroGreeting || `Hi ${firstName} 👋`}</h2>
         <p className="mt-1 text-xl font-light leading-snug opacity-95">{heroTagline || "What are you shopping for today?"}</p>
         {/* curved cutout */}
         <svg viewBox="0 0 400 40" preserveAspectRatio="none" className="absolute -bottom-px left-0 h-10 w-full text-[#0a0a0a]">
@@ -454,6 +461,18 @@ function HomeScreen({
                 "{recent.messages.find((m: Msg) => m.role === "user")?.content || "New chat"}"
               </p>
               <p className="mt-0.5 text-[11px] text-white/40">{relTime(recent.startedAt)}</p>
+            </div>
+            <ChevronRight className="mt-3 h-4 w-4 text-white/40" />
+          </button>
+        )}
+        {!recent && sampleRecent && (
+          <button
+            onClick={() => onChip(sampleRecent.text)}
+            className="flex w-full items-start gap-3 rounded-2xl bg-[#1a1a1a] px-4 py-3 text-left ring-1 ring-white/5 transition hover:bg-[#222]"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-white/60">{sampleRecent.label || "Popular question"}</p>
+              <p className="mt-0.5 line-clamp-1 text-sm text-white">"{sampleRecent.text}"</p>
             </div>
             <ChevronRight className="mt-3 h-4 w-4 text-white/40" />
           </button>

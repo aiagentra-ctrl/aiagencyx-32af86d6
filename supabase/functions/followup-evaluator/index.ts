@@ -97,6 +97,14 @@ Deno.serve(async (req) => {
       created++;
     }
 
+    // Run log so the condition-met → sent delay is measurable, not assumed.
+    await supabase.from("activity_logs").insert({
+      event_type: "followup_evaluator_run",
+      status: created > 0 ? "created" : "idle",
+      message: `evaluator: considered ${(prospects || []).length}, created ${created}`,
+      metadata: { considered: (prospects || []).length, created },
+    });
+
     return new Response(JSON.stringify({ ok: true, created }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

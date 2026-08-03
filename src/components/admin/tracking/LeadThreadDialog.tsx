@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   MousePointerClick, Eye, Phone, MessageSquare, CalendarClock, CalendarCheck,
-  Mail, Reply, Layers, Loader2,
+  Mail, Reply, Layers, Loader2, Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +30,7 @@ export type ThreadProspect = {
 
 type Item = {
   at: string;
-  kind: "open" | "click" | "section" | "voice" | "chat" | "calendly" | "booked" | "sent" | "reply";
+  kind: "open" | "click" | "section" | "voice" | "chat" | "calendly" | "booked" | "sent" | "reply" | "visitor_msg" | "ai_msg";
   title: string;
   detail?: string;
   body?: string;
@@ -47,6 +47,8 @@ const ICONS: Record<Item["kind"], React.ReactNode> = {
   booked: <CalendarCheck className="h-3.5 w-3.5" />,
   sent: <Mail className="h-3.5 w-3.5" />,
   reply: <Reply className="h-3.5 w-3.5" />,
+  visitor_msg: <MessageSquare className="h-3.5 w-3.5" />,
+  ai_msg: <Bot className="h-3.5 w-3.5" />,
 };
 
 const TONE: Record<Item["kind"], string> = {
@@ -59,6 +61,8 @@ const TONE: Record<Item["kind"], string> = {
   booked: "bg-emerald-100 text-emerald-800",
   sent: "bg-orange-100 text-orange-800",
   reply: "bg-sky-100 text-sky-800",
+  visitor_msg: "bg-violet-100 text-violet-700",
+  ai_msg: "bg-slate-200 text-slate-700",
 };
 
 const when = (d?: string | null) =>
@@ -98,13 +102,43 @@ const LeadThreadDialog = ({ prospect, onOpenChange }: Props) => {
       ]);
 
       const slug = (demoRes.data?.demo_url || "").split("?")[0].replace(/\/$/, "").split("/").pop() || "";
-      const linkRes = slug
-        ? await supabase.from("link_events").select("*").eq("slug", slug).eq("is_self_traffic", false).order("created_at", { ascending: true }).limit(500)
-        : { data: [] as any[] };
+      const [linkRes, pageRes] = slug
+        ? await Promise.all([
+            supabase.from("link_events").select("*").eq("slug", slug).eq("is_self_traffic", false).order("created_at", { ascending: true }).limit(500),
+            supabase.from("demo_pages").select("id").eq("slug", slug).maybeSingle(),
+          ])
+        : [{ data: [] as any[] }, { data: null as any }];
+
+      // Full chatbot transcript for this lead's own demo page.
+      const demoPageId = pageRes?.data?.id as string | undefined;
+      let chatMessages: any[] = [];
+      let chatConversations: any[] = [];
+      if (demoPageId) {
+        const { data: sessions } = await supabase
+          .from("chatbot_sessions")
+          .select("id, session_id, started_at")
+          .eq("demo_page_id", demoPageId)
+          .order("started_at", { ascending: true })
+          .limit(50);
+        const sessionRowIds = (sessions || []).map((s: any) => s.id);
+        const sessionKeys = (sessions || []).map((s: any) => s.session_id).filter(Boolean);
+        const [msgs, convos] = await Promise.all([
+          sessionRowIds.length
+            ? supabase.from("chatbot_messages").select("role, content, created_at").in("session_id", sessionRowIds).order("created_at", { ascending: true }).limit(500)
+            : Promise.resolve({ data: [] as any[] }),
+          sessionKeys.length
+            ? supabase.from("chatbot_conversations").select("messages, created_at, updated_at").in("session_id", sessionKeys).limit(50)
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
+        chatMessages = (msgs as any).data || [];
+        chatConversations = (convos as any).data || [];
+      }
 
       if (cancelled) return;
 
       const out: Item[] = [];
+
+
 
       for (const ev of (linkRes.data || []) as any[]) {
         const meta = (ev.metadata || {}) as Record<string, unknown>;
@@ -143,6 +177,43 @@ const LeadThreadDialog = ({ prospect, onOpenChange }: Props) => {
             break;
         }
       }
+
+      // Chatbot transcript — every visitor and AI message, in order.
+      const seenMsg = new Set<string>();
+      const pushChat = (role: string, content: string, at: string) => {
+        const text = (content || "").trim();
+        if (!text) return;
+        const key = `${role}|${text}|${at}`;
+        if (seenMsg.has(key)) return;
+        seenMsg.add(key);
+        const isUser = role === "user";
+        out.push({
+          at,
+          kind: isUser ? "visitor_msg" : "ai_msg",
+          title: isUser ? "Visitor asked the chatbot" : "AI replied",
+          body: text,
+        });
+      };
+      for (const m of chatMessages) pushChat(m.role, m.content, m.created_at);
+      for (const c of chatConversations) {
+        const base = new Date(c.created_at || c.updated_at || Date.now()).getTime();
+        const arr = Array.isArray(c.messages) ? c.messages : [];
+        arr.forEach((m: any, i: number) => {
+          const at = m?.created_at || m?.timestamp || new Date(base + i * 1000).toISOString();
+          pushChat(m?.role, m?.content ?? m?.text ?? "", at);
+        });
+      }
+
+      // Voice call summary — duration and tier from the lead record.
+      if (prospect.voice_tried_at && prospect.demo_engagement_seconds > 0) {
+        out.push({
+          at: prospect.voice_tried_at,
+          kind: "voice",
+          title: "Voice call engagement",
+          detail: `${Math.round(prospect.demo_engagement_seconds)}s · tier: ${prospect.engagement_tier || "not_tried"}${prospect.engagement_channel ? ` · channel: ${prospect.engagement_channel}` : ""}`,
+        });
+      }
+
 
       for (const ev of (evRes.data || []) as any[]) {
         if (!ev.sent_at && ev.status !== "sent") continue;

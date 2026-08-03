@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Fonts must never block first paint; they swap in once downloaded. -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" /></noscript>
     <script>
       // Redirect root to admin (no external redirect needed)
     </script>
@@ -25,7 +27,18 @@
   <meta name="twitter:description" content="Hi! I created this AI agent specifically for your business. Please check it out and let me know your feedback. I&#39;d love to hear your thoughts and any suggestion">
 </head>
   <body>
+    <style>
+      /* Instant paint shell: the dark page ground is visible before any JS runs. */
+      html, body { margin: 0; background: #0B0F14; }
+      #root:empty::before {
+        content: "";
+        display: block;
+        height: 100vh;
+        background: radial-gradient(120% 80% at 50% 0%, #151B23 0%, #0B0F14 60%);
+      }
+    </style>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
   </body>
 </html>

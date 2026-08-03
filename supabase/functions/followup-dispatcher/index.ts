@@ -24,6 +24,12 @@ Deno.serve(async (req) => {
       });
       if (r.ok) sent++;
     }
+    await supabase.from("activity_logs").insert({
+      event_type: "followup_dispatcher_run",
+      status: sent > 0 ? "sent" : "idle",
+      message: `dispatcher: considered ${events?.length ?? 0}, sent ${sent}, skipped ${skipped}`,
+      metadata: { considered: events?.length ?? 0, sent, skipped },
+    });
     return new Response(JSON.stringify({ ok: true, sent, skipped, considered: events?.length ?? 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as any)?.message || e) }), { status: 500, headers: corsHeaders });

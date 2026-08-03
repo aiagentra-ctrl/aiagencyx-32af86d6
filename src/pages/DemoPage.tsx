@@ -3,8 +3,10 @@ import { useParams } from "react-router-dom";
 
 export type CallStatus = "idle" | "calling" | "connected" | "ended";
 import { supabase } from "@/integrations/supabase/client";
-import HeroSection from "@/components/demo/HeroSection";
-import DemoNavbar from "@/components/demo/DemoNavbar";
+// Legacy (non real-estate) hero + navbar are lazy so the real-estate route
+// never downloads them as part of the initial bundle.
+const HeroSection = lazy(() => import("@/components/demo/HeroSection"));
+const DemoNavbar = lazy(() => import("@/components/demo/DemoNavbar"));
 import { trackEvent, trackSessionStart, trackSessionEnd, trackSectionEnter, trackSectionLeave, startScrollTracking, stopScrollTracking, startClickTracking, stopClickTracking, trackReturnVisit } from "@/lib/tracking";
 
 const VoiceAgentSection = lazy(() => import("@/components/demo/VoiceAgentSection"));
@@ -29,6 +31,16 @@ const RealEstateValueSection = lazy(() => import("@/components/demo/realestate/R
 const RealEstateLandingPageV2 = lazy(() => import("@/components/demo/realestate/v2/RealEstateLandingPage"));
 const REVoiceCall = lazy(() => import("@/components/demo/realestate/v2/REVoiceCall"));
 const REChatWidget = lazy(() => import("@/components/chatbot/unified/EcomFloatingChatWidget"));
+
+// Real-estate quick pills + FAQ copy for the chat widget (replaces the e-commerce defaults).
+const RE_CHAT_CHIPS = ["🏠 Listings", "📅 Book a viewing", "💰 Pricing", "📍 Areas we cover"];
+const realEstateFaqs = (company: string) => [
+  { q: "How much is a property I've seen listed?", a: `Ask the AI with the address or listing name and it will give you ${company}'s current asking price, plus what's included.` },
+  { q: "Do you have any 3-bedroom homes available?", a: `Yes — tell the AI your budget and preferred area and it will pull ${company}'s matching 3-bed listings.` },
+  { q: "How do I book a viewing?", a: "Ask for a viewing and the AI will take your preferred day and time, then confirm the slot with the team." },
+  { q: "Which areas do you cover?", a: `The AI knows every area ${company} works in — just ask about a suburb or city and it will confirm.` },
+  { q: "Can you help me work out what I can afford?", a: "Share your deposit and budget range and the AI will talk you through the price bracket that fits and what to prepare." },
+];
 
 // Ecommerce specific sections
 const ProductGridSection = lazy(() => import("@/components/demo/ecommerce/ProductGridSection"));
@@ -267,12 +279,25 @@ const DemoPage = () => {
   }, []);
 
   if (loading) {
+    // Hero-shaped skeleton instead of a bare spinner: first contentful paint
+    // happens as soon as React mounts, not after the database round-trip.
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="min-h-screen" style={{ background: "#0B0F14" }}>
+        <div className="mx-auto max-w-3xl px-6 pt-28 text-center">
+          <p className="text-sm font-semibold tracking-wide" style={{ color: "#3B82F6" }}>
+            Loading your AI agent…
+          </p>
+          <div className="mt-6 space-y-4" aria-hidden>
+            <div className="mx-auto h-10 w-full animate-pulse rounded-lg" style={{ background: "#151B23" }} />
+            <div className="mx-auto h-10 w-4/5 animate-pulse rounded-lg" style={{ background: "#151B23" }} />
+            <div className="mx-auto mt-8 h-5 w-3/5 animate-pulse rounded" style={{ background: "#151B23" }} />
+            <div className="mx-auto mt-10 h-12 w-56 animate-pulse rounded-full" style={{ background: "#1c2430" }} />
+          </div>
+        </div>
       </div>
     );
   }
+
 
   if (error || !page) {
     return (
@@ -358,11 +383,14 @@ const DemoPage = () => {
               logoUrl={logoUrl}
               greeting={linkedChatbot.widget_config?.greeting}
               visitorFirstName={page.client_name?.split(/\s+/)[0] || dc.first_name || undefined}
-              suggestionChips={dc.chat_prompts}
+              suggestionChips={dc.chat_prompts?.length ? dc.chat_prompts : RE_CHAT_CHIPS}
+              faqs={realEstateFaqs(companyName)}
               open={chatOpen}
               onOpenChange={setChatOpen}
-              heroTagline={`What would you like to know about ${companyName}?`}
+              heroGreeting={`Hi, I'm ${companyName}'s AI 👋`}
+              heroTagline={`Ask me about listings, viewings, pricing or the areas we cover.`}
               introBlurb={`I've read ${companyName}'s whole site. Ask me about listings, pricing, viewings or the areas we cover.`}
+              sampleRecent={{ label: "Popular question", text: "Can I book a viewing this week?" }}
               tipLabel={<>👋 Ask <strong>{companyName}</strong>'s AI anything</>}
             />
           )}
