@@ -3,8 +3,10 @@ import { useParams } from "react-router-dom";
 
 export type CallStatus = "idle" | "calling" | "connected" | "ended";
 import { supabase } from "@/integrations/supabase/client";
-import HeroSection from "@/components/demo/HeroSection";
-import DemoNavbar from "@/components/demo/DemoNavbar";
+// Legacy (non real-estate) hero + navbar are lazy so the real-estate route
+// never downloads them as part of the initial bundle.
+const HeroSection = lazy(() => import("@/components/demo/HeroSection"));
+const DemoNavbar = lazy(() => import("@/components/demo/DemoNavbar"));
 import { trackEvent, trackSessionStart, trackSessionEnd, trackSectionEnter, trackSectionLeave, startScrollTracking, stopScrollTracking, startClickTracking, stopClickTracking, trackReturnVisit } from "@/lib/tracking";
 
 const VoiceAgentSection = lazy(() => import("@/components/demo/VoiceAgentSection"));
