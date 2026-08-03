@@ -35,6 +35,8 @@ interface Props {
   /** Copy overrides so non-ecommerce verticals read correctly. */
   heroTagline?: string;
   introBlurb?: string;
+  heroGreeting?: string;
+  sampleRecent?: { text: string; label?: string };
   tipLabel?: React.ReactNode;
 }
 
