@@ -155,6 +155,8 @@ const EcomFloatingChatWidget = forwardRef<EcomFloatingChatWidgetHandle, Props>((
                 faqs={faqs}
                 heroTagline={heroTagline}
                 introBlurb={introBlurb}
+                heroGreeting={heroGreeting}
+                sampleRecent={sampleRecent}
                 className="h-full"
               />
             ) : (
