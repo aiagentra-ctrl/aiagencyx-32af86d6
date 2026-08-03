@@ -330,6 +330,8 @@ const EcomChatShell = forwardRef<EcomChatShellHandle, Props>(({
               hasVoice={Boolean(vapiKey && assistantId)}
               productCount={productCount}
               heroTagline={heroTagline}
+              heroGreeting={heroGreeting}
+              sampleRecent={sampleRecent}
             />
           )}
           {tab === "home" && inChat && (
