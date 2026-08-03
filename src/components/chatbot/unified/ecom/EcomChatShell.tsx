@@ -416,7 +416,7 @@ function HomeScreen({
             </div>
           )}
         </div>
-        <h2 className="text-2xl font-bold leading-tight">Hi {firstName} 👋</h2>
+        <h2 className="text-2xl font-bold leading-tight">{heroGreeting || `Hi ${firstName} 👋`}</h2>
         <p className="mt-1 text-xl font-light leading-snug opacity-95">{heroTagline || "What are you shopping for today?"}</p>
         {/* curved cutout */}
         <svg viewBox="0 0 400 40" preserveAspectRatio="none" className="absolute -bottom-px left-0 h-10 w-full text-[#0a0a0a]">
