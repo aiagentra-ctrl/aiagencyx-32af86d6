@@ -102,13 +102,43 @@ const LeadThreadDialog = ({ prospect, onOpenChange }: Props) => {
       ]);
 
       const slug = (demoRes.data?.demo_url || "").split("?")[0].replace(/\/$/, "").split("/").pop() || "";
-      const linkRes = slug
-        ? await supabase.from("link_events").select("*").eq("slug", slug).eq("is_self_traffic", false).order("created_at", { ascending: true }).limit(500)
-        : { data: [] as any[] };
+      const [linkRes, pageRes] = slug
+        ? await Promise.all([
+            supabase.from("link_events").select("*").eq("slug", slug).eq("is_self_traffic", false).order("created_at", { ascending: true }).limit(500),
+            supabase.from("demo_pages").select("id").eq("slug", slug).maybeSingle(),
+          ])
+        : [{ data: [] as any[] }, { data: null as any }];
+
+      // Full chatbot transcript for this lead's own demo page.
+      const demoPageId = pageRes?.data?.id as string | undefined;
+      let chatMessages: any[] = [];
+      let chatConversations: any[] = [];
+      if (demoPageId) {
+        const { data: sessions } = await supabase
+          .from("chatbot_sessions")
+          .select("id, session_id, started_at")
+          .eq("demo_page_id", demoPageId)
+          .order("started_at", { ascending: true })
+          .limit(50);
+        const sessionRowIds = (sessions || []).map((s: any) => s.id);
+        const sessionKeys = (sessions || []).map((s: any) => s.session_id).filter(Boolean);
+        const [msgs, convos] = await Promise.all([
+          sessionRowIds.length
+            ? supabase.from("chatbot_messages").select("role, content, created_at").in("session_id", sessionRowIds).order("created_at", { ascending: true }).limit(500)
+            : Promise.resolve({ data: [] as any[] }),
+          sessionKeys.length
+            ? supabase.from("chatbot_conversations").select("messages, created_at, updated_at").in("session_id", sessionKeys).limit(50)
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
+        chatMessages = (msgs as any).data || [];
+        chatConversations = (convos as any).data || [];
+      }
 
       if (cancelled) return;
 
       const out: Item[] = [];
+
+
 
       for (const ev of (linkRes.data || []) as any[]) {
         const meta = (ev.metadata || {}) as Record<string, unknown>;
