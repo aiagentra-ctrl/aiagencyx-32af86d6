@@ -30,6 +30,16 @@ const RealEstateLandingPageV2 = lazy(() => import("@/components/demo/realestate/
 const REVoiceCall = lazy(() => import("@/components/demo/realestate/v2/REVoiceCall"));
 const REChatWidget = lazy(() => import("@/components/chatbot/unified/EcomFloatingChatWidget"));
 
+// Real-estate quick pills + FAQ copy for the chat widget (replaces the e-commerce defaults).
+const RE_CHAT_CHIPS = ["🏠 Listings", "📅 Book a viewing", "💰 Pricing", "📍 Areas we cover"];
+const realEstateFaqs = (company: string) => [
+  { q: "How much is a property I've seen listed?", a: `Ask the AI with the address or listing name and it will give you ${company}'s current asking price, plus what's included.` },
+  { q: "Do you have any 3-bedroom homes available?", a: `Yes — tell the AI your budget and preferred area and it will pull ${company}'s matching 3-bed listings.` },
+  { q: "How do I book a viewing?", a: "Ask for a viewing and the AI will take your preferred day and time, then confirm the slot with the team." },
+  { q: "Which areas do you cover?", a: `The AI knows every area ${company} works in — just ask about a suburb or city and it will confirm.` },
+  { q: "Can you help me work out what I can afford?", a: "Share your deposit and budget range and the AI will talk you through the price bracket that fits and what to prepare." },
+];
+
 // Ecommerce specific sections
 const ProductGridSection = lazy(() => import("@/components/demo/ecommerce/ProductGridSection"));
 const EcommerceValueSection = lazy(() => import("@/components/demo/ecommerce/EcommerceValueSection"));
