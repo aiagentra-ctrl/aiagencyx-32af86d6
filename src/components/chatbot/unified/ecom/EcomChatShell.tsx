@@ -49,6 +49,10 @@ interface Props {
   heroTagline?: string;
   /** Overrides the "I know this whole store" assistant intro. */
   introBlurb?: string;
+  /** Overrides the "Hi {firstName} 👋" home greeting line. */
+  heroGreeting?: string;
+  /** Illustrative suggestion shown in the "Recent Conversation" slot when there is no real history. */
+  sampleRecent?: { text: string; label?: string };
 }
 
 const DEFAULT_CHIPS = ["🏆 Bestsellers", "🎁 Gifts", "💰 Under $100", "📦 Track order"];
