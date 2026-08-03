@@ -465,6 +465,18 @@ function HomeScreen({
             <ChevronRight className="mt-3 h-4 w-4 text-white/40" />
           </button>
         )}
+        {!recent && sampleRecent && (
+          <button
+            onClick={() => onChip(sampleRecent.text)}
+            className="flex w-full items-start gap-3 rounded-2xl bg-[#1a1a1a] px-4 py-3 text-left ring-1 ring-white/5 transition hover:bg-[#222]"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-white/60">{sampleRecent.label || "Popular question"}</p>
+              <p className="mt-0.5 line-clamp-1 text-sm text-white">"{sampleRecent.text}"</p>
+            </div>
+            <ChevronRight className="mt-3 h-4 w-4 text-white/40" />
+          </button>
+        )}
 
         {/* Voice CTA */}
         {hasVoice && (
