@@ -193,6 +193,12 @@ Deno.serve(async (req) => {
       sent++;
     }
 
+    await supabase.from("activity_logs").insert({
+      event_type: "sequence_processor_run",
+      status: sent > 0 ? "sent" : "idle",
+      message: `sequence: considered ${due?.length ?? 0}, sent ${sent}, cancelled ${cancelled}, failed ${failed}`,
+      metadata: { considered: due?.length ?? 0, sent, cancelled, failed },
+    });
     return new Response(JSON.stringify({ ok: true, sent, cancelled, failed, considered: due?.length ?? 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String((e as any)?.message || e) }), { status: 500, headers: corsHeaders });
