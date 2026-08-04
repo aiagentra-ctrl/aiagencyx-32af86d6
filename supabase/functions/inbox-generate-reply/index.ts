@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getOrCreateMemory, canSendDemoLink, stripDemoUrls, memoryPromptBlock } from "../_shared/memory.ts";
 import { chatCompletion, MODELS, normalizeModel } from "../_shared/openrouter.ts";
 import { finalizeReply, DEFAULT_SENDER_NAME, senderName } from "../_shared/reply-format.ts";
-import { keywordSentiment, renderTemplate } from "../_shared/sentiment.ts";
+import { keywordSentiment, isHardOptOut, renderTemplate } from "../_shared/sentiment.ts";
 
 
 const corsHeaders = {
@@ -95,21 +95,64 @@ Deno.serve(async (req) => {
     const lastIncoming = [...(messages || [])].reverse().find((m: any) => m.direction === "incoming");
 
     // ---------------------------------------------------------------------
-    // Locked template path: deterministic keyword sentiment wins over the LLM.
-    // The stored template is sent verbatim, with only the locked variables
-    // (notably {DemoLink} = this lead's own tracked demo URL) substituted.
+    // History gate — runs BEFORE anything is generated or sent.
+    //  * a hard opt-out anywhere in the thread stops all sending
+    //  * any earlier negative reply keeps the lead negative
     // ---------------------------------------------------------------------
-    const kw = keywordSentiment(lastIncoming?.body || "");
-    if (kw) {
+    const incoming = (messages || []).filter((m: any) => m.direction === "incoming");
+    const optOutInThread = incoming.some((m: any) => isHardOptOut(m.body || ""));
+    const negativeInHistory = incoming
+      .slice(0, -1)
+      .some((m: any) => keywordSentiment(m.body || "") === "Negative");
+
+    if (optOutInThread) {
+      return new Response(JSON.stringify({
+        reply: "", blocked: true, block_reason: "hard_opt_out",
+        needs_review: true, valid: false, validation_errors: ["hard_opt_out"],
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    let effectiveClass: string = classification;
+    let historyOverride: string | null = null;
+    if (negativeInHistory && effectiveClass !== "Negative") {
+      effectiveClass = "Negative";
+      historyOverride = "earlier_negative_reply";
+    }
+
+    // ---------------------------------------------------------------------
+    // Locked template path: Positive / Negative always send the stored
+    // template verbatim, with only {DemoLandingPageLink} substituted.
+    // ---------------------------------------------------------------------
+    if (effectiveClass === "Positive" || effectiveClass === "Negative") {
       const phase = memory?.demo_link_sent ? "post_demo" : "pre_demo";
       const { data: tplRows } = await supabase
         .from("reply_templates")
         .select("body, phase, is_default")
-        .eq("classification", kw)
+        .eq("classification", effectiveClass)
         .eq("is_default", true);
       const tpl = (tplRows || []).find((t: any) => t.phase === phase) || (tplRows || [])[0];
       if (tpl?.body) {
         const trackedDemoUrl = demo_url || existingDemo?.demo_url || "";
+        const needsLink = /\{\{?\s*(DemoLandingPageLink|DemoLink|demo_link|demo_url)\s*\}?\}/i.test(tpl.body);
+        if (needsLink && !trackedDemoUrl) {
+          // Never send a template with an empty link — flag for review instead.
+          return new Response(JSON.stringify({
+            reply: "", blocked: true, block_reason: "demo_link_missing",
+            classification: effectiveClass, needs_review: true, valid: false,
+            validation_errors: ["demo_link_missing"],
+          }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        // Don't send the same template twice to the same lead.
+        const alreadySent = (messages || []).some((m: any) =>
+          m.direction === "outgoing" && trackedDemoUrl && (m.body || "").includes(trackedDemoUrl) &&
+          effectiveClass === "Positive");
+        if (alreadySent) {
+          return new Response(JSON.stringify({
+            reply: "", blocked: true, block_reason: "template_already_sent",
+            classification: effectiveClass, needs_review: true, valid: false,
+            validation_errors: ["template_already_sent"],
+          }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
         const text = renderTemplate(tpl.body, {
           demo_url: trackedDemoUrl,
           firstname: prospect.firstname || "there",
@@ -128,11 +171,12 @@ Deno.serve(async (req) => {
           validation_errors: [],
           attempts: 0,
           node_prompt_used: false,
-          template_used: `${kw}:${tpl.phase}`,
-          keyword_sentiment: kw,
+          template_used: `${effectiveClass}:${tpl.phase}`,
+          history_override: historyOverride,
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
+
 
     const context = `Prospect:
 - firstname: ${prospect.firstname || "there"}
