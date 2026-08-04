@@ -109,14 +109,33 @@ Deno.serve(async (req) => {
 
     let reply = "";
     let replySource: "ai" | "fallback" = "fallback";
+    let blocked: string | null = null;
 
     try {
       const out = await call("inbox-generate-reply", { prospect_id, classification, demo_url: demoUrl });
-      reply = (out?.reply || "").trim();
-      if (reply) replySource = "ai";
+      if (out?.blocked) {
+        blocked = out.block_reason || "blocked";
+      } else {
+        reply = (out?.reply || "").trim();
+        if (reply) replySource = "ai";
+      }
     } catch (e) {
       const m = String((e as any)?.message || e);
       await logError("reply_generation", m, { prospect_id, message_id, stack: (e as any)?.stack });
+    }
+
+    // Hard stop: opt-out, missing demo link, or duplicate template. Nothing is
+    // sent — the message is flagged for manual review instead.
+    if (blocked) {
+      await traceStep(prospect_id, message_id, "reply_generated", "skipped", { reason: blocked, classification });
+      await logError("reply_generation", `send blocked: ${blocked}`, { prospect_id, message_id });
+      await supabase.from("notifications").insert({
+        type: "needs_review", prospect_id,
+        message: `Reply held for review (${blocked}) — ${prospect.email}`,
+      });
+      return new Response(JSON.stringify({ ok: true, blocked, classification, demo_url: demoUrl }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (!reply) {
@@ -128,6 +147,7 @@ Deno.serve(async (req) => {
     await traceStep(prospect_id, message_id, "reply_generated", "ok", {
       source: replySource, phase: effectivePhase, classification, preview: reply.slice(0, 200),
     });
+
 
     // 4) send reply
     let send: any = null;
