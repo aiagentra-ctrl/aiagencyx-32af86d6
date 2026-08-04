@@ -123,12 +123,6 @@ Deno.serve(async (req) => {
       .eq("id", prospect_id);
     try { await setLeadStatus(prospect_id, classification); } catch (_) { /* noop */ }
 
-    if (optOut) {
-      await supabase.from("unsubscribed_prospects")
-        .insert({ prospect_id, email: "", reason: "opt_out_detected" })
-        .then(() => {}, () => {});
-    }
-
     await traceStep(prospect_id, message_id, "classified", "ok", {
       classification, raw_output: raw, rule_fired: ruleFired,
       demo_sent: demoSent, keyword_net: kw, hard_opt_out: optOut,
