@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getOrCreateMemory, canSendDemoLink, stripDemoUrls, memoryPromptBlock } from "../_shared/memory.ts";
 import { chatCompletion, MODELS, normalizeModel } from "../_shared/openrouter.ts";
 import { finalizeReply, DEFAULT_SENDER_NAME, senderName } from "../_shared/reply-format.ts";
-import { keywordSentiment, renderTemplate } from "../_shared/sentiment.ts";
+import { keywordSentiment, isHardOptOut, renderTemplate } from "../_shared/sentiment.ts";
 
 
 const corsHeaders = {
