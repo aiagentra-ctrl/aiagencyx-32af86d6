@@ -13,7 +13,8 @@ export type KeywordSentiment = "Positive" | "Negative" | null;
 const NEGATIVE_PATTERNS: RegExp[] = [
   /\bnot?\s+(interested|intrested|intersted)\b/,
   /\bno\s+(thanks|thank you|interest|need)\b/,
-  /\bunsubscribe\b/,
+  /unsubscribe/,
+  /^\s*stop[.!\s]*$/m,
   /\b(remove|take)\s+me\s+(off|from)\b/,
   /\bstop\s+(emailing|sending|contacting)\b/,
   /\b(do\s*n[o']?t|dont|do not)\s+(contact|email)\s+me\b/,
@@ -72,7 +73,7 @@ export function keywordSentiment(body: string): KeywordSentiment {
 /** True when the reply contains a hard opt-out — never email again. */
 export function isHardOptOut(body: string): boolean {
   const text = extractReplyText(body).toLowerCase();
-  return /\bunsubscribe\b|\b(remove|take)\s+me\s+(off|from)\b|\bstop\s+(emailing|sending|contacting)\b|\b(do\s*n[o']?t|dont|do not)\s+(contact|email)\s+me\b/
+  return /unsubscribe|^\s*stop[.!\s]*$|\b(remove|take)\s+me\s+(off|from)\b|\bstop\s+(emailing|sending|contacting)\b|\b(do\s*n[o']?t|dont|do not)\s+(contact|email)\s+me\b/
     .test(text);
 }
 
