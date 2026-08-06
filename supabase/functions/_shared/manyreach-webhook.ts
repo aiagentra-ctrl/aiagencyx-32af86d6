@@ -216,6 +216,17 @@ export async function handleManyreachWebhook(
       try { await recordReply(prospectId!, null); } catch (err) { console.error("recordReply failed:", err); }
     })());
 
+    // Blocked address: the message is stored for the record only. No
+    // classification, no demo build, no reply is ever generated or sent.
+    if (blocked) {
+      background(traceStep(prospectId, messageId, "classified", "skipped", { reason: "blocked_unsubscribed", email }));
+      const rb = { ok: true, blocked: true, reason: "unsubscribed", prospect_id: prospectId, message_id: messageId };
+      finalize("success", 200, rb);
+      return new Response(JSON.stringify(rb), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Fire-and-forget orchestrator
     fetch(`${SUPABASE_URL}/functions/v1/inbox-process-incoming`, {
       method: "POST",
