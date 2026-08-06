@@ -147,6 +147,12 @@ export async function handleManyreachWebhook(
       return new Response(JSON.stringify(r), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Hard blocklist: an unsubscribed / manually removed address never
+    // re-activates automation, never gets a demo and never gets a reply.
+    const { data: blockRow } = await supabase
+      .from("unsubscribed_prospects").select("id").ilike("email", email).maybeSingle();
+    const blocked = !!blockRow;
+
     const { data: existing } = await supabase
       .from("prospects").select("*").eq("email", email).maybeSingle();
 
@@ -162,7 +168,12 @@ export async function handleManyreachWebhook(
       if (!existing.reply_to_email && replyToEmail) update.reply_to_email = replyToEmail;
       if (!existing.original_message_id && manyMessageId) update.original_message_id = manyMessageId;
       update.last_activity_at = new Date().toISOString();
-      if (existing.followup_status && existing.followup_status !== "none") {
+      if (blocked) {
+        update.automation_paused = true;
+        update.followup_status = "stopped";
+        update.next_followup_at = null;
+        update.next_followup_trigger = null;
+      } else if (existing.followup_status && existing.followup_status !== "none") {
         update.followup_status = "responded";
       }
       await supabase.from("prospects").update(update).eq("id", prospectId);
@@ -204,6 +215,17 @@ export async function handleManyreachWebhook(
       await traceStep(prospectId, messageId, "stored", "ok", { message_id: messageId });
       try { await recordReply(prospectId!, null); } catch (err) { console.error("recordReply failed:", err); }
     })());
+
+    // Blocked address: the message is stored for the record only. No
+    // classification, no demo build, no reply is ever generated or sent.
+    if (blocked) {
+      background(traceStep(prospectId, messageId, "classified", "skipped", { reason: "blocked_unsubscribed", email }));
+      const rb = { ok: true, blocked: true, reason: "unsubscribed", prospect_id: prospectId, message_id: messageId };
+      finalize("success", 200, rb);
+      return new Response(JSON.stringify(rb), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Fire-and-forget orchestrator
     fetch(`${SUPABASE_URL}/functions/v1/inbox-process-incoming`, {
