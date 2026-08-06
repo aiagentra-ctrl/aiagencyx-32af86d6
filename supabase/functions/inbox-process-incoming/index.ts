@@ -40,6 +40,17 @@ Deno.serve(async (req) => {
 
     const { data: prospect } = await supabase.from("prospects").select("*").eq("id", prospect_id).single();
     if (!prospect) return new Response(JSON.stringify({ error: "prospect not found" }), { status: 404, headers: corsHeaders });
+
+    // Second-layer guard: blocked / unsubscribed addresses never get processed.
+    const { data: blockRow } = await supabase
+      .from("unsubscribed_prospects").select("id").ilike("email", prospect.email).maybeSingle();
+    if (blockRow) {
+      await traceStep(prospect_id, message_id, "classified", "skipped", { reason: "blocked_unsubscribed" });
+      return new Response(JSON.stringify({ ok: true, skipped: "blocked_unsubscribed" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (prospect.automation_paused) {
       await traceStep(prospect_id, message_id, "classified", "skipped", { reason: "automation_paused" });
       return new Response(JSON.stringify({ ok: true, skipped: "automation_paused" }), {
