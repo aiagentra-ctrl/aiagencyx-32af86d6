@@ -147,6 +147,12 @@ export async function handleManyreachWebhook(
       return new Response(JSON.stringify(r), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Hard blocklist: an unsubscribed / manually removed address never
+    // re-activates automation, never gets a demo and never gets a reply.
+    const { data: blockRow } = await supabase
+      .from("unsubscribed_prospects").select("id").ilike("email", email).maybeSingle();
+    const blocked = !!blockRow;
+
     const { data: existing } = await supabase
       .from("prospects").select("*").eq("email", email).maybeSingle();
 
@@ -162,7 +168,12 @@ export async function handleManyreachWebhook(
       if (!existing.reply_to_email && replyToEmail) update.reply_to_email = replyToEmail;
       if (!existing.original_message_id && manyMessageId) update.original_message_id = manyMessageId;
       update.last_activity_at = new Date().toISOString();
-      if (existing.followup_status && existing.followup_status !== "none") {
+      if (blocked) {
+        update.automation_paused = true;
+        update.followup_status = "stopped";
+        update.next_followup_at = null;
+        update.next_followup_trigger = null;
+      } else if (existing.followup_status && existing.followup_status !== "none") {
         update.followup_status = "responded";
       }
       await supabase.from("prospects").update(update).eq("id", prospectId);
