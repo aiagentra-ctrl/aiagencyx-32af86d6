@@ -63,6 +63,32 @@ const SiteSettingsPanel = () => {
 
   useEffect(() => { fetchSettings(); }, []);
 
+  // "This device is mine" marker: the browser stores the same token the
+  // trackers compare against, so our own visits are excluded everywhere.
+  const [deviceToken, setDeviceToken] = useState<string | null>(null);
+  useEffect(() => { setDeviceToken(getOwnerToken()); }, []);
+  const deviceIsOwner = !!deviceToken && !!settings.owner_device_token && deviceToken === settings.owner_device_token;
+
+  const toggleOwnerDevice = async () => {
+    if (deviceIsOwner) {
+      setOwnerToken(null);
+      setDeviceToken(null);
+      toast({ title: "Device unmarked — visits from here now count." });
+      return;
+    }
+    const token = settings.owner_device_token || crypto.randomUUID();
+    const { error } = await supabase
+      .from("site_settings")
+      .upsert({ key: "owner_device_token", value: token, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    if (error) { toast({ title: "Could not mark this device", variant: "destructive" }); return; }
+    setOwnerToken(token);
+    setDeviceToken(token);
+    updateSetting("owner_device_token", token);
+    toast({ title: "✅ This device is marked as yours" });
+  };
+
+
+
   const updateSetting = (key: string, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
