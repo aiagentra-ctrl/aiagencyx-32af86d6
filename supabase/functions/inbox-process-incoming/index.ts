@@ -31,6 +31,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   let prospect_id: string | null = null;
   let message_id: string | null = null;
+  let releaseLock: (() => Promise<void>) | null = null;
+
   try {
     const body = await req.json();
     prospect_id = body.prospect_id; message_id = body.message_id;
