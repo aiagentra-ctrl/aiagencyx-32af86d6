@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { isSelfTrafficCountry } from "../_shared/geo.ts";
+import { loadOwnerConfig, resolveSelfTraffic } from "../_shared/geo.ts";
+
 
 
 const corsHeaders = {
