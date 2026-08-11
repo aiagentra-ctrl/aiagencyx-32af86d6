@@ -20,6 +20,25 @@ async function getFingerprint(): Promise<string> {
 }
 export { getFingerprint };
 
+/**
+ * Owner/test-device marker. Set from the admin panel ("Mark this device as
+ * mine") so our own visits are never counted as client traffic.
+ */
+export const OWNER_TOKEN_KEY = "owner_device_token";
+
+export function getOwnerToken(): string | null {
+  try { return localStorage.getItem(OWNER_TOKEN_KEY); } catch { return null; }
+}
+
+export function setOwnerToken(token: string | null) {
+  try {
+    if (token) localStorage.setItem(OWNER_TOKEN_KEY, token);
+    else localStorage.removeItem(OWNER_TOKEN_KEY);
+  } catch { /* storage unavailable */ }
+}
+
+
+
 let sessionId: string | null = null;
 let sessionStartTime: number | null = null;
 let lastActiveTime: number | null = null;
