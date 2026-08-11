@@ -160,7 +160,7 @@ export async function handleManyreachWebhook(
 
     if (dedupeErr) {
       // Row already exists -> this exact message was already ingested.
-      await supabase.rpc("noop_missing", {}).catch?.(() => {});
+
       const { data: prev } = await supabase
         .from("webhook_dedupe").select("prospect_id, inbox_message_id, seen_count")
         .eq("message_key", dedupeKey).maybeSingle();
