@@ -388,6 +388,7 @@ export const trackEvent = async (
         event_type: eventType,
         link_type: options?.linkType || "demo",
         session_id: getSessionId(),
+        owner_token: getOwnerToken(),
         demo_page_id: options?.demoPageId || null,
         chatbot_id: options?.chatbotId || null,
         business_name: options?.businessName || slug,
@@ -412,10 +413,12 @@ export const trackEvent = async (
           slug,
           event_type: eventType,
           session_id: getSessionId(),
+          owner_token: getOwnerToken(),
           metadata: { ...(options?.metadata || {}), utm },
         },
       }).catch(() => {});
     } catch { /* ignore */ }
+
   } catch {
     // Tracking should never break the user experience
   }
