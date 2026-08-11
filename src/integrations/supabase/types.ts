@@ -1660,6 +1660,27 @@ export type Database = {
           },
         ]
       }
+      pipeline_locks: {
+        Row: {
+          acquired_at: string
+          expires_at: string
+          holder: string | null
+          lock_key: string
+        }
+        Insert: {
+          acquired_at?: string
+          expires_at?: string
+          holder?: string | null
+          lock_key: string
+        }
+        Update: {
+          acquired_at?: string
+          expires_at?: string
+          holder?: string | null
+          lock_key?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category: string | null
@@ -2443,6 +2464,33 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_dedupe: {
+        Row: {
+          first_seen_at: string
+          inbox_message_id: string | null
+          last_seen_at: string
+          message_key: string
+          prospect_id: string | null
+          seen_count: number
+        }
+        Insert: {
+          first_seen_at?: string
+          inbox_message_id?: string | null
+          last_seen_at?: string
+          message_key: string
+          prospect_id?: string | null
+          seen_count?: number
+        }
+        Update: {
+          first_seen_at?: string
+          inbox_message_id?: string | null
+          last_seen_at?: string
+          message_key?: string
+          prospect_id?: string | null
+          seen_count?: number
+        }
+        Relationships: []
+      }
       webhook_endpoints: {
         Row: {
           active: boolean
@@ -2631,6 +2679,14 @@ export type Database = {
           vector_score: number
           vendor: string
         }[]
+      }
+      release_pipeline_lock: {
+        Args: { p_holder: string; p_key: string }
+        Returns: undefined
+      }
+      try_acquire_pipeline_lock: {
+        Args: { p_holder: string; p_key: string; p_ttl_seconds?: number }
+        Returns: boolean
       }
     }
     Enums: {
