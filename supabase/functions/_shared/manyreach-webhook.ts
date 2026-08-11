@@ -245,6 +245,13 @@ export async function handleManyreachWebhook(
     if (msgErr) throw msgErr;
     messageId = msg.id;
 
+    // Point the dedupe row at what we created, so a repeat delivery can
+    // answer with the original ids instead of starting a second pipeline.
+    background(supabase.from("webhook_dedupe")
+      .update({ prospect_id: prospectId, inbox_message_id: messageId })
+      .eq("message_key", dedupeKey));
+
+
     // Tracing + memory are observability, not correctness — run them off the hot path.
     background((async () => {
       await traceStep(prospectId, messageId, "webhook_received", "ok", {
