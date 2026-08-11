@@ -307,7 +307,64 @@ const SiteSettingsPanel = () => {
         </CardContent>
       </Card>
 
+      {/* Owner / self traffic */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            <CardTitle className="text-lg">Owner / Test Traffic</CardTitle>
+          </div>
+          <CardDescription>
+            Visits matching these signals are marked as your own and never counted as client leads.
+            Unknown devices or locations are always treated as real clients.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">This device</p>
+                <p className="text-xs text-muted-foreground">
+                  {deviceIsOwner ? "Marked as yours — your visits are excluded." : "Not marked. Your visits count as client traffic."}
+                </p>
+              </div>
+              <Button type="button" variant={deviceIsOwner ? "outline" : "default"} size="sm" onClick={toggleOwnerDevice}>
+                {deviceIsOwner ? "Unmark this device" : "Mark this device as mine"}
+              </Button>
+            </div>
+          </div>
+          <div>
+            <Label>Owner IP addresses</Label>
+            <Input
+              value={settings.owner_ips || ""}
+              onChange={e => updateSetting("owner_ips", e.target.value)}
+              placeholder="203.0.113.4, 198.51.100.9"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Comma separated.</p>
+          </div>
+          <div>
+            <Label>Owner countries</Label>
+            <Input
+              value={settings.owner_countries || ""}
+              onChange={e => updateSetting("owner_countries", e.target.value)}
+              placeholder="NP, IN, BD, PK"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Two-letter codes, comma separated. NP/IN/BD/PK are always excluded.</p>
+          </div>
+          <div>
+            <Label>Owner emails</Label>
+            <Input
+              value={settings.owner_emails || ""}
+              onChange={e => updateSetting("owner_emails", e.target.value)}
+              placeholder="you@agency.com"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">Leads with these emails are treated as tests.</p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Branding */}
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
