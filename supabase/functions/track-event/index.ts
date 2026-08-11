@@ -66,7 +66,8 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { slug, link_type, event_type, session_id, metadata, demo_page_id, chatbot_id, business_name } = body;
+    const { slug, link_type, event_type, session_id, metadata, demo_page_id, chatbot_id, business_name, owner_token } = body;
+
 
     if (!slug || !event_type) {
       return new Response(JSON.stringify({ error: "slug and event_type required" }), { status: 400, headers: corsHeaders });
