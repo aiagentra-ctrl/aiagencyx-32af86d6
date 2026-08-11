@@ -147,6 +147,37 @@ export async function handleManyreachWebhook(
       return new Response(JSON.stringify(r), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ── Idempotency gate ───────────────────────────────────────────────
+    // ManyReach fires several events (prospect_replied, prospect_interested…)
+    // for the SAME reply, seconds apart. Without this gate each delivery runs
+    // its own pipeline and the lead gets two demos and two replies.
+    const dedupeKey = manyMessageId
+      ? `mr:${manyMessageId}`
+      : `mr:${email.toLowerCase()}:${await sha256Hex(`${subject}|${body}`.slice(0, 4000))}`;
+
+    const { error: dedupeErr } = await supabase
+      .from("webhook_dedupe").insert({ message_key: dedupeKey });
+
+    if (dedupeErr) {
+      // Row already exists -> this exact message was already ingested.
+      await supabase.rpc("noop_missing", {}).catch?.(() => {});
+      const { data: prev } = await supabase
+        .from("webhook_dedupe").select("prospect_id, inbox_message_id, seen_count")
+        .eq("message_key", dedupeKey).maybeSingle();
+      await supabase.from("webhook_dedupe")
+        .update({ seen_count: (prev?.seen_count || 1) + 1, last_seen_at: new Date().toISOString() })
+        .eq("message_key", dedupeKey);
+      const rd = {
+        ok: true, duplicate: true, reason: "already_processed",
+        prospect_id: prev?.prospect_id ?? null, message_id: prev?.inbox_message_id ?? null,
+      };
+      finalize("success", 200, rd);
+      return new Response(JSON.stringify(rd), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     // Hard blocklist: an unsubscribed / manually removed address never
     // re-activates automation, never gets a demo and never gets a reply.
     const { data: blockRow } = await supabase
