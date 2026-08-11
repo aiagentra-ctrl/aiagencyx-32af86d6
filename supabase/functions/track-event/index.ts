@@ -159,6 +159,8 @@ Deno.serve(async (req) => {
       metadata: {
         ...meta,
         is_owner: isOwnerTraffic,
+        self_traffic_reason: ownerDecision.reason,
+
         device_type: deviceInfo.device_type,
         browser: deviceInfo.browser,
         os: deviceInfo.os,
