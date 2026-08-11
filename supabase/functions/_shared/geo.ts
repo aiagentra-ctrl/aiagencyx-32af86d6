@@ -77,6 +77,84 @@ export async function resolveGeo(ip: string, timeoutMs = 3000): Promise<GeoDecis
 }
 
 // ---------------------------------------------------------------------------
+// Owner / self-traffic resolution
+// ---------------------------------------------------------------------------
+
+export type OwnerConfig = {
+  ips: string[];
+  countries: string[];
+  emails: string[];
+  deviceToken: string | null;
+};
+
+const OWNER_KEYS = ["owner_ips", "owner_countries", "owner_emails", "owner_device_token", "blocked_ips"];
+
+function splitList(v?: string | null): string[] {
+  return (v || "").split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+/** Reads the owner/test-traffic settings saved from the admin panel. */
+export async function loadOwnerConfig(supabase: any): Promise<OwnerConfig> {
+  const { data } = await supabase.from("site_settings").select("key,value").in("key", OWNER_KEYS);
+  const map: Record<string, string> = {};
+  for (const r of data || []) map[r.key] = r.value || "";
+  return {
+    ips: [...splitList(map.owner_ips), ...splitList(map.blocked_ips)],
+    countries: splitList(map.owner_countries).map((c) => c.toUpperCase()),
+    emails: splitList(map.owner_emails).map((e) => e.toLowerCase()),
+    deviceToken: map.owner_device_token ? map.owner_device_token.trim() : null,
+  };
+}
+
+export type SelfTrafficInput = {
+  cfg: OwnerConfig;
+  ip?: string | null;
+  countryCode?: string | null;
+  /** Token stored on the owner's browser via "Mark this device as mine". */
+  ownerToken?: string | null;
+  /** Set when the visit came from an authenticated admin session. */
+  isAdminSession?: boolean;
+  email?: string | null;
+  /** Country we already recorded for this lead, used as a fallback signal. */
+  knownCountry?: string | null;
+};
+
+export type SelfTrafficDecision = { isSelf: boolean; reason: string | null };
+
+/**
+ * Layered owner detection, strongest signal first. An UNKNOWN device or
+ * location is never treated as self traffic — it stays a potential client so
+ * normal follow-up keeps running.
+ */
+export function resolveSelfTraffic(input: SelfTrafficInput): SelfTrafficDecision {
+  const { cfg, ip, countryCode, ownerToken, isAdminSession, email, knownCountry } = input;
+
+  if (cfg.deviceToken && ownerToken && ownerToken === cfg.deviceToken) {
+    return { isSelf: true, reason: "owner_device" };
+  }
+  if (isAdminSession) return { isSelf: true, reason: "admin_session" };
+  if (ip && cfg.ips.includes(ip)) return { isSelf: true, reason: "owner_ip" };
+
+  const c = normalizeCountry(countryCode);
+  if (c) {
+    if (cfg.countries.includes(c)) return { isSelf: true, reason: "owner_country" };
+    if (isSelfTrafficCountry(c)) return { isSelf: true, reason: "self_traffic_country" };
+    return { isSelf: false, reason: null };
+  }
+
+  // Country unknown: fall back to the country we already know for this lead.
+  const known = normalizeCountry(knownCountry);
+  if (known && (cfg.countries.includes(known) || isSelfTrafficCountry(known))) {
+    return { isSelf: true, reason: "known_owner_country" };
+  }
+  if (email && cfg.emails.includes(email.toLowerCase())) {
+    return { isSelf: true, reason: "owner_email" };
+  }
+  // Unknown device / location -> treat as a real client.
+  return { isSelf: false, reason: null };
+}
+
+
 // Engagement duration tiers (voice + chat)
 // ---------------------------------------------------------------------------
 
