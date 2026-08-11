@@ -75,8 +75,9 @@ Deno.serve(async (req) => {
       });
     }
     releaseLock = async () => {
-      await supabase.rpc("release_pipeline_lock", { p_key: lockKey, p_holder: lockHolder }).catch?.(() => {});
+      await supabase.rpc("release_pipeline_lock", { p_key: lockKey, p_holder: lockHolder });
     };
+
 
     // Duplicate-send guard: if we already replied to this lead moments ago,
     // this delivery is a repeat — never send a second message.
