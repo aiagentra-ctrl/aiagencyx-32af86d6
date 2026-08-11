@@ -31,6 +31,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   let prospect_id: string | null = null;
   let message_id: string | null = null;
+  let releaseLock: (() => Promise<void>) | null = null;
+
   try {
     const body = await req.json();
     prospect_id = body.prospect_id; message_id = body.message_id;
@@ -58,6 +60,39 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Concurrency lock: one pipeline per lead at a time ───────────────
+    // Two webhook deliveries for the same reply used to race here and each
+    // built a demo + sent a reply. The lock makes that impossible.
+    const lockKey = `inbox:${prospect_id}`;
+    const lockHolder = `${message_id}:${crypto.randomUUID().slice(0, 8)}`;
+    const { data: gotLock } = await supabase.rpc("try_acquire_pipeline_lock", {
+      p_key: lockKey, p_holder: lockHolder, p_ttl_seconds: 180,
+    });
+    if (!gotLock) {
+      await traceStep(prospect_id, message_id, "classified", "skipped", { reason: "already_processing" });
+      return new Response(JSON.stringify({ ok: true, skipped: "already_processing" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    releaseLock = async () => {
+      await supabase.rpc("release_pipeline_lock", { p_key: lockKey, p_holder: lockHolder });
+    };
+
+
+    // Duplicate-send guard: if we already replied to this lead moments ago,
+    // this delivery is a repeat — never send a second message.
+    const { data: recentOut } = await supabase
+      .from("inbox_messages").select("id, created_at")
+      .eq("prospect_id", prospect_id).eq("direction", "outgoing")
+      .gte("created_at", new Date(Date.now() - 10 * 60_000).toISOString())
+      .limit(1);
+    if (recentOut && recentOut.length > 0) {
+      await traceStep(prospect_id, message_id, "reply_generated", "skipped", { reason: "recent_reply_already_sent" });
+      return new Response(JSON.stringify({ ok: true, skipped: "recent_reply_already_sent" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // 1) classify
     let classification: "Positive" | "Negative" | "Objection" = "Objection";
     try {
@@ -79,6 +114,7 @@ Deno.serve(async (req) => {
     // n8n parity: all three branches (Positive / Negative / Objection) flow
     // through `create-demo`. Only skip if we already have a demo or no website.
     const shouldCreateDemo = phase === "pre_demo" && !!prospect.website_url;
+
     if (shouldCreateDemo) {
       try {
         const demoRes = await call("create-demo", {
@@ -183,5 +219,8 @@ Deno.serve(async (req) => {
     const m = String((e as any)?.message || e);
     await logError("orchestrator", m, { prospect_id, message_id, stack: (e as any)?.stack });
     return new Response(JSON.stringify({ error: m }), { status: 500, headers: corsHeaders });
+  } finally {
+    if (releaseLock) { try { await releaseLock(); } catch { /* lock expires on its own */ } }
   }
+
 });

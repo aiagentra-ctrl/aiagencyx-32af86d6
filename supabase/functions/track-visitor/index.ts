@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { engagementTier, isSelfTrafficCountry } from "../_shared/geo.ts";
+import { engagementTier, loadOwnerConfig, resolveSelfTraffic } from "../_shared/geo.ts";
 
 
 const corsHeaders = {
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { slug, session_id, event_type, metadata = {}, fingerprint } = body;
+    const { slug, session_id, event_type, metadata = {}, fingerprint, owner_token } = body;
     if (!slug || !event_type) {
       return new Response(JSON.stringify({ error: "slug and event_type required" }), { status: 400, headers: corsHeaders });
     }
@@ -94,10 +94,23 @@ Deno.serve(async (req) => {
       } catch { /* ignore */ }
     }
 
+    const { data: lead } = await supabase.from("demo_leads").select("*").eq("slug", slug).maybeSingle();
+
     const rules = await loadCountryRules();
-    // Hard rule first: our own countries (NP/IN/BD/PK) never generate tracking.
-    if (isSelfTrafficCountry(countryCode)) {
-      return new Response(JSON.stringify({ ok: true, filtered: "self_traffic" }), { headers: corsHeaders });
+    const ownerCfg = await loadOwnerConfig(supabase);
+
+    // Layered owner detection. Unknown device/location is NEVER self traffic —
+    // it stays a potential client so follow-up keeps running.
+    const ownerDecision = resolveSelfTraffic({
+      cfg: ownerCfg,
+      ip,
+      countryCode,
+      ownerToken: owner_token,
+      email: lead?.sender_email || null,
+      knownCountry: lead?.country_code || null,
+    });
+    if (ownerDecision.isSelf) {
+      return new Response(JSON.stringify({ ok: true, filtered: "self_traffic", reason: ownerDecision.reason }), { headers: corsHeaders });
     }
     if (countryCode && rules.block.includes(countryCode)) {
       return new Response(JSON.stringify({ ok: true, filtered: "country_blocked" }), { headers: corsHeaders });
@@ -106,8 +119,6 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, filtered: "country_not_allowed" }), { headers: corsHeaders });
     }
 
-
-    const { data: lead } = await supabase.from("demo_leads").select("*").eq("slug", slug).maybeSingle();
     if (!lead) {
       return new Response(JSON.stringify({ ok: true, filtered: "no_lead" }), { headers: corsHeaders });
     }
@@ -115,6 +126,7 @@ Deno.serve(async (req) => {
     if (lead.status === "incomplete" || !lead.is_complete) {
       return new Response(JSON.stringify({ ok: true, filtered: "incomplete_lead" }), { headers: corsHeaders });
     }
+
 
     const device = parseDevice(ua);
     const eng = { ...(lead.engagement || {}) };

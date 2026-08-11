@@ -40,7 +40,14 @@ function background(p: Promise<unknown>) {
   else p.catch(() => {});
 }
 
+/** Stable hash used when a provider does not give us a message id. */
+async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
+}
+
 function pick<T = string>(obj: any, ...keys: string[]): T | undefined {
+
   for (const k of keys) {
     const parts = k.split(".");
     let cur = obj;
@@ -147,6 +154,37 @@ export async function handleManyreachWebhook(
       return new Response(JSON.stringify(r), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // ── Idempotency gate ───────────────────────────────────────────────
+    // ManyReach fires several events (prospect_replied, prospect_interested…)
+    // for the SAME reply, seconds apart. Without this gate each delivery runs
+    // its own pipeline and the lead gets two demos and two replies.
+    const dedupeKey = manyMessageId
+      ? `mr:${manyMessageId}`
+      : `mr:${email.toLowerCase()}:${await sha256Hex(`${subject}|${body}`.slice(0, 4000))}`;
+
+    const { error: dedupeErr } = await supabase
+      .from("webhook_dedupe").insert({ message_key: dedupeKey });
+
+    if (dedupeErr) {
+      // Row already exists -> this exact message was already ingested.
+
+      const { data: prev } = await supabase
+        .from("webhook_dedupe").select("prospect_id, inbox_message_id, seen_count")
+        .eq("message_key", dedupeKey).maybeSingle();
+      await supabase.from("webhook_dedupe")
+        .update({ seen_count: (prev?.seen_count || 1) + 1, last_seen_at: new Date().toISOString() })
+        .eq("message_key", dedupeKey);
+      const rd = {
+        ok: true, duplicate: true, reason: "already_processed",
+        prospect_id: prev?.prospect_id ?? null, message_id: prev?.inbox_message_id ?? null,
+      };
+      finalize("success", 200, rd);
+      return new Response(JSON.stringify(rd), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     // Hard blocklist: an unsubscribed / manually removed address never
     // re-activates automation, never gets a demo and never gets a reply.
     const { data: blockRow } = await supabase
@@ -206,6 +244,13 @@ export async function handleManyreachWebhook(
       }).select("id").single();
     if (msgErr) throw msgErr;
     messageId = msg.id;
+
+    // Point the dedupe row at what we created, so a repeat delivery can
+    // answer with the original ids instead of starting a second pipeline.
+    background(supabase.from("webhook_dedupe")
+      .update({ prospect_id: prospectId, inbox_message_id: messageId })
+      .eq("message_key", dedupeKey));
+
 
     // Tracing + memory are observability, not correctness — run them off the hot path.
     background((async () => {
