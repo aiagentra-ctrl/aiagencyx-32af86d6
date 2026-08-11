@@ -218,5 +218,8 @@ Deno.serve(async (req) => {
     const m = String((e as any)?.message || e);
     await logError("orchestrator", m, { prospect_id, message_id, stack: (e as any)?.stack });
     return new Response(JSON.stringify({ error: m }), { status: 500, headers: corsHeaders });
+  } finally {
+    if (releaseLock) { try { await releaseLock(); } catch { /* lock expires on its own */ } }
   }
+
 });
