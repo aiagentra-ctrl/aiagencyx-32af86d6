@@ -40,7 +40,14 @@ function background(p: Promise<unknown>) {
   else p.catch(() => {});
 }
 
+/** Stable hash used when a provider does not give us a message id. */
+async function sha256Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
+}
+
 function pick<T = string>(obj: any, ...keys: string[]): T | undefined {
+
   for (const k of keys) {
     const parts = k.split(".");
     let cur = obj;
