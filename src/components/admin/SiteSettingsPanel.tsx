@@ -7,7 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Save, Calendar, Building2, Phone, Bot, Mic, Brain } from "lucide-react";
+import { Save, Calendar, Building2, Phone, Bot, Mic, Brain, ShieldCheck } from "lucide-react";
+import { getOwnerToken, setOwnerToken } from "@/lib/tracking";
+
 
 const DEFAULT_SYSTEM_PROMPT = `## Role & Identity
 You are the AI assistant for {business_name}. You are friendly, professional, and speak naturally.
