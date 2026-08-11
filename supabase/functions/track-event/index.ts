@@ -88,16 +88,16 @@ Deno.serve(async (req) => {
 
     const supabase = supabaseClient;
 
-    // 2. Run geo lookup, blocked IPs check, and duplicate check ALL in parallel
+    // 2. Run geo lookup, owner config, and duplicate check ALL in parallel
     const needsGeo = visitorIp && visitorIp !== "unknown" && visitorIp !== "127.0.0.1";
-    const [geoResult, ipSettingResult, duplicateResult] = await Promise.all([
+    const [geoResult, ownerCfg, duplicateResult] = await Promise.all([
       // Geo lookup with short timeout
       needsGeo
         ? fetch(`http://ip-api.com/json/${visitorIp}?fields=countryCode,city,status`, { signal: AbortSignal.timeout(3000) })
             .then(r => r.ok ? r.json() : null).catch(() => null)
         : Promise.resolve(null),
-      // Blocked IPs
-      supabase.from("site_settings").select("value").eq("key", "blocked_ips").maybeSingle(),
+      // Owner / test-traffic settings
+      loadOwnerConfig(supabase),
       // Duplicate check
       session_id
         ? supabase.from("link_events").select("id").eq("session_id", session_id).eq("event_type", event_type).eq("slug", slug).gte("created_at", new Date(Date.now() - 5000).toISOString()).limit(1)
@@ -112,17 +112,20 @@ Deno.serve(async (req) => {
       city = geoResult.city || null;
     }
 
-    // Check blocked IPs
-    let blockedIps: string[] = [];
-    if (ipSettingResult.data?.value) {
-      blockedIps = ipSettingResult.data.value.split(",").map((ip: string) => ip.trim());
+    // Layered owner detection: owner device token -> owner IP -> owner country
+    // -> last known country for this slug. Unknown stays a real client.
+    let knownCountry: string | null = null;
+    if (!countryCode) {
+      const { data: prevEvent } = await supabase
+        .from("link_events").select("country_code").eq("slug", slug)
+        .not("country_code", "is", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      knownCountry = prevEvent?.country_code || null;
     }
+    const ownerDecision = resolveSelfTraffic({
+      cfg: ownerCfg, ip: visitorIp, countryCode, ownerToken: owner_token, knownCountry,
+    });
+    const isOwnerTraffic = ownerDecision.isSelf;
 
-    // Geo rule: NP / IN / BD / PK are our own traffic. Everything else — including
-    // unknown countries — is treated as real client traffic and tracked.
-    const isOwnerCountry = isSelfTrafficCountry(countryCode);
-    const isBlockedIp = blockedIps.includes(visitorIp);
-    const isOwnerTraffic = isOwnerCountry || isBlockedIp;
 
 
     // Check duplicate
