@@ -419,6 +419,106 @@ export type Database = {
           },
         ]
       }
+      demo_job_steps: {
+        Row: {
+          attempt: number
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          id: string
+          job_id: string
+          output: Json | null
+          status: string
+          step: string
+          step_order: number
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          job_id: string
+          output?: Json | null
+          status?: string
+          step: string
+          step_order?: number
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          job_id?: string
+          output?: Json | null
+          status?: string
+          step?: string
+          step_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_job_steps_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "demo_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      demo_jobs: {
+        Row: {
+          attempt: number
+          business_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          last_error: string | null
+          prospect_id: string | null
+          result: Json
+          status: string
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          attempt?: number
+          business_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          last_error?: string | null
+          prospect_id?: string | null
+          result?: Json
+          status?: string
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          attempt?: number
+          business_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          last_error?: string | null
+          prospect_id?: string | null
+          result?: Json
+          status?: string
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demo_jobs_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demo_leads: {
         Row: {
           bcc_emails: Json | null
