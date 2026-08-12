@@ -974,6 +974,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const supabase = supabaseClient;
+  let jobId: string | null = null;
 
   try {
     const reqBody = await req.json();
