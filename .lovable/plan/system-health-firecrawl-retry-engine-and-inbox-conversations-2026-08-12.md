@@ -11,27 +11,30 @@
 ## What will be built
 
 ### 1. Connect Firecrawl and make it mandatory
+
 - Link the existing Firecrawl connection to this project so `FIRECRAWL_API_KEY` is available in backend functions.
 - Add a shared Firecrawl client used by all scraping functions: direct API (`api.firecrawl.dev/v2`), consistent error surfacing (status + body), credit/402 handling.
 - **Hard gate:** demo generation refuses to start if Firecrawl is unreachable or out of credits. It records a failed job instead of building a broken demo.
 
-### 2. Real admin authentication (fixes Inbox + Conversations)
-- Replace the hardcoded client-side password with real Cloud auth (email/password sign-in) plus an `admin` role in a separate `user_roles` table, checked by a security-definer function.
-- Existing table policies then work as intended and Inbox, Conversations, Leads, Follow-Ups, Logs and Tracking all populate from the same stored data.
-- Your existing admin email is seeded as the admin user; you set the password once at first sign-in.
+### we use same hardcode  login syteam.
 
 ### 3. Job + step tracking with resumable retry
+
 New tables:
+
 - `demo_jobs` — one row per demo build: prospect/lead, status (`pending`/`running`/`partial`/`failed`/`completed`), attempt count, last error, created/updated.
 - `demo_job_steps` — one row per step (`firecrawl_scrape`, `analyze`, `build_kb`, `create_chatbot`, `create_voice_agent`, `create_demo_page`, `send_reply`): status, output payload, error text, duration, attempt.
 
 Behaviour:
+
 - Each step writes its result before the next starts, so completed work is never lost.
 - A retry action re-runs only steps that are `failed` or `pending`, reusing stored output from completed steps.
 - Failures appear in Health and Logs with step name, error text and a Retry button.
 
 ### 4. Expanded System Health page
+
 The existing 7-step check is extended into grouped checks:
+
 - **Integrations:** Firecrawl (live scrape ping + credits), OpenRouter/Lovable AI, VAPI, ManyReach, Netlify.
 - **Limits:** rate-limit / credit signals returned by each provider, plus recent 429/402 counts from logs.
 - **Pipeline:** webhook reachable, message stored, classification, memory read/write, reply generated, reply stored, follow-up scheduled.
@@ -39,6 +42,7 @@ The existing 7-step check is extended into grouped checks:
 - **Failures:** open failed demo jobs and failed steps, with retry.
 
 ### 5. Memory and history actually used
+
 - Classification receives the full cleaned thread, prior classifications, lead status and demo-sent flag.
 - Reply generation and follow-up generation receive the same memory block (already partially present) plus outgoing reply history to prevent repetition.
 - Health verifies for a sample lead that memory was read (a pipeline event is recorded for `memory_read`), not just written.
