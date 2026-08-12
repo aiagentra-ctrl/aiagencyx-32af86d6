@@ -1003,42 +1003,84 @@ Deno.serve(async (req) => {
 
     await log(supabase, "info", `Starting demo creation for "${business_name}"`, { business_name, website_url: formattedUrl, industry: userIndustry });
 
+    // Job tracking — every step is persisted so failures are resumable.
+    jobId = await startDemoJob({
+      job_id: reqBody.job_id || null,
+      email: reqBody.senderEmail || reqBody.email || null,
+      prospect_id: reqBody.prospect_id || null,
+      business_name,
+      website_url: formattedUrl,
+    });
+
     const adminSettings = await loadAdminSettings(supabase);
     const calendarUrl = calendar_link || adminSettings.calendar_url || "";
     const siteUrl = (adminSettings.site_url || Deno.env.get("SITE_URL") || "").replace(/\/+$/, "");
+
+    // Step 0: Firecrawl is a HARD dependency — never build a demo without it.
+    const cachedFirst = await getCachedContent(supabase, formattedUrl);
+    if (!cachedFirst) {
+      const health = await runStep(jobId, "firecrawl_check", async () => {
+        const h = await checkFirecrawl();
+        if (!h.ok) throw new Error(h.error || "Firecrawl unavailable");
+        return h;
+      }, { serialize: (h) => h }).catch((e) => e as Error);
+
+      if (health instanceof Error) {
+        await log(supabase, "error", `Firecrawl unavailable — demo blocked: ${health.message}`, { business_name });
+        await finishJob(jobId, "failed", { last_error: `Firecrawl unavailable: ${health.message}` });
+        return new Response(JSON.stringify({
+          error: `Demo generation blocked: Firecrawl is not working (${health.message}). Fix the Firecrawl connection and retry this job.`,
+          job_id: jobId,
+          blocked_by: "firecrawl",
+        }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    } else {
+      await recordStep(jobId, "firecrawl_check", "skipped", { output: { reason: "cached content" } });
+    }
 
     // Step 1: Scrape (cache-first, now with multi-page)
     let websiteContent = "";
     let logoUrl: string | undefined;
     let structuredData: any = null;
 
-    const cached = await getCachedContent(supabase, formattedUrl);
+    const cached = cachedFirst;
     if (cached) {
       websiteContent = cached.content;
       logoUrl = cached.logoUrl;
       structuredData = cached.structured_data;
+      await recordStep(jobId, "firecrawl_scrape", "completed", { output: { source: "cache", chars: websiteContent.length } });
     }
 
     if (!websiteContent) {
       try {
-        const result = await scrapeWebsite(supabase, formattedUrl, business_name);
+        const result = await runStep(jobId, "firecrawl_scrape", () => scrapeWebsite(supabase, formattedUrl, business_name), {
+          serialize: (r: any) => ({ chars: (r?.content || "").length, logo: !!r?.logoUrl }),
+        });
         websiteContent = result.content;
         logoUrl = result.logoUrl;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Scraping failed";
-        console.warn(`[scrape] Fallback mode — scraping failed: ${msg}`);
-        await log(supabase, "warning", `Scrape failed, using fallback: ${msg}`, { business_name });
-        // BACKUP: continue without scraped content — LLM will generate from business name alone
-        websiteContent = `Business: ${business_name}\nWebsite: ${formattedUrl}\nNo website content available — generate based on business name and URL.`;
+        await log(supabase, "error", `Scrape failed — demo blocked: ${msg}`, { business_name });
+        await finishJob(jobId, "failed", { last_error: `Scrape failed: ${msg}` });
+        return new Response(JSON.stringify({
+          error: `Demo generation blocked: website scrape failed (${msg}). Retry this job once the source is reachable.`,
+          job_id: jobId,
+          blocked_by: "scrape",
+        }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
 
     // Step 2: Enhanced LLM extraction (sends up to 15K chars from multi-page content)
     const extractionIndustry = userIndustry && userIndustry !== "default" ? userIndustry : "";
     if (!structuredData?.services?.length && !structuredData?.menu_items?.length) {
-      const llmData = await extractStructuredData(supabase, business_name, websiteContent, extractionIndustry);
+      const llmData = await runStep(jobId, "analyze", () => extractStructuredData(supabase, business_name, websiteContent, extractionIndustry), {
+        serialize: (d: any) => ({ got: !!d, industry: d?.industry ?? null }),
+      });
       if (llmData) structuredData = llmData;
+    } else {
+      await recordStep(jobId, "analyze", "completed", { output: { source: "cache" } });
     }
+
 
     await saveScrapeCache(supabase, formattedUrl, websiteContent, logoUrl, structuredData);
 
