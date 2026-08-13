@@ -1224,14 +1224,23 @@ Deno.serve(async (req) => {
 
     // Step 5: Create VAPI voice assistant
     let assistantId: string;
-    try {
-      assistantId = await createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData, preChatbotId);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "VAPI creation failed";
-      await log(supabase, "error", `VAPI failed: ${msg}`, { business_name });
-      return new Response(JSON.stringify({ error: `Voice agent creation failed: ${msg}` }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const priorVoice = await stepDone(jobId, "create_voice_agent");
+    if (priorVoice?.assistant_id) {
+      assistantId = priorVoice.assistant_id;
+    } else {
+      try {
+        assistantId = await runStep(jobId, "create_voice_agent",
+          () => createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData, preChatbotId),
+          { serialize: (id: string) => ({ assistant_id: id }) });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "VAPI creation failed";
+        await log(supabase, "error", `VAPI failed: ${msg}`, { business_name });
+        await finishJob(jobId, "failed", { last_error: `Voice agent creation failed: ${msg}` });
+        return new Response(JSON.stringify({ error: `Voice agent creation failed: ${msg}`, job_id: jobId, blocked_by: "vapi" }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
+
 
     // Step 6: Create demo page
     const vapiPublicKey = adminSettings.vapi_public_key || "";
