@@ -1377,7 +1377,9 @@ Deno.serve(async (req) => {
     const msg = err instanceof Error ? err.message : "Internal server error";
     console.error("Unexpected error:", err);
     await log(supabase, "error", `Unexpected: ${msg}`, {});
-    return new Response(JSON.stringify({ error: msg }),
+    await finishJob(jobId, "failed", { last_error: msg });
+    return new Response(JSON.stringify({ error: msg, job_id: jobId }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
+
 });
