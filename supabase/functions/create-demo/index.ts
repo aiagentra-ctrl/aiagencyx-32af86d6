@@ -1269,11 +1269,15 @@ Deno.serve(async (req) => {
       dynamic_content: dynamicContent,
     }).select().single();
 
-    if (demoErr) {
+    if (demoErr || !demoPage) {
       console.error("Demo page insert error:", demoErr);
-      return new Response(JSON.stringify({ error: "Failed to create demo page" }),
+      await recordStep(jobId, "create_demo_page", "failed", { error: demoErr?.message || "insert failed" });
+      await finishJob(jobId, "failed", { last_error: `Demo page insert failed: ${demoErr?.message || "unknown"}` });
+      return new Response(JSON.stringify({ error: "Failed to create demo page", job_id: jobId, blocked_by: "demo_page" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    await recordStep(jobId, "create_demo_page", "completed", { output: { demo_page_id: demoPage.id, slug: demoSlug } });
+
 
     // Step 7: Create chatbot
     let chatbotSlug = slugify(business_name + "-chat");
