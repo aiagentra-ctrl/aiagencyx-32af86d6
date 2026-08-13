@@ -1224,14 +1224,23 @@ Deno.serve(async (req) => {
 
     // Step 5: Create VAPI voice assistant
     let assistantId: string;
-    try {
-      assistantId = await createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData, preChatbotId);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "VAPI creation failed";
-      await log(supabase, "error", `VAPI failed: ${msg}`, { business_name });
-      return new Response(JSON.stringify({ error: `Voice agent creation failed: ${msg}` }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const priorVoice = await stepDone(jobId, "create_voice_agent");
+    if (priorVoice?.assistant_id) {
+      assistantId = priorVoice.assistant_id;
+    } else {
+      try {
+        assistantId = await runStep(jobId, "create_voice_agent",
+          () => createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData, preChatbotId),
+          { serialize: (id: string) => ({ assistant_id: id }) });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "VAPI creation failed";
+        await log(supabase, "error", `VAPI failed: ${msg}`, { business_name });
+        await finishJob(jobId, "failed", { last_error: `Voice agent creation failed: ${msg}` });
+        return new Response(JSON.stringify({ error: `Voice agent creation failed: ${msg}`, job_id: jobId, blocked_by: "vapi" }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
+
 
     // Step 6: Create demo page
     const vapiPublicKey = adminSettings.vapi_public_key || "";
@@ -1260,11 +1269,15 @@ Deno.serve(async (req) => {
       dynamic_content: dynamicContent,
     }).select().single();
 
-    if (demoErr) {
+    if (demoErr || !demoPage) {
       console.error("Demo page insert error:", demoErr);
-      return new Response(JSON.stringify({ error: "Failed to create demo page" }),
+      await recordStep(jobId, "create_demo_page", "failed", { error: demoErr?.message || "insert failed" });
+      await finishJob(jobId, "failed", { last_error: `Demo page insert failed: ${demoErr?.message || "unknown"}` });
+      return new Response(JSON.stringify({ error: "Failed to create demo page", job_id: jobId, blocked_by: "demo_page" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    await recordStep(jobId, "create_demo_page", "completed", { output: { demo_page_id: demoPage.id, slug: demoSlug } });
+
 
     // Step 7: Create chatbot
     let chatbotSlug = slugify(business_name + "-chat");
@@ -1307,7 +1320,12 @@ Deno.serve(async (req) => {
       },
     });
 
-    if (chatErr) console.error("Chatbot insert error:", chatErr);
+    if (chatErr) {
+      console.error("Chatbot insert error:", chatErr);
+      await recordStep(jobId, "create_chatbot", "failed", { error: chatErr.message });
+    } else {
+      await recordStep(jobId, "create_chatbot", "completed", { output: { chatbot_id: preChatbotId, slug: chatbotSlug } });
+    }
 
     const demoUrl = siteUrl ? `${siteUrl}/${demoSlug}` : `/${demoSlug}`;
 
@@ -1323,8 +1341,15 @@ Deno.serve(async (req) => {
         is_complete: isComplete,
         status: isComplete ? "pending" : "incomplete",
       }).select("id").maybeSingle();
-      if (leadErr) console.error("demo_leads insert error:", leadErr);
-      else leadId = leadRow?.id || null;
+      if (leadErr) {
+        console.error("demo_leads insert error:", leadErr);
+        await recordStep(jobId, "store_lead", "failed", { error: leadErr.message });
+      } else {
+        leadId = leadRow?.id || null;
+        await recordStep(jobId, "store_lead", "completed", { output: { lead_id: leadId, is_complete: isComplete } });
+      }
+    } else {
+      await recordStep(jobId, "store_lead", "skipped", { output: { reason: "no follow-up data supplied" } });
     }
 
     await log(supabase, "success", `Demo created for "${business_name}": ${demoUrl}`, {
@@ -1334,7 +1359,12 @@ Deno.serve(async (req) => {
       leadId,
     });
 
-    const respBody: any = { demo_url: demoUrl };
+    await finishJob(jobId, chatErr ? "partial" : "completed", {
+      last_error: chatErr ? `Chatbot insert failed: ${chatErr.message}` : null,
+      result: { demo_url: demoUrl, demo_page_id: demoPage.id, chatbot_id: preChatbotId, assistant_id: assistantId, lead_id: leadId },
+    });
+
+    const respBody: any = { demo_url: demoUrl, job_id: jobId };
     if (leadId) {
       respBody.lead_id = leadId;
       respBody.followUpReady = isComplete;
@@ -1342,11 +1372,14 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify(respBody),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Internal server error";
     console.error("Unexpected error:", err);
     await log(supabase, "error", `Unexpected: ${msg}`, {});
-    return new Response(JSON.stringify({ error: msg }),
+    await finishJob(jobId, "failed", { last_error: msg });
+    return new Response(JSON.stringify({ error: msg, job_id: jobId }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
+
 });
