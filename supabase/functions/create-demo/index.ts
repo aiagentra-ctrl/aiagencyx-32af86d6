@@ -1320,7 +1320,12 @@ Deno.serve(async (req) => {
       },
     });
 
-    if (chatErr) console.error("Chatbot insert error:", chatErr);
+    if (chatErr) {
+      console.error("Chatbot insert error:", chatErr);
+      await recordStep(jobId, "create_chatbot", "failed", { error: chatErr.message });
+    } else {
+      await recordStep(jobId, "create_chatbot", "completed", { output: { chatbot_id: preChatbotId, slug: chatbotSlug } });
+    }
 
     const demoUrl = siteUrl ? `${siteUrl}/${demoSlug}` : `/${demoSlug}`;
 
@@ -1336,8 +1341,15 @@ Deno.serve(async (req) => {
         is_complete: isComplete,
         status: isComplete ? "pending" : "incomplete",
       }).select("id").maybeSingle();
-      if (leadErr) console.error("demo_leads insert error:", leadErr);
-      else leadId = leadRow?.id || null;
+      if (leadErr) {
+        console.error("demo_leads insert error:", leadErr);
+        await recordStep(jobId, "store_lead", "failed", { error: leadErr.message });
+      } else {
+        leadId = leadRow?.id || null;
+        await recordStep(jobId, "store_lead", "completed", { output: { lead_id: leadId, is_complete: isComplete } });
+      }
+    } else {
+      await recordStep(jobId, "store_lead", "skipped", { output: { reason: "no follow-up data supplied" } });
     }
 
     await log(supabase, "success", `Demo created for "${business_name}": ${demoUrl}`, {
@@ -1347,13 +1359,19 @@ Deno.serve(async (req) => {
       leadId,
     });
 
-    const respBody: any = { demo_url: demoUrl };
+    await finishJob(jobId, chatErr ? "partial" : "completed", {
+      last_error: chatErr ? `Chatbot insert failed: ${chatErr.message}` : null,
+      result: { demo_url: demoUrl, demo_page_id: demoPage.id, chatbot_id: preChatbotId, assistant_id: assistantId, lead_id: leadId },
+    });
+
+    const respBody: any = { demo_url: demoUrl, job_id: jobId };
     if (leadId) {
       respBody.lead_id = leadId;
       respBody.followUpReady = isComplete;
     }
     return new Response(JSON.stringify(respBody),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Internal server error";
