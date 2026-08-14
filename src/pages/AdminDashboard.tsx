@@ -168,7 +168,7 @@ const AdminDashboard = () => {
 
   return (
     <ShellProvider initialSection="home">
-      <AppShell onSignOut={() => { sessionStorage.removeItem("admin_auth"); setIsAuthenticated(false); }}>
+      <AppShell onSignOut={() => { sessionStorage.removeItem("admin_auth"); clearAdminKey(); setIsAuthenticated(false); }}>
         <AdminSections
           pages={pages}
           chatbots={chatbots}
