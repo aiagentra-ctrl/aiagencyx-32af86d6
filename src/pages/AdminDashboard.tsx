@@ -123,11 +123,14 @@ const AdminDashboard = () => {
     if (loginEmail === ADMIN_EMAIL && loginPassword === ADMIN_PASSWORD) {
       setIsAuthenticated(true);
       sessionStorage.setItem("admin_auth", "true");
+      // The admin key unlocks the service-role `admin-data` read layer.
+      setAdminKey(loginPassword);
       setLoginError("");
     } else {
       setLoginError("Invalid email or password");
     }
   };
+
 
   if (!isAuthenticated) {
     return (
