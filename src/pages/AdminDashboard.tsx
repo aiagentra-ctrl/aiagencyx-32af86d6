@@ -30,6 +30,8 @@ import WorkflowCanvas from "@/components/admin/WorkflowCanvas";
 import { Input } from "@/components/ui/input";
 import { ShellProvider, useShell } from "@/components/shell/ShellContext";
 import { AppShell } from "@/components/shell/AppShell";
+import { setAdminKey, clearAdminKey, getAdminKey } from "@/lib/adminData";
+
 
 
 const ADMIN_EMAIL = "aiagentron@gmail.com";
@@ -75,8 +77,10 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const AdminDashboard = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem("admin_auth") === "true";
+    // A stale session without an admin key can't read anything — force re-login.
+    return sessionStorage.getItem("admin_auth") === "true" && !!getAdminKey();
   });
+
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
