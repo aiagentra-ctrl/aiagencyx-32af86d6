@@ -71,6 +71,15 @@ const RESOURCES: Record<string, (p: any) => Promise<unknown>> = {
     ]);
     return { prospects: prospects.data ?? [], demos: demos.data ?? [], enrollments: enrollments.data ?? [] };
   },
+  // Legacy `leads` table (slug-based) used by the Leads panel.
+  leads_legacy: async () => {
+    const [leads, events] = await Promise.all([
+      sb.from("leads").select("*").order("updated_at", { ascending: false }).limit(500),
+      sb.from("link_events").select("slug, business_name, event_type, country_code, metadata").limit(5000),
+    ]);
+    return { leads: leads.data ?? [], link_events: events.data ?? [] };
+  },
+
   tracking: async () => {
     const [prospects, events, enrollments] = await Promise.all([
       sb.from("prospects").select("*").eq("is_test_data", false).eq("is_self_traffic", false)

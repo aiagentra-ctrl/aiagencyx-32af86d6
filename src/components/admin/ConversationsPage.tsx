@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { adminFetchSafe } from "@/lib/adminData";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,31 +64,25 @@ export default function ConversationsPage() {
 
   async function loadSessions() {
     setLoading(true);
-    const { data } = await supabase
-      .from("chatbot_sessions")
-      .select("*")
-      .order("last_message_at", { ascending: false, nullsFirst: false })
-      .limit(100);
-    setSessions((data as any) || []);
+    const d = await adminFetchSafe("conversations", { sessions: [] as any[], suggestions: [] as any[] });
+    setSessions((d.sessions as any) || []);
+    setSuggestions((d.suggestions as any) || []);
     setLoading(false);
   }
   async function loadSuggestions() {
-    const { data } = await supabase
-      .from("prompt_improvement_suggestions")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    setSuggestions((data as any) || []);
+    const d = await adminFetchSafe("conversations", { sessions: [] as any[], suggestions: [] as any[] });
+    setSuggestions((d.suggestions as any) || []);
   }
   async function loadMessages(sess: Session) {
     setSelected(sess);
-    const { data } = await supabase
-      .from("chatbot_messages")
-      .select("*")
-      .eq("session_id", sess.session_id)
-      .order("created_at", { ascending: true });
-    setMsgs((data as any) || []);
+    const d = await adminFetchSafe(
+      "conversation_messages",
+      { messages: [] as any[] },
+      { session_id: sess.session_id },
+    );
+    setMsgs((d.messages as any) || []);
   }
+
 
   useEffect(() => {
     loadSessions();

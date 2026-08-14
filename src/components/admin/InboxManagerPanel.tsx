@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { adminFetchSafe } from "@/lib/adminData";
+
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,18 +107,18 @@ const InboxManagerPanel = () => {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [{ data: ps }, { data: ms }, { data: ds }, { data: pe }] = await Promise.all([
-      supabase.from("prospects").select("*").eq("is_test_data", false).order("last_message_at", { ascending: false, nullsFirst: false }),
-      supabase.from("inbox_messages").select("*").eq("is_test_data", false).order("created_at", { ascending: true }),
-      supabase.from("inbox_demos").select("*").order("created_at", { ascending: false }),
-      supabase.from("pipeline_events").select("id, message_id, step, status, details, created_at").order("created_at", { ascending: false }).limit(500),
-    ]);
-    setProspects((ps as Prospect[]) || []);
-    setMessages((ms as Msg[]) || []);
-    setDemos((ds as Demo[]) || []);
-    setPipelineEvents((pe as PipelineEvent[]) || []);
+    // Read through the service-role admin-data layer: the panel is not a
+    // Supabase-authenticated session, so direct table reads are blocked by RLS.
+    const d = await adminFetchSafe("inbox", {
+      prospects: [] as any[], messages: [] as any[], demos: [] as any[], pipeline_events: [] as any[],
+    });
+    setProspects((d.prospects as Prospect[]) || []);
+    setMessages((d.messages as Msg[]) || []);
+    setDemos((d.demos as Demo[]) || []);
+    setPipelineEvents((d.pipeline_events as PipelineEvent[]) || []);
     setLoading(false);
   }, []);
+
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 

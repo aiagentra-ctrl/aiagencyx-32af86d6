@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { adminFetchSafe } from "@/lib/adminData";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -68,16 +70,15 @@ const TrackingPage = () => {
 
   const load = async () => {
     setLoading(true);
-    const [p, e, l] = await Promise.all([
-      supabase.from("prospects").select("*").eq("is_test_data", false).order("last_activity_at", { ascending: false, nullsFirst: false }).limit(500),
-      supabase.from("follow_up_enrollments").select("prospect_id, current_step, status"),
-      supabase.from("link_events").select("slug, session_id, event_type, is_self_traffic, metadata").limit(5000),
-    ]);
-    setProspects((p.data || []) as unknown as Prospect[]);
-    setEnrollments((e.data || []) as unknown as Enrollment[]);
-    setEvents((l.data || []) as unknown as LinkEvent[]);
+    const d = await adminFetchSafe("tracking", {
+      prospects: [] as any[], link_events: [] as any[], enrollments: [] as any[],
+    });
+    setProspects((d.prospects || []) as unknown as Prospect[]);
+    setEnrollments((d.enrollments || []) as unknown as Enrollment[]);
+    setEvents((d.link_events || []) as unknown as LinkEvent[]);
     setLoading(false);
   };
+
 
   useEffect(() => { load(); }, []);
 

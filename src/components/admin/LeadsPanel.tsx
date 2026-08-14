@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { adminFetchSafe } from "@/lib/adminData";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
@@ -48,18 +50,14 @@ const LeadsPanel = () => {
   const [search, setSearch] = useState("");
 
   const fetchLeads = useCallback(async () => {
-    const { data } = await supabase.from("leads").select("*").order("updated_at", { ascending: false });
-    if (data) {
-      const leadsData = data as unknown as Lead[];
-      setLeads(leadsData);
-      // Refresh selected lead if it's still in the list
-      if (selectedLead) {
-        const updated = leadsData.find(l => l.id === selectedLead.id);
-        if (updated) setSelectedLead(updated);
-      }
-    }
+    const d = await adminFetchSafe("leads_legacy", { leads: [] as any[], link_events: [] as any[] });
+    const leadsData = (d.leads || []) as unknown as Lead[];
+    setLeads(leadsData);
+    // Refresh selected lead if it's still in the list
+    setSelectedLead((prev) => (prev ? leadsData.find((l) => l.id === prev.id) ?? prev : prev));
     setLoading(false);
-  }, [selectedLead]);
+  }, []);
+
 
   // Regions to exclude from qualified leads (still tracked in analytics)
   const EXCLUDED_COUNTRY_CODES = ["NP", "IN", "BD"];
