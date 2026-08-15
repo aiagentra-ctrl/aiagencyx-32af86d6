@@ -59,65 +59,16 @@ const LeadsPanel = () => {
   }, []);
 
 
-  // Regions to exclude from qualified leads (still tracked in analytics)
-  const EXCLUDED_COUNTRY_CODES = ["NP", "IN", "BD"];
-
+  // Sync runs server-side (service role) — RLS blocks writes from the panel.
   const syncLeads = async () => {
     setSyncing(true);
     try {
-      const { data: events } = await supabase.from("link_events").select("slug, business_name, event_type, country_code, metadata");
-      if (!events || events.length === 0) { setSyncing(false); return; }
-
-      const slugMap = new Map<string, { business_name: string; events: string[]; countryCodes: string[]; hasOwnerTraffic: boolean }>();
-      for (const e of events) {
-        const entry = slugMap.get(e.slug) || { business_name: e.business_name, events: [], countryCodes: [], hasOwnerTraffic: false };
-        entry.events.push(e.event_type);
-        if (e.country_code) entry.countryCodes.push(e.country_code);
-        const meta = e.metadata as Record<string, unknown> | null;
-        if (meta?.is_owner) entry.hasOwnerTraffic = true;
-        slugMap.set(e.slug, entry);
-      }
-
-      const { data: existingLeads } = await supabase.from("leads").select("slug, status, follow_up_count");
-      const existingMap = new Map((existingLeads || []).map((l: any) => [l.slug, l]));
-
-      let processed = 0;
-      let skipped = 0;
-
-      for (const [slug, info] of slugMap) {
-        // Filter: skip leads where ALL traffic is from excluded regions or marked as owner
-        const validCountries = info.countryCodes.filter(c => !EXCLUDED_COUNTRY_CODES.includes(c));
-        const allExcluded = info.countryCodes.length > 0 && validCountries.length === 0;
-        const isOnlyOwner = info.hasOwnerTraffic && !info.countryCodes.some(c => !EXCLUDED_COUNTRY_CODES.includes(c));
-
-        if ((allExcluded || isOnlyOwner) && !existingMap.has(slug)) {
-          skipped++;
-          continue; // Don't create lead for excluded-region-only traffic
-        }
-
-        const existing = existingMap.get(slug) as any;
-        if (existing && existing.status === "call_scheduled") continue;
-
-        let status = "needs_follow_up";
-        const evts = info.events;
-        if (evts.includes("voice_call_started")) status = "interested";
-        else if (evts.includes("chatbot_opened") || evts.includes("chatbot_message")) status = "awaiting_response";
-        const totalClicks = evts.filter(e => e === "click" || e === "cta_click").length;
-        if (totalClicks >= 3 || evts.length >= 5) status = "engaged";
-        if (existing && existing.follow_up_count >= 3 && status === "needs_follow_up") status = "cold_lead";
-
-        if (existing) {
-          if (existing.status !== status && existing.status !== "call_scheduled") {
-            await supabase.from("leads").update({ status }).eq("slug", slug);
-          }
-        } else {
-          await supabase.from("leads").insert({ slug, business_name: info.business_name, status });
-        }
-        processed++;
-      }
-
+      const res = await adminFetch<{ processed: number; skipped: number }>("sync_leads");
       await fetchLeads();
-      toast({ title: "Leads synced", description: `${processed} qualified leads processed${skipped > 0 ? `, ${skipped} excluded (regional)` : ""}` });
+      toast({
+        title: "Leads synced",
+        description: `${res?.processed ?? 0} qualified leads processed${res?.skipped ? `, ${res.skipped} excluded (regional)` : ""}`,
+      });
     } catch (err: any) {
       toast({ title: "Sync error", description: err.message, variant: "destructive" });
     }
