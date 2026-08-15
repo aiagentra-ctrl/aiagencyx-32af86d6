@@ -53,12 +53,27 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "prospect_id and message_id required" }), { status: 400, headers: corsHeaders });
     }
 
-    const [{ data: messages }, { data: current }, { data: demos }] = await Promise.all([
-      supabase.from("inbox_messages").select("direction, body, classification, created_at")
-        .eq("prospect_id", prospect_id).order("created_at", { ascending: true }),
-      supabase.from("inbox_messages").select("body").eq("id", message_id).single(),
-      supabase.from("inbox_demos").select("demo_url").eq("prospect_id", prospect_id).limit(1),
-    ]);
+    const [{ data: messages }, { data: current }, { data: demos }, { data: memory }, { data: prospect }] =
+      await Promise.all([
+        supabase.from("inbox_messages").select("direction, body, classification, created_at")
+          .eq("prospect_id", prospect_id).order("created_at", { ascending: true }),
+        supabase.from("inbox_messages").select("body").eq("id", message_id).single(),
+        supabase.from("inbox_demos").select("demo_url").eq("prospect_id", prospect_id).limit(1),
+        supabase.from("prospect_memory")
+          .select("lead_status, conversation_stage, classification_history, total_replies_received, pitch_count")
+          .eq("prospect_id", prospect_id).maybeSingle(),
+        supabase.from("prospects").select("last_classification, firstname, company").eq("id", prospect_id).maybeSingle(),
+      ]);
+
+    // Log that lead memory + history were actually read before classifying.
+    await traceStep(prospect_id, message_id, "memory_read", "ok", {
+      messages_in_thread: (messages || []).length,
+      prior_classifications: (messages || []).map((m) => m.classification).filter(Boolean),
+      lead_status: memory?.lead_status ?? null,
+      conversation_stage: memory?.conversation_stage ?? null,
+      last_classification: prospect?.last_classification ?? null,
+      memory_found: !!memory,
+    });
 
     // Demo-sent detection: an actual demo record, or a demo domain anywhere
     // in the outgoing thread.
