@@ -28,6 +28,7 @@ export type AdminResource =
   | "leads_legacy"
   | "tracking"
   | "overview"
+  | "sync_leads"
   | "demo_jobs";
 
 /**
