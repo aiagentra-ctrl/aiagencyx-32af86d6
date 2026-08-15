@@ -171,6 +171,53 @@ const RESOURCES: Record<string, (p: any) => Promise<unknown>> = {
     };
   },
 
+  // ── Lead sync (write path — RLS blocks the panel otherwise) ──
+  sync_leads: async () => {
+    const EXCLUDED = ["NP", "IN", "BD"];
+    const [{ data: events }, { data: existingLeads }] = await Promise.all([
+      sb.from("link_events").select("slug, business_name, event_type, country_code, metadata").limit(5000),
+      sb.from("leads").select("slug, status, follow_up_count"),
+    ]);
+    if (!events?.length) return { processed: 0, skipped: 0 };
+
+    const slugMap = new Map<string, { business_name: string; events: string[]; countryCodes: string[]; hasOwnerTraffic: boolean }>();
+    for (const e of events as any[]) {
+      const entry = slugMap.get(e.slug) || { business_name: e.business_name, events: [], countryCodes: [], hasOwnerTraffic: false };
+      entry.events.push(e.event_type);
+      if (e.country_code) entry.countryCodes.push(e.country_code);
+      if ((e.metadata as any)?.is_owner) entry.hasOwnerTraffic = true;
+      slugMap.set(e.slug, entry);
+    }
+    const existingMap = new Map((existingLeads ?? []).map((l: any) => [l.slug, l]));
+
+    let processed = 0, skipped = 0;
+    for (const [slug, info] of slugMap) {
+      const valid = info.countryCodes.filter((c) => !EXCLUDED.includes(c));
+      const allExcluded = info.countryCodes.length > 0 && valid.length === 0;
+      const isOnlyOwner = info.hasOwnerTraffic && valid.length === 0;
+      if ((allExcluded || isOnlyOwner) && !existingMap.has(slug)) { skipped++; continue; }
+
+      const existing = existingMap.get(slug) as any;
+      if (existing && existing.status === "call_scheduled") continue;
+
+      let status = "needs_follow_up";
+      const evts = info.events;
+      if (evts.includes("voice_call_started")) status = "interested";
+      else if (evts.includes("chatbot_opened") || evts.includes("chatbot_message")) status = "awaiting_response";
+      const clicks = evts.filter((e) => e === "click" || e === "cta_click").length;
+      if (clicks >= 3 || evts.length >= 5) status = "engaged";
+      if (existing && existing.follow_up_count >= 3 && status === "needs_follow_up") status = "cold_lead";
+
+      if (existing) {
+        if (existing.status !== status) await sb.from("leads").update({ status }).eq("slug", slug);
+      } else {
+        await sb.from("leads").insert({ slug, business_name: info.business_name, status });
+      }
+      processed++;
+    }
+    return { processed, skipped };
+  },
+
   // ── Demo jobs (health / retry) ───────────────────────────
   demo_jobs: async (p) => {
     let q = sb.from("demo_jobs").select("*").order("created_at", { ascending: false }).limit(p?.limit ?? 25);
