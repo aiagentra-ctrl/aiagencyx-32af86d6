@@ -83,11 +83,23 @@ Deno.serve(async (req) => {
 
     const cleanCurrent = extractReplyText(current?.body || "");
     const history = (messages || [])
-      .map((m) => `[${m.direction.toUpperCase()}] ${extractReplyText(m.body || "").slice(0, 800)}`)
+      .map((m) => {
+        const tag = m.classification ? ` (classified: ${m.classification})` : "";
+        return `[${m.direction.toUpperCase()}${tag}] ${extractReplyText(m.body || "").slice(0, 800)}`;
+      })
       .join("\n\n");
 
+    const priorClassifications = (messages || []).map((m) => m.classification).filter(Boolean);
+    const leadContext = [
+      `LEAD_STATUS: ${memory?.lead_status ?? "unknown"}`,
+      `CONVERSATION_STAGE: ${memory?.conversation_stage ?? "unknown"}`,
+      `LAST_CLASSIFICATION: ${prospect?.last_classification ?? "none"}`,
+      `PRIOR_CLASSIFICATIONS: ${priorClassifications.length ? priorClassifications.join(" -> ") : "none"}`,
+      `TOTAL_REPLIES_RECEIVED: ${memory?.total_replies_received ?? 0}`,
+    ].join("\n");
+
     const systemPrompt = await loadClassifierPrompt();
-    const userPrompt = `FULL THREAD HISTORY (oldest -> newest):\n${history}\n\nDEMO_SENT: ${demoSent}\n\nCURRENT REPLY (this is what you classify):\n${cleanCurrent}\n\nReturn only one word: Positive, Negative or Objection.`;
+    const userPrompt = `LEAD MEMORY:\n${leadContext}\n\nFULL THREAD HISTORY (oldest -> newest):\n${history}\n\nDEMO_SENT: ${demoSent}\n\nCURRENT REPLY (this is what you classify):\n${cleanCurrent}\n\nReturn only one word: Positive, Negative or Objection.`;
 
     const out = await chatCompletion(MODELS.agent, [
       { role: "system", content: systemPrompt },
