@@ -1,0 +1,26 @@
+-- ============================================================
+-- 06 — STORAGE BUCKETS AND POLICIES
+-- ============================================================
+--
+-- STATE OF THE SOURCE PROJECT AT BACKUP TIME:
+--   storage.buckets  -> 0 rows
+--   storage policies -> 0 policies
+--
+-- The product stores no binary assets in Storage. Every asset it serves is
+-- either bundled with the frontend build or referenced by an external URL
+-- (scraped logos, product images, listing photos, YouTube embeds).
+--
+-- Nothing to restore. This file exists so the recovery package is complete
+-- and so future buckets are added here rather than being forgotten.
+--
+-- If a bucket is added later, record it in this file in this shape:
+--
+-- INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+-- VALUES ('bucket-name', 'bucket-name', true, 5242880, ARRAY['image/png','image/jpeg'])
+-- ON CONFLICT (id) DO NOTHING;
+--
+-- CREATE POLICY "Public read bucket-name"
+--   ON storage.objects FOR SELECT
+--   USING (bucket_id = 'bucket-name');
+
+SELECT 'storage: nothing to restore (no buckets in source project)' AS status;
