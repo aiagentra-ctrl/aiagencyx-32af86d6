@@ -138,8 +138,12 @@ Deno.serve(async (req) => {
       ruleFired = `${ruleFired}+pre_demo_no_objection`;
     }
 
+    // `classified_by` is constrained to 'ai' | 'human'. Every classification
+    // made here is automated (LLM or deterministic rule) => 'ai'. The exact
+    // rule that fired is kept on the pipeline_events trace below.
     const { error: msgErr } = await supabase.from("inbox_messages")
-      .update({ classification, classified_by: ruleFired.startsWith("ai_intent") ? "ai" : "rule" })
+      .update({ classification, classified_by: "ai" })
+
       .eq("id", message_id);
     if (msgErr) {
       console.error("classification write-back failed:", msgErr.message);

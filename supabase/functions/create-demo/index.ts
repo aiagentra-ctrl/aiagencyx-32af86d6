@@ -1263,7 +1263,7 @@ Deno.serve(async (req) => {
       hero_title: `Your AI Receptionist for ${business_name} is Ready`,
       hero_subtitle: heroSubtitle,
       contact_phone: structuredData?.phone || null,
-      contact_email: structuredData?.email || null,
+      contact_email: structuredData?.email || reqBody.email || reqBody.replyToEmail || null,
       cta_text: ctaText,
       custom_subdomain: demoSlug,
       dynamic_content: dynamicContent,

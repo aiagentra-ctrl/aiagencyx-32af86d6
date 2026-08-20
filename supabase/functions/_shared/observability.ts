@@ -55,8 +55,19 @@ export async function traceStep(
 export async function logError(
   source: string,
   message: string,
-  opts: { prospect_id?: string | null; message_id?: string | null; stack?: string | null } = {},
+  opts: {
+    prospect_id?: string | null;
+    message_id?: string | null;
+    stack?: string | null;
+    /** Health-check / seeded test traffic — never pollutes the error feed. */
+    is_test?: boolean;
+  } = {},
 ) {
+  if (opts.is_test) {
+    console.warn(`[test-traffic] ${source}: ${message}`);
+    return;
+  }
+
   try {
     await sb.from("error_events").insert({
       source,
