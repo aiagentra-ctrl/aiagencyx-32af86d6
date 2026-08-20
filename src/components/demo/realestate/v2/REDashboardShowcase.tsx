@@ -1,17 +1,20 @@
 import { useState } from "react";
 import { Maximize2, X } from "lucide-react";
 import REDashboard from "./REDashboard";
+import type { NichePack } from "@/components/demo/niche/packs";
 
 export interface REDashboardShowcaseProps {
   companyName: string;
   logoUrl?: string;
   companyDomain: string;
+  pack?: NichePack;
 }
 
 const Frame = ({
   companyName,
   logoUrl,
   companyDomain,
+  pack,
   forceWide,
 }: REDashboardShowcaseProps & { forceWide?: boolean }) => (
   <div
@@ -36,6 +39,7 @@ const Frame = ({
       companyName={companyName}
       logoUrl={logoUrl}
       companyDomain={companyDomain}
+      pack={pack}
       forceWide={forceWide}
     />
   </div>

@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Phone, PhoneOff, MessageSquare, Sparkles } from "lucide-react";
 import { possessive } from "./personalize";
+import { NICHE_PACKS, DEFAULT_PACK_ID, nicheCtx, type NichePack } from "@/components/demo/niche/packs";
 
 const fmt = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
@@ -8,6 +9,7 @@ const fmt = (s: number) =>
 export interface REDemoProps {
   companyName: string;
   firstName?: string;
+  pack?: NichePack;
   callStatus: "idle" | "calling" | "connected" | "ended";
   callSeconds: number;
   onTryCall: () => void;
@@ -19,23 +21,10 @@ export interface REDemoProps {
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
-const defaultVoice = [
-  "Do you have anything under $600k?",
-  "Can I see the townhouse this weekend?",
-  "What's the deposit on that listing?",
-  "Are you open on Sunday?",
-];
-
-const defaultChat = [
-  "Send me 3-bed listings",
-  "What areas do you cover?",
-  "Book me a viewing",
-  "How much is my home worth?",
-];
-
 const REDemo = ({
   companyName,
   firstName,
+  pack = NICHE_PACKS[DEFAULT_PACK_ID],
   callStatus,
   callSeconds,
   onTryCall,
@@ -47,8 +36,10 @@ const REDemo = ({
   const isLive = callStatus === "connected";
   const isCalling = callStatus === "calling";
   const co = possessive(companyName);
-  const vp = voicePrompts?.length ? voicePrompts : defaultVoice;
-  const cp = chatPrompts?.length ? chatPrompts : defaultChat;
+  const ctx = nicheCtx(companyName, firstName);
+  const d = pack.demo;
+  const vp = voicePrompts?.length ? voicePrompts : d.voicePrompts;
+  const cp = chatPrompts?.length ? chatPrompts : d.chatPrompts;
 
   return (
     <section
@@ -64,12 +55,8 @@ const REDemo = ({
           transition={{ duration: 0.75, ease }}
         >
           <span className="re-eyebrow">Live demo</span>
-          <h2 className="re-h2 mt-3">
-            {firstName ? `${firstName}, this` : "This"} isn&rsquo;t a pitch. Talk to it yourself.
-          </h2>
-          <p className="re-body re-muted-light mt-3">
-            This agent has already read {co} website. Ask it anything a real buyer would.
-          </p>
+          <h2 className="re-h2 mt-3">{d.headline(ctx)}</h2>
+          <p className="re-body re-muted-light mt-3">{d.sub(ctx)}</p>
         </motion.div>
 
         <div className="mt-6 grid gap-4 lg:mt-8 lg:grid-cols-2 lg:gap-5">
@@ -91,7 +78,7 @@ const REDemo = ({
               <div className="min-w-0">
                 <h3 className="text-[1.125rem] font-bold">Voice Agent</h3>
                 <p className="text-[0.875rem]" style={{ color: "var(--re-on-light-2)" }}>
-                  Answers the phone in one ring
+                  {d.voiceSub}
                 </p>
               </div>
               {isLive && (
@@ -123,7 +110,7 @@ const REDemo = ({
                   disabled={isCalling}
                 >
                   <Phone className="h-[1.15rem] w-[1.15rem]" />
-                  {isCalling ? "Connecting…" : `Hear ${co} Agent`}
+                  {isCalling ? "Connecting…" : pack.hero.voiceCta(ctx)}
                 </button>
               )}
             </div>
@@ -163,7 +150,7 @@ const REDemo = ({
               <div className="min-w-0">
                 <h3 className="text-[1.125rem] font-bold">Chat Agent</h3>
                 <p className="text-[0.875rem]" style={{ color: "var(--re-on-light-2)" }}>
-                  Same brain, on your website
+                  {d.chatSub}
                 </p>
               </div>
             </div>
@@ -175,7 +162,7 @@ const REDemo = ({
                 onClick={onTryChat}
               >
                 <Sparkles className="h-[1.15rem] w-[1.15rem]" />
-                Try {co} Agent
+                {pack.hero.chatCta(ctx)}
               </button>
             </div>
 

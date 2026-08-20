@@ -1,7 +1,9 @@
 import { MessageCircle, Mail, Globe, ArrowRight } from "lucide-react";
+import { NICHE_PACKS, DEFAULT_PACK_ID, type NichePack } from "@/components/demo/niche/packs";
 
 export interface REFooterProps {
   companyName: string;
+  pack?: NichePack;
   onBookCall: () => void;
 }
 
@@ -14,7 +16,7 @@ const SITE = "www.aiagentra.com";
  * Agency footer — represents AI Agentra, never the prospect. Client contact
  * details are deliberately absent. High-contrast text on near-black.
  */
-const REFooter = ({ companyName, onBookCall }: REFooterProps) => (
+const REFooter = ({ companyName, pack = NICHE_PACKS[DEFAULT_PACK_ID], onBookCall }: REFooterProps) => (
   <footer className="px-5 py-10 sm:px-6 lg:px-10 lg:py-12" style={{ background: "#05070A" }}>
     <div className="mx-auto max-w-[78rem]">
       <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
@@ -29,8 +31,7 @@ const REFooter = ({ companyName, onBookCall }: REFooterProps) => (
             className="mt-3 max-w-[32rem] text-[1rem] font-normal leading-relaxed"
             style={{ color: "#C7CDD6" }}
           >
-            We build AI voice and chat agents for real estate teams — answering, qualifying and
-            booking around the clock.
+            {pack.footer.subtext}
           </p>
 
           <button

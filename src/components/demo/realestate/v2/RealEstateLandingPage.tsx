@@ -9,12 +9,14 @@ import RECalendly from "./RECalendly";
 import REFooter from "./REFooter";
 import { companyDomainFrom } from "./personalize";
 import type { CallStatus } from "@/pages/DemoPage";
+import { NICHE_PACKS, DEFAULT_PACK_ID, type NichePack } from "@/components/demo/niche/packs";
 
 const DEFAULT_CALENDLY = "https://calendly.com/aiagentra/new-meeting";
 
 export interface RealEstateLandingPageProps {
   companyName: string;
   firstName?: string;
+  pack?: NichePack;
   logoUrl?: string;
   brandColor?: string;
   headline?: string;
@@ -46,6 +48,7 @@ const scrollTo = (id: string) => {
 const RealEstateLandingPage = ({
   companyName,
   firstName,
+  pack = NICHE_PACKS[DEFAULT_PACK_ID],
   logoUrl,
   headline,
   subheadline,
@@ -81,6 +84,7 @@ const RealEstateLandingPage = ({
         logoUrl={logoUrl}
         headline={headline}
         subheadline={subheadline}
+        pack={pack}
         callStatus={callStatus}
         callSeconds={callSeconds}
         onTryCall={onTryCall}
@@ -99,18 +103,26 @@ const RealEstateLandingPage = ({
           onTryChat={onTryChat}
           voicePrompts={voicePrompts}
           chatPrompts={chatPrompts}
+          pack={pack}
         />
-        <REReveal companyName={companyName} logoUrl={logoUrl} companyDomain={companyDomain} />
-        <REProof companyName={companyName} videoId={videoId} />
+        <REReveal
+          companyName={companyName}
+          firstName={firstName}
+          logoUrl={logoUrl}
+          companyDomain={companyDomain}
+          pack={pack}
+        />
+        <REProof companyName={companyName} firstName={firstName} pack={pack} videoId={videoId} />
         <REBookCall
           companyName={companyName}
           firstName={firstName}
+          pack={pack}
           onBookCall={handleBookCall}
         />
         <RECalendly companyName={companyName} calendarUrl={calendarUrl || DEFAULT_CALENDLY} />
       </main>
 
-      <REFooter companyName={companyName} onBookCall={handleBookCall} />
+      <REFooter companyName={companyName} pack={pack} onBookCall={handleBookCall} />
 
       {children}
     </div>

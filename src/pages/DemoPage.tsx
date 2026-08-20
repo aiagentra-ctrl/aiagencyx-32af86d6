@@ -28,6 +28,8 @@ const DentalWhyClinicSection = lazy(() => import("@/components/demo/DentalWhyCli
 // Real-estate specific sections
 const PropertyShowcaseSection = lazy(() => import("@/components/demo/realestate/PropertyShowcaseSection"));
 const RealEstateValueSection = lazy(() => import("@/components/demo/realestate/RealEstateValueSection"));
+import { resolveNichePack, nicheCtx } from "@/components/demo/niche/packs";
+
 const RealEstateLandingPageV2 = lazy(() => import("@/components/demo/realestate/v2/RealEstateLandingPage"));
 const REVoiceCall = lazy(() => import("@/components/demo/realestate/v2/REVoiceCall"));
 const REChatWidget = lazy(() => import("@/components/chatbot/unified/EcomFloatingChatWidget"));
@@ -343,13 +345,18 @@ const DemoPage = () => {
     );
   }
 
-  // REAL ESTATE gets its own dedicated premium landing template (v2).
-  if (isRealEstate) {
+  // The real-estate v2 template is the DEFAULT for every local-business niche —
+  // same structure, niche-specific copy/vocabulary from the resolved pack.
+  if (!isDental) {
+    const pack = resolveNichePack(page.industry, dc.niche);
+    const firstName = page.client_name?.split(/\s+/)[0] || dc.first_name || undefined;
+    const ctx = nicheCtx(companyName, firstName);
     return (
       <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>}>
         <RealEstateLandingPageV2
           companyName={companyName}
-          firstName={page.client_name?.split(/\s+/)[0] || dc.first_name || undefined}
+          firstName={firstName}
+          pack={pack}
           logoUrl={logoUrl}
           brandColor={dc.brand_color || linkedChatbot?.widget_config?.primaryColor}
           contactEmail={page.contact_email || undefined}
@@ -382,19 +389,20 @@ const DemoPage = () => {
               businessName={companyName}
               logoUrl={logoUrl}
               greeting={linkedChatbot.widget_config?.greeting}
-              visitorFirstName={page.client_name?.split(/\s+/)[0] || dc.first_name || undefined}
-              suggestionChips={dc.chat_prompts?.length ? dc.chat_prompts : RE_CHAT_CHIPS}
-              faqs={realEstateFaqs(companyName)}
+              visitorFirstName={firstName}
+              suggestionChips={dc.chat_prompts?.length ? dc.chat_prompts : pack.chat.chips}
+              faqs={pack.chat.faqs(ctx)}
               open={chatOpen}
               onOpenChange={setChatOpen}
-              heroGreeting={`Hi, I'm ${companyName}'s AI 👋`}
-              heroTagline={`Ask me about listings, viewings, pricing or the areas we cover.`}
-              introBlurb={`I've read ${companyName}'s whole site. Ask me about listings, pricing, viewings or the areas we cover.`}
-              sampleRecent={{ label: "Popular question", text: "Can I book a viewing this week?" }}
+              heroGreeting={pack.chat.heroGreeting(ctx)}
+              heroTagline={pack.chat.heroTagline(ctx)}
+              introBlurb={pack.chat.introBlurb(ctx)}
+              sampleRecent={pack.chat.sampleRecent}
               tipLabel={<>👋 Ask <strong>{companyName}</strong>'s AI anything</>}
             />
           )}
         </RealEstateLandingPageV2>
+
 
       </Suspense>
     );
