@@ -348,7 +348,7 @@ const DemoPage = () => {
   // The real-estate v2 template is the DEFAULT for every local-business niche —
   // same structure, niche-specific copy/vocabulary from the resolved pack.
   if (!isDental) {
-    const pack = resolveNichePack(page.industry, dc.niche);
+    const pack = resolveNichePack(`${page.industry || ""} ${companyName}`, dc.niche);
     const firstName = page.client_name?.split(/\s+/)[0] || dc.first_name || undefined;
     const ctx = nicheCtx(companyName, firstName);
     return (

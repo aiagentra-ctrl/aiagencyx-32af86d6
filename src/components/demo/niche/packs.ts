@@ -132,8 +132,8 @@ const localBusiness: NichePack = {
   label: "Local Business",
   keywords: [
     "contractor", "construction", "fence", "deck", "roofing", "plumb", "hvac", "electric",
-    "landscap", "cleaning", "handyman", "painting", "remodel", "local", "service", "repair",
-    "general",
+    "landscap", "cleaning", "handyman", "painting", "remodel", "local business", "restaurant",
+    "garage", "auto repair", "salon", "dentistry", "gym", "pizza", "cafe",
   ],
 
   hero: {
