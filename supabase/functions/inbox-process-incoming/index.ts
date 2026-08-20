@@ -109,23 +109,53 @@ Deno.serve(async (req) => {
     const { data: existingDemo } = await supabase
       .from("inbox_demos").select("demo_url").eq("prospect_id", prospect_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     let demoUrl: string | undefined = existingDemo?.demo_url;
+
+    // Recovery: a demo page may already exist for this address from an earlier
+    // run (or from a manual build) without an inbox_demos row. Reuse it instead
+    // of building a second demo for the same lead.
+    if (!demoUrl) {
+      const { data: page } = await supabase
+        .from("demo_pages").select("slug").ilike("contact_email", prospect.email)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (page?.slug) {
+        demoUrl = `${(Deno.env.get("SITE_URL") || "https://aiagencyx.lovable.app").replace(/\/+$/, "")}/${page.slug}`;
+        await supabase.from("inbox_demos").insert({
+          prospect_id, demo_url: demoUrl,
+          business_name: prospect.company || prospect.firstname || prospect.email,
+        });
+        await traceStep(prospect_id, message_id, "demo", "ok", { demo_url: demoUrl, reused: true });
+      }
+    }
+
     const phase: "pre_demo" | "post_demo" = demoUrl ? "post_demo" : "pre_demo";
+
+    // Website resolution: ManyReach frequently omits the website field. Falling
+    // back to the email domain is what keeps the demo flow alive — without it
+    // demo creation was skipped and every positive reply died on
+    // `demo_link_missing`.
+    let websiteUrl = resolveWebsite(prospect.website_url, prospect.email);
+    if (websiteUrl && websiteUrl !== prospect.website_url) {
+      await supabase.from("prospects").update({ website_url: websiteUrl }).eq("id", prospect_id);
+      await traceStep(prospect_id, message_id, "demo", "ok", { website_resolved: websiteUrl, from: "email_domain" });
+    }
 
     // n8n parity: all three branches (Positive / Negative / Objection) flow
     // through `create-demo`. Only skip if we already have a demo or no website.
-    const shouldCreateDemo = phase === "pre_demo" && !!prospect.website_url;
+    const shouldCreateDemo = phase === "pre_demo" && !!websiteUrl;
 
     if (shouldCreateDemo) {
       try {
         const demoRes = await call("create-demo", {
           business_name: prospect.company || prospect.firstname || prospect.email,
-          website_url: prospect.website_url,
+          website_url: websiteUrl,
           firstName: prospect.firstname,
           campaignName: prospect.campaign_name,
           campaignId: prospect.campaign_id,
           senderEmail: prospect.sender_email,
           company: prospect.company,
           replyToEmail: prospect.reply_to_email,
+          email: prospect.email,
+          prospect_id,
         });
         demoUrl = demoRes?.demo_url;
         if (demoUrl) {
@@ -141,15 +171,16 @@ Deno.serve(async (req) => {
         }
       } catch (e) {
         const m = String((e as any)?.message || e);
-        await logError("demo", m, { prospect_id, message_id, stack: (e as any)?.stack });
+        await logError("demo", m, { prospect_id, message_id, stack: (e as any)?.stack, is_test: !!prospect.is_test_data });
         await traceStep(prospect_id, message_id, "demo", "failed", null, m);
       }
     } else {
       await traceStep(prospect_id, message_id, "demo", "skipped", {
-        reason: phase === "post_demo" ? "already_sent" : classification === "Negative" ? "negative" : "no_website",
+        reason: phase === "post_demo" ? "already_sent" : "no_website",
         demo_url: demoUrl,
       });
     }
+
 
     // 3) reply: template-first, AI fallback, then safe-generic
     const effectivePhase: "pre_demo" | "post_demo" = demoUrl ? "post_demo" : "pre_demo";
