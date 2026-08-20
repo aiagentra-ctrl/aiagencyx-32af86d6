@@ -147,7 +147,7 @@ const localBusiness: NichePack = {
     voiceCta: (c) => `Hear ${c.co} Agent`,
     chatCta: (c) => `Try ${c.co} Agent`,
     micro: "No signup. No install. Speak to it in the next ten seconds.",
-    phoneIn: "Can someone come look at my fence this week?",
+    phoneIn: "Can someone come out to look at it this week?",
     phoneOut: "Estimate booked for Thursday, 2pm.",
   },
 
