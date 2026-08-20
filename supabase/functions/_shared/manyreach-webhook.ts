@@ -6,6 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logWebhook, traceStep, logError } from "./observability.ts";
 import { recordReply } from "./memory.ts";
+import { resolveWebsite } from "./website.ts";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -140,7 +141,10 @@ export async function handleManyreachWebhook(
     const manyMessageId = pick<string>(root, "messageId", "message_id", "id", "data.messageId");
     const firstname = pick<string>(root, "prospect.firstname", "prospect.firstName", "firstname", "firstName", "first_name", "data.firstName");
     const company = pick<string>(root, "prospect.company", "company", "data.company");
-    const website = pick<string>(root, "prospect.www", "prospect.website", "website", "website_url", "data.website");
+    const rawWebsite = pick<string>(root, "prospect.www", "prospect.website", "website", "website_url", "data.website");
+    // ManyReach often omits the website. Falling back to the email's company
+    // domain keeps demo creation alive downstream.
+    const website = resolveWebsite(rawWebsite, pick<string>(root, "prospect.email", "email", "from", "fromEmail", "sender", "data.email"));
     const campaignId = pick<string>(root, "campaign.campaignID", "campaignId", "campaign_id", "data.campaignId");
     const campaignName = pick<string>(root, "campaign.campaignTitle", "campaignName", "campaign_name", "data.campaignName");
     const senderEmail = pick<string>(root, "sender_email", "senderEmail", "fromAccount", "data.senderEmail");
