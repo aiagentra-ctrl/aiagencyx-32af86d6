@@ -113,7 +113,10 @@ const RESOURCES: Record<string, (p: any) => Promise<unknown>> = {
       count("inbox_messages", (q) => q.eq("direction", "outgoing").gte("created_at", today)),
       count("follow_up_enrollments", (q) => q.in("status", ["active", "scheduled", "sending"])),
       count("followup_events", (q) => q.eq("status", "sent").gte("sent_at", last7)),
-      count("error_events", (q) => q.gte("created_at", last24)),
+      // The dashboard badge represents active incidents, not every historical
+      // record written in the rolling window. Resolved/acknowledged errors stay
+      // available in the Error Log without keeping the overview in alert mode.
+      count("error_events", (q) => q.eq("acknowledged", false).gte("created_at", last24)),
       count("prospects", (q) => q.not("calendly_booked_at", "is", null)),
       count("demo_open_log", (q) => q.gte("opened_at", last7)),
       sb.from("inbox_messages").select("id, prospect_id, direction, subject, body, classification, created_at")
