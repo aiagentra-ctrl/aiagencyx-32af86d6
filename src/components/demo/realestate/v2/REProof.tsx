@@ -1,20 +1,17 @@
 import { motion } from "framer-motion";
 import { Check, Star, ExternalLink } from "lucide-react";
+import { NICHE_PACKS, DEFAULT_PACK_ID, nicheCtx, type NichePack } from "@/components/demo/niche/packs";
 
 export interface REProofProps {
   companyName: string;
+  firstName?: string;
+  pack?: NichePack;
   videoId?: string;
 }
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 const DEFAULT_VIDEO_ID = "eOAyie0kWGQ";
-
-const OUTCOMES = [
-  "Enquiries answered in under 5 seconds, any hour",
-  "Viewings booked while the team is out on site",
-  "Every lead scored and followed up automatically",
-];
 
 const CLIENTS = [
   { name: "Greenfield Real Estate", system: "Flowly System" },
@@ -31,8 +28,15 @@ const initials = (n: string) =>
     .map((w) => w[0]?.toUpperCase())
     .join("");
 
-const REProof = ({ companyName, videoId }: REProofProps) => {
+const REProof = ({
+  companyName,
+  firstName,
+  pack = NICHE_PACKS[DEFAULT_PACK_ID],
+  videoId,
+}: REProofProps) => {
   const vid = videoId || DEFAULT_VIDEO_ID;
+  const ctx = nicheCtx(companyName, firstName);
+  const OUTCOMES = pack.proof.outcomes;
 
   return (
     <section className="re-section-light px-5 py-11 sm:px-6 lg:px-10 lg:py-16">
@@ -45,12 +49,8 @@ const REProof = ({ companyName, videoId }: REProofProps) => {
           transition={{ duration: 0.7, ease }}
         >
           <span className="re-eyebrow">Proof</span>
-          <h2 className="re-h2 mt-3">
-            Real estate teams like {companyName} are already running this.
-          </h2>
-          <p className="re-body re-muted-light mt-3">
-            Same setup, same agent, live on their phones and their websites right now.
-          </p>
+          <h2 className="re-h2 mt-3">{pack.proof.headline(ctx)}</h2>
+          <p className="re-body re-muted-light mt-3">{pack.proof.sub}</p>
         </motion.div>
 
         <div className="mt-6 grid gap-5 lg:mt-8 lg:grid-cols-[1.35fr_0.65fr] lg:gap-7">

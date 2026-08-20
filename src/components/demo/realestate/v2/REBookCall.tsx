@@ -1,15 +1,24 @@
 import { motion } from "framer-motion";
 import { ArrowRight, ShieldCheck } from "lucide-react";
+import { NICHE_PACKS, DEFAULT_PACK_ID, nicheCtx, type NichePack } from "@/components/demo/niche/packs";
 
 export interface REBookCallProps {
   companyName: string;
   firstName?: string;
+  pack?: NichePack;
   onBookCall: () => void;
 }
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
-const REBookCall = ({ companyName, firstName, onBookCall }: REBookCallProps) => (
+const REBookCall = ({
+  companyName,
+  firstName,
+  pack = NICHE_PACKS[DEFAULT_PACK_ID],
+  onBookCall,
+}: REBookCallProps) => {
+  const ctx = nicheCtx(companyName, firstName);
+  return (
   <section className="re-section-dark relative overflow-hidden px-5 py-11 sm:px-6 lg:px-10 lg:py-16">
     <div
       className="pointer-events-none absolute inset-0"
@@ -28,11 +37,10 @@ const REBookCall = ({ companyName, firstName, onBookCall }: REBookCallProps) => 
     >
       <span className="re-eyebrow">Next step</span>
       <h2 className="re-h2 mt-4" style={{ fontSize: "clamp(1.75rem, 4.2vw, 2rem)" }}>
-        See {companyName}&rsquo;s full system, live.
+        {pack.cta.headline(ctx)}
       </h2>
       <p className="re-body re-muted-dark mx-auto mt-4 max-w-[34rem]">
-        {firstName ? `${firstName}, in ` : "In "}20 minutes we&rsquo;ll walk through the dashboard
-        above with {companyName}&rsquo;s own listings and enquiries in it.
+        {pack.cta.body(ctx)}
       </p>
 
       <div className="mt-8 flex justify-center">
@@ -55,6 +63,7 @@ const REBookCall = ({ companyName, firstName, onBookCall }: REBookCallProps) => 
       </p>
     </motion.div>
   </section>
-);
+  );
+};
 
 export default REBookCall;

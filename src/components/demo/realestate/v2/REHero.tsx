@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { Phone, PhoneOff, MessageSquare } from "lucide-react";
 import { possessive } from "./personalize";
+import { NICHE_PACKS, DEFAULT_PACK_ID, nicheCtx, type NichePack } from "@/components/demo/niche/packs";
+
 
 const fmt = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
@@ -11,6 +13,7 @@ export interface REHeroProps {
   logoUrl?: string;
   headline?: string;
   subheadline?: string;
+  pack?: NichePack;
   callStatus: "idle" | "calling" | "connected" | "ended";
   callSeconds: number;
   onTryCall: () => void;
@@ -26,6 +29,7 @@ const REHero = ({
   logoUrl,
   headline,
   subheadline,
+  pack = NICHE_PACKS[DEFAULT_PACK_ID],
   callStatus,
   callSeconds,
   onTryCall,
@@ -35,6 +39,11 @@ const REHero = ({
   const isLive = callStatus === "connected";
   const isCalling = callStatus === "calling";
   const co = possessive(companyName);
+  const ctx = nicheCtx(companyName, firstName);
+  const h = pack.hero;
+  const head = h.headline(ctx);
+
+
 
   const status = isLive
     ? `Live · ${fmt(callSeconds)}`
@@ -55,22 +64,22 @@ const REHero = ({
         >
           <span className="re-eyebrow inline-flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--re-brand)" }} />
-            AI agent for {companyName}
+            {h.eyebrow(ctx)}
           </span>
 
           <h1 className="re-h1 mt-4">
             {headline ?? (
               <>
-                {firstName ? `${firstName}, your ` : "Your "}leads won&rsquo;t wait —{" "}
-                <span style={{ color: "var(--re-brand)" }}>will {companyName}?</span>
+                {head.lead}{" "}
+                <span style={{ color: "var(--re-brand)" }}>{head.highlight}</span>
               </>
             )}
           </h1>
 
           <p className="re-body re-muted-dark mt-4 max-w-[35rem]" style={{ textWrap: "pretty" }}>
-            {subheadline ??
-              `Every enquiry answered in seconds, day or night. See ${co} agent answer a real question below.`}
+            {subheadline ?? h.subhead(ctx)}
           </p>
+
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             {isLive ? (
@@ -90,7 +99,7 @@ const REHero = ({
                 disabled={isCalling}
               >
                 <Phone className="h-[1.15rem] w-[1.15rem]" />
-                {isCalling ? "Connecting…" : `Hear ${co} Agent`}
+                {isCalling ? "Connecting…" : h.voiceCta(ctx)}
               </button>
             )}
             <button
@@ -99,13 +108,14 @@ const REHero = ({
               onClick={onTryChat}
             >
               <MessageSquare className="h-[1.15rem] w-[1.15rem]" />
-              Try {co} Agent
+              {h.chatCta(ctx)}
             </button>
           </div>
 
           <p className="mt-4 text-[0.8125rem]" style={{ color: "var(--re-on-dark-3)" }}>
-            No signup. No install. Speak to it in the next ten seconds.
+            {h.micro}
           </p>
+
         </motion.div>
 
         {/* Phone */}
@@ -211,7 +221,7 @@ const REHero = ({
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.7, ease, delay: 0.75 }}
             >
-              <p className="text-[0.78rem] font-medium">&ldquo;Is the 3-bed still available?&rdquo;</p>
+              <p className="text-[0.78rem] font-medium">&ldquo;{h.phoneIn}&rdquo;</p>
             </motion.div>
             <motion.div
               className="absolute -right-8 bottom-28 hidden rounded-2xl px-4 py-2.5 lg:block"
@@ -225,7 +235,7 @@ const REHero = ({
               transition={{ duration: 0.7, ease, delay: 1 }}
             >
               <p className="text-[0.78rem] font-medium">
-                &ldquo;Viewing booked for Thursday, 4pm.&rdquo;
+                &ldquo;{h.phoneOut}&rdquo;
               </p>
             </motion.div>
           </div>
