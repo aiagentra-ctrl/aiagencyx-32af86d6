@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
     if (!reply) {
       reply = SAFE_FALLBACK;
       replySource = "fallback";
-      await logError("reply_generation", "Used safe fallback reply", { prospect_id, message_id });
+      await logError("reply_generation", "Used safe fallback reply", { prospect_id, message_id, is_test: !!prospect.is_test_data });
     }
 
     await traceStep(prospect_id, message_id, "reply_generated", "ok", {
@@ -243,11 +243,12 @@ Deno.serve(async (req) => {
       send = await call("inbox-send-reply", { prospect_id, body: reply, classified_by: "ai" });
       await traceStep(prospect_id, message_id, "sent", send?.ok ? "ok" : "failed", { manyreach_ok: send?.ok }, send?.ok ? null : "manyreach send failed");
       if (!send?.ok) {
-        await logError("send", "ManyReach send returned not ok", { prospect_id, message_id });
+        await logError("send", "ManyReach send returned not ok", { prospect_id, message_id, is_test: !!prospect.is_test_data });
       }
     } catch (e) {
       const m = String((e as any)?.message || e);
-      await logError("send", m, { prospect_id, message_id, stack: (e as any)?.stack });
+      await logError("send", m, { prospect_id, message_id, stack: (e as any)?.stack, is_test: !!prospect.is_test_data });
+
       await traceStep(prospect_id, message_id, "sent", "failed", null, m);
       throw e;
     }
