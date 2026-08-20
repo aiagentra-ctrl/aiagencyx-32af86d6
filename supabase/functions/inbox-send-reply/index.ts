@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
     const finalized = finalizeReply(body, name);
     const finalBody = finalized.text;
     if (!finalized.ok && !skip_validation) {
-      await logError("send", `reply validation failed: ${finalized.errors.join(", ")}`, { prospect_id });
+      await logError("send", `reply validation failed: ${finalized.errors.join(", ")}`, { prospect_id, is_test: !!prospect.is_test_data });
       return new Response(JSON.stringify({
         ok: false, blocked: true, needs_review: true,
         validation_errors: finalized.errors, preview: finalBody,
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
       manyreachMessageId = extractMessageId(r.data);
       if (!r.ok) {
         console.error("ManyReach reply failed:", r.status, r.error);
-        await logError("send", `ManyReach ${r.status}: ${String(r.error).slice(0, 500)}`, { prospect_id });
+        await logError("send", `ManyReach ${r.status}: ${String(r.error).slice(0, 500)}`, { prospect_id, is_test: !!prospect.is_test_data });
       }
     } else {
       console.warn("ManyReach send skipped: missing key or messageId");
