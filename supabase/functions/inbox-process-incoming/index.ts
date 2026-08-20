@@ -1,6 +1,7 @@
 // Orchestrator: classify -> (maybe) create demo -> generate reply (template-first + AI fallback) -> send reply
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { traceStep, logError } from "../_shared/observability.ts";
+import { resolveWebsite } from "../_shared/website.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -199,22 +200,31 @@ Deno.serve(async (req) => {
       }
     } catch (e) {
       const m = String((e as any)?.message || e);
-      await logError("reply_generation", m, { prospect_id, message_id, stack: (e as any)?.stack });
+      await logError("reply_generation", m, { prospect_id, message_id, stack: (e as any)?.stack, is_test: !!prospect.is_test_data });
     }
 
     // Hard stop: opt-out, missing demo link, or duplicate template. Nothing is
     // sent — the message is flagged for manual review instead.
     if (blocked) {
+      // `hard_opt_out` is intended behaviour (the lead asked us to stop), not a
+      // system fault, so it never lands in the error feed. Anything else is a
+      // real gap in the flow and stays reportable.
+      const expected = blocked === "hard_opt_out";
       await traceStep(prospect_id, message_id, "reply_generated", "skipped", { reason: blocked, classification });
-      await logError("reply_generation", `send blocked: ${blocked}`, { prospect_id, message_id });
+      if (!expected) {
+        await logError("reply_generation", `send blocked: ${blocked}`, { prospect_id, message_id, is_test: !!prospect.is_test_data });
+      }
       await supabase.from("notifications").insert({
         type: "needs_review", prospect_id,
-        message: `Reply held for review (${blocked}) — ${prospect.email}`,
+        message: expected
+          ? `Lead opted out — automation stopped for ${prospect.email}`
+          : `Reply held for review (${blocked}) — ${prospect.email}`,
       });
       return new Response(JSON.stringify({ ok: true, blocked, classification, demo_url: demoUrl }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     if (!reply) {
       reply = SAFE_FALLBACK;
