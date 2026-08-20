@@ -111,15 +111,16 @@ Deno.serve(async (req) => {
       .from("inbox_demos").select("demo_url").eq("prospect_id", prospect_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     let demoUrl: string | undefined = existingDemo?.demo_url;
 
-    // Recovery: a demo page may already exist for this address from an earlier
-    // run (or from a manual build) without an inbox_demos row. Reuse it instead
-    // of building a second demo for the same lead.
+    // Recovery: a demo may already have been built for this address in an
+    // earlier run without an inbox_demos row. Reuse it instead of building a
+    // second demo for the same lead.
     if (!demoUrl) {
-      const { data: page } = await supabase
-        .from("demo_pages").select("slug").ilike("contact_email", prospect.email)
-        .order("created_at", { ascending: false }).limit(1).maybeSingle();
-      if (page?.slug) {
-        demoUrl = `${(Deno.env.get("SITE_URL") || "https://aiagencyx.lovable.app").replace(/\/+$/, "")}/${page.slug}`;
+      const { data: priorJob } = await supabase
+        .from("demo_jobs").select("result").ilike("email", prospect.email)
+        .eq("status", "completed").order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const priorUrl = (priorJob?.result as any)?.demo_url;
+      if (priorUrl) {
+        demoUrl = priorUrl;
         await supabase.from("inbox_demos").insert({
           prospect_id, demo_url: demoUrl,
           business_name: prospect.company || prospect.firstname || prospect.email,
@@ -127,6 +128,7 @@ Deno.serve(async (req) => {
         await traceStep(prospect_id, message_id, "demo", "ok", { demo_url: demoUrl, reused: true });
       }
     }
+
 
     const phase: "pre_demo" | "post_demo" = demoUrl ? "post_demo" : "pre_demo";
 
