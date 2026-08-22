@@ -591,13 +591,33 @@ You have a tool called \`search_knowledge_base(query)\`.
     } : null;
 
     // ── Real production tools: Google Calendar + Gmail via the Lovable connector gateway ──
-    const tools = [kbTool, productTool].filter(Boolean).concat(realAgentTools());
+    // Restaurants get reservation / order tools instead of the estimate tools.
+    const tools = [kbTool, productTool].filter(Boolean).concat(
+      useRestaurant ? restaurantAgentTools(restaurantCaps) : realAgentTools(),
+    );
 
+    // ── Native Vapi knowledge files (no tool round-trip needed for lookups) ──
+    // Uploading the menu / KB as a real file lets Vapi retrieve from it itself,
+    // which is faster and far more complete than stuffing it into the prompt.
+    const kbFileIds: string[] = [];
+    const kbFileText = useRestaurant
+      ? [menuSection(structured_data || {}), cbRow?.kb_voice_text || knowledge_base || ""].filter(Boolean).join("\n\n")
+      : (cbRow?.kb_voice_text || knowledge_base || "");
+    if (kbFileText && kbFileText.length > 400) {
+      const file = await uploadVapiTextFile({
+        apiKey: vapiKey,
+        name: `${business_name}-knowledge`,
+        content: `# ${business_name} — knowledge base\n\n${kbFileText}`,
+      });
+      if (file) kbFileIds.push(file.id);
+    }
+    const knowledgeBase = canonicalKnowledgeBase(kbFileIds);
 
-    const firstMessage = injectVars(
+    const firstMessage = templateFirstMessage || injectVars(
       adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
       templateVars
     );
+
     const endCallMessage = injectVars(
       adminSettings.default_end_call_message || "Thanks for calling {business_name}! Have a great one. 👋",
       templateVars
