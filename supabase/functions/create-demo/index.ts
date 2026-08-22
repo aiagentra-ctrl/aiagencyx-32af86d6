@@ -1054,7 +1054,11 @@ Deno.serve(async (req) => {
 
     const adminSettings = await loadAdminSettings(supabase);
     const calendarUrl = calendar_link || adminSettings.calendar_url || "";
-    const siteUrl = (adminSettings.site_url || Deno.env.get("SITE_URL") || "").replace(/\/+$/, "");
+    // Canonical domain: app_config.site_url wins, then admin settings, then env.
+    const { data: siteUrlRow } = await supabase
+      .from("app_config").select("value").eq("key", "site_url").maybeSingle();
+    const siteUrl = (siteUrlRow?.value || adminSettings.site_url || Deno.env.get("SITE_URL") || "").replace(/\/+$/, "");
+
 
     // Step 0: Firecrawl is a HARD dependency — never build a demo without it.
     const cachedFirst = await getCachedContent(supabase, formattedUrl);
