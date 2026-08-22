@@ -262,14 +262,15 @@ export async function attachVapiKnowledge(opts: {
 export function kbFirstRules(chatbotId?: string | null): string {
   return `
 
-## KNOWLEDGE — NATIVE FILE FIRST, TOOL AS FALLBACK
-Your complete knowledge base is attached to you as a searchable file. It contains the business
-overview, services, pricing, policies, FAQs, menu / products / listings, and website content.
-- Answer factual questions from CORE FACTS and the attached knowledge base. Do NOT call a tool for these.
-${chatbotId ? `- ONLY if the attached knowledge base has no answer, is unclear, or errors, call \`search_knowledge_base(query)\` as a fallback.
-- Speak only from the attached knowledge base or the tool's returned text. Never invent facts.
+## KNOWLEDGE — NATIVE KNOWLEDGE BASE FIRST, CUSTOM TOOL AS FALLBACK
+Your complete knowledge base is attached to you natively via \`knowledge_query\`. It contains the
+business overview, services, pricing, policies, FAQs, menu / products / listings and website content.
+- Answer instantly from CORE FACTS above when they cover the question.
+- For anything else factual, use \`knowledge_query\` — that is your primary source of truth.
+${chatbotId ? `- ONLY if \`knowledge_query\` returns nothing useful or errors, call \`search_knowledge_base(query)\` as a fallback.
+- Speak only from CORE FACTS or what those lookups return. Never invent facts.
 - If both come back empty, say exactly: "Let me check with our team on that."
-- The knowledge scope id for this assistant is: ${chatbotId}` : `- If the attached knowledge base has no answer, say exactly: "Let me check with our team on that."`}
+- The knowledge scope id for this assistant is: ${chatbotId}` : `- If \`knowledge_query\` has no answer, say exactly: "Let me check with our team on that."`}
 - Never mention files, tools, or lookups to the caller.
 `;
 }
