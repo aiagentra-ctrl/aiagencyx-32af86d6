@@ -551,7 +551,7 @@ You have a tool called \`search_knowledge_base(query)\`.
           model,
           messages: [{ role: "system", content: fullPrompt }],
           maxTokens: 150,
-          temperature: 0.7,
+          ...(isGpt5 ? {} : { temperature: 0.7 }),
           ...(tools.length > 0 ? { tools } : {}),
         },
         ...(chatbot_id ? { metadata: { chatbot_id } } : {}),
