@@ -1,0 +1,1 @@
+DELETE FROM public.agent_office_notes WHERE last_name = 'Verification' OR reason ILIKE '%Internal test of the Gmail tool%';

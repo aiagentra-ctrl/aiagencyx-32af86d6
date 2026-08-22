@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
 
     const cfg = await loadConfig();
     const company = cfg.company_name || String(metadata?.business_name || "the business");
-    const officeEmail = cfg.office_email || "";
+    const officeEmail = String(args.office_email || "").trim() || cfg.office_email || "";
 
     const noteBody = [
       `New office note from the AI receptionist for ${company}.`,
