@@ -451,8 +451,9 @@ Deno.serve(async (req) => {
     }
 
 
-    // RAG tool rules — always inject so voice agent uses search_knowledge_base first
-    const ragRules = chatbot_id ? `
+    // RAG tool rules — the local-biz master template carries its own lookup rules
+    const ragRules = (chatbot_id && !useLocalBiz) ? `
+
 
 ## RAG TOOL — STRICT RULES
 You have a tool called \`search_knowledge_base(query)\`.
