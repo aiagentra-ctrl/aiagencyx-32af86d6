@@ -1057,7 +1057,8 @@ You have a tool called \`search_knowledge_base(query)\`.
 
       },
       voice: { provider: voiceProvider, voiceId, speed: 1.1 },
-      ...(chatbotId ? { metadata: { chatbot_id: chatbotId } } : {}),
+      metadata: { ...(chatbotId ? { chatbot_id: chatbotId } : {}), business_name: businessName },
+
       endCallMessage,
       maxDurationSeconds: 600,
       firstMessageMode: "assistant-speaks-first",
