@@ -1,250 +1,70 @@
-# Remix of Remix of  AI Demo Deployer (38)
+# AI Demo Deployer
 
-Project: Deploy Demo Page System Using Netlify API (Zip File Method)
+A self-contained system for generating AI voice/chat demo pages for prospects, plus an admin dashboard for leads, inbox, follow-ups and tracking.
 
-We need to deploy our AI Voice Demo Page System using the Netlify API Zip File deployment method as described here:
+Hosting is handled entirely by Lovable — the app is published to a `*.lovable.app` domain (currently https://aiagencyx.lovable.app). There is no external hosting provider and no build/zip/upload step.
 
-https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api/#zip-file-method
+## System overview
 
-The deployment must use my Netlify API token so all demo pages are hosted under my Netlify account.
+### 1. Backend API (edge functions)
 
-The deployed app will include:
+```
+POST https://<project>.supabase.co/functions/v1/create-demo-page
+```
 
-• Supabase Edge Function API
-• Dynamic Vapi demo pages
-• Admin dashboard
-
-System Overview
-
-We are building a self-contained demo system with three parts.
-
-1. Supabase Edge Function API
-
-Endpoint:
-
-POST
-https://.supabase.co/functions/v1/create-demo-page
-
-Purpose:
-
-Creates a new demo page record and returns a live URL.
-
-2. Dynamic Demo Pages
-
-Route:
-
-/demo/:slug
-
-Example:
-
-https://ourproject.netlify.app/demo/denat-clinic
-
-Each page will automatically load the Vapi voice assistant widget.
-
-The page should display:
-
-• Business name
-• Description
-• Call-to-action: “Tap to speak with our AI assistant”
-• Embedded Vapi voice widget
-
-Widget initialization:
-
-const vapi = new Vapi(vapiKey);
-vapi.start({ assistantId });
-
-
-3. Admin Dashboard
-
-Route:
-
-/admin
-
-Dashboard features:
-
-• List all demo pages
-• Show business name
-• Show slug
-• Show assistant ID
-• Show views
-• Show created date
-
-Buttons:
-
-• Copy link
-• Open page
-• Create demo page manually
-
-The admin page should also show the API endpoint for integrations like n8n.
-
-Database Structure
-
-Table: demo_pages
-
-id            uuid (PK)
-slug          text (unique)
-assistant_id  text
-business_name text
-description   text
-vapi_key      text
-views         integer default 0
-created_at    timestamptz
-
-
-RLS Rules:
-
-• Public read by slug
-• Authenticated write
-
-Edge Function Logic
-
-Endpoint:
-
-POST /create-demo-page
+Creates a demo page record and returns a live URL. Public, so automation tools (n8n, Zapier) can call it.
 
 Example request:
 
+```json
 {
   "assistantId": "8fc61c4d-047d-4285-843c-251cb72d5a01",
   "businessName": "Denat Clinic",
   "description": "AI assistant for Denat Clinic",
   "vapiKey": "d64d76bd-e596-4560-bbb1-94dece3667b6"
 }
+```
 
+Logic: slugify the business name (`Denat Clinic` → `denat-clinic`), append a random suffix if taken, insert into `demo_pages`, and return:
 
-Logic:
-
-Generate slug from businessName
-
-Example:
-
-Denat Clinic → denat-clinic
-
-If slug already exists → append random suffix.
-
-Insert record into demo_pages table.
-
-Return response:
-
+```json
 {
- "url": "https://yourapp.netlify.app/demo/denat-clinic",
- "slug": "denat-clinic",
- "assistantId": "8fc61c4d-047d-4285-843c-251cb72d5a01"
+  "url": "https://aiagencyx.lovable.app/demo/denat-clinic",
+  "slug": "denat-clinic",
+  "assistantId": "8fc61c4d-047d-4285-843c-251cb72d5a01"
 }
+```
 
+### 2. Dynamic demo pages
 
-This API must be public so tools like n8n or automation workflows can call it easily.
+Route: `/demo/:slug` — renders the niche-specific landing page (real estate is the default template, customised per niche) with the Vapi voice agent and chat widget wired in.
 
-Netlify Deployment (Important)
+### 3. Admin dashboard
 
-We must deploy the frontend using the Netlify API Zip File Method.
+Route: `/admin` — demo pages, leads, inbox, conversations, follow-ups, tracking, health checks and settings.
 
-Process:
+## Routing
 
-Build the frontend (React / Next / Vite).
+Client-side routing with React Router. Lovable hosting has built-in SPA fallback, so deep links such as `/demo/some-slug` and page refreshes work without any redirects config file.
 
-Zip the build folder.
+## Deploying
 
-Example:
+Click **Publish** in the Lovable editor (top right).
 
-build.zip
+- Frontend changes go live when you publish an update.
+- Backend changes (edge functions, migrations) deploy automatically.
 
+New demo pages do **not** require a deploy: they are database rows served by the existing `/demo/:slug` route the moment they are created.
 
-Deploy using Netlify API:
+A custom domain can be connected in Project settings → Domains after the first publish.
 
-POST
-https://api.netlify.com/api/v1/sites/{site_id}/deploys
+## Database
 
-Headers:
+Table `demo_pages`: `id`, `slug` (unique), `assistant_id`, `business_name`, `description`, `vapi_key`, `views`, `created_at`, plus the landing-page personalisation columns.
 
-Authorization: Bearer NETLIFY_API_TOKEN
-Content-Type: application/zip
-
-
-Body:
-
-ZIP file containing the compiled site.
-
-This will publish the site automatically.
-
-Netlify Routing Requirements
-
-Because we use dynamic routes, add redirects file.
-
-File:
-
-public/_redirects
-
-
-Content:
-
-/demo/*   /index.html   200
-/admin    /index.html   200
-/*        /index.html   200
-
-
-This ensures React routing works correctly on Netlify.
-
-React Routes
-
-App routes:
-
-/               → redirect to /admin
-/admin          → admin dashboard
-/demo/:slug     → demo page
-*               → not found
-
-
-Files That Must Exist
-
-supabase/migrations/create_demo_pages.sql
-
-supabase/functions/create-demo-page/index.ts
-
-src/pages/DemoPage.tsx
-
-src/pages/AdminDashboard.tsx
-
-src/pages/Index.tsx
-
-src/App.tsx
-
-
-Final Goal
-
-The system should work like this:
-
-Automation tool (like n8n) calls the API:
-
-POST /create-demo-page
-
-The system creates a record in Supabase.
-
-A demo page link is generated automatically.
-
-Example:
-
-https://ourproject.netlify.app/demo/denat-clinic
-
-The page loads a Vapi voice assistant instantly for the business.
-
-This allows us to create AI voice demo pages automatically for clients.
-
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://aiagencyx.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/ba602a26-69d4-4721-b99a-e61b282afdb5).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+RLS: public read by slug, writes restricted to the service role / admin functions.
 
 ## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
 git clone <this-repository-url>
@@ -252,3 +72,5 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+Built with [Lovable](https://lovable.dev). Continue in the [Lovable editor](https://lovable.dev/projects/ba602a26-69d4-4721-b99a-e61b282afdb5).
