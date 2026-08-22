@@ -1,0 +1,1 @@
+UPDATE public.chatbots SET vapi_file_ids='[]'::jsonb, vapi_tool_ids='[]'::jsonb WHERE id='2f5e5a20-5a98-403f-ae82-f0d67478835e';

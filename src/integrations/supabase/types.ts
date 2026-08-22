@@ -585,6 +585,8 @@ export type Database = {
           store_platform: string | null
           system_prompt: string
           template_overrides: Json
+          vapi_file_ids: Json
+          vapi_tool_ids: Json
           website_url: string | null
           widget_config: Json | null
         }
@@ -614,6 +616,8 @@ export type Database = {
           store_platform?: string | null
           system_prompt?: string
           template_overrides?: Json
+          vapi_file_ids?: Json
+          vapi_tool_ids?: Json
           website_url?: string | null
           widget_config?: Json | null
         }
@@ -643,6 +647,8 @@ export type Database = {
           store_platform?: string | null
           system_prompt?: string
           template_overrides?: Json
+          vapi_file_ids?: Json
+          vapi_tool_ids?: Json
           website_url?: string | null
           widget_config?: Json | null
         }

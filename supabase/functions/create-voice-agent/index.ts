@@ -6,7 +6,7 @@ import {
   isRestaurantIndustry, detectRestaurantCapabilities, buildRestaurantPrompt,
   restaurantAgentTools, capabilityLabel, menuSection,
 } from "../_shared/restaurant-prompt.ts";
-import { uploadVapiTextFile, canonicalKnowledgeBase } from "../_shared/vapi-files.ts";
+import { attachVapiKnowledge, kbFirstRules, toolOnlyRules } from "../_shared/vapi-kb-doc.ts";
 
 
 
@@ -382,12 +382,40 @@ Deno.serve(async (req) => {
       templateVars
     );
 
+    // ── Native Vapi knowledge file (primary source of truth) ──
+    // Built and uploaded BEFORE the prompts so we never duplicate the KB text
+    // inside the system prompt when the agent can retrieve it natively.
+    let cbRow: any = null;
+    if (chatbot_id) {
+      const { data: cb } = await supabase
+        .from("chatbots")
+        .select("business_name, website_url, industry, prompt_core, kb_chatbot_md, kb_voice_text, research_data, matched_industry, match_confidence, template_overrides")
+        .eq("id", chatbot_id)
+        .maybeSingle();
+      cbRow = cb;
+    }
+
+    const kbAttachment = await attachVapiKnowledge({
+      supabase,
+      apiKey: vapiKey,
+      chatbotId: chatbot_id || null,
+      businessName: business_name,
+      websiteUrl: cbRow?.website_url || null,
+      industry: resolvedIndustry,
+      knowledgeBase: knowledge_base || "",
+      structured: structured_data || {},
+      chatbotRow: cbRow,
+    });
+    const kbToolIds = kbAttachment.toolIds;
+    const kbFileIds = kbAttachment.fileIds;
+    const kbAttached = kbToolIds.length > 0;
+
     let basePrompt = getVoicePrompt(
       agentName,
       business_name,
       resolvedIndustry,
       prompt,
-      knowledge_base || "",
+      kbAttached ? "" : (knowledge_base || ""),
       structured_data || {}
     );
 
@@ -400,7 +428,7 @@ Deno.serve(async (req) => {
           agentName,
           businessName: business_name,
           profile: reProfile as any,
-          knowledgeBase: knowledge_base || "",
+          knowledgeBase: kbAttached ? "" : (knowledge_base || ""),
           chatbotId: chatbot_id,
         });
         await supabase.from("realestate_profiles")
@@ -415,16 +443,9 @@ Deno.serve(async (req) => {
     let useRestaurant = false;
     let restaurantCaps: any = null;
     let templateFirstMessage = "";
-    let cbRow: any = null;
 
     if (chatbot_id) {
-      const { data: cb } = await supabase
-        .from("chatbots")
-        .select("prompt_core, kb_voice_text, research_data, matched_industry, match_confidence, template_overrides")
-        .eq("id", chatbot_id)
-        .maybeSingle();
-      cbRow = cb;
-
+      const cb = cbRow;
 
       // ── Local-business master template (pre-filled niche packs) ──
       const pack = findNichePack(cb?.matched_industry);
@@ -444,6 +465,7 @@ Deno.serve(async (req) => {
           }),
           channel: "voice",
           knowledgeBase: cb?.kb_voice_text || knowledge_base || "",
+          knowledgeBaseAttached: kbAttached,
           coreFacts: cb?.prompt_core || null,
           adaptationNotes: overrides.adaptation_notes || null,
           chatbotId: chatbot_id,
@@ -455,7 +477,8 @@ Deno.serve(async (req) => {
             coreFactsBlock = `\n\n## CORE FACTS — answer these instantly, no KB lookup needed\n${JSON.stringify(cb.prompt_core, null, 2)}\n`;
           } catch { /* noop */ }
         }
-        if (cb?.kb_voice_text) {
+        // When the KB is attached as a native Vapi file we don't duplicate it in the prompt.
+        if (cb?.kb_voice_text && !kbAttached) {
           voiceKbBlock = `\n\n## VOICE KB (spoken-language reference for deeper questions)\n${cb.kb_voice_text}\n`;
         }
       }
@@ -505,6 +528,7 @@ Deno.serve(async (req) => {
           businessName: business_name,
           caps: restaurantCaps,
           knowledgeBase: cbRow?.kb_voice_text || knowledge_base || "",
+          knowledgeBaseAttached: kbAttached,
           structured: structured_data || {},
           chatbotId: chatbot_id || null,
           channel: "voice",
@@ -522,22 +546,11 @@ Deno.serve(async (req) => {
 
 
 
-    // RAG tool rules — the local-biz / restaurant templates carry their own lookup rules
-    const ragRules = (chatbot_id && !useLocalBiz && !useRestaurant) ? `
-
-
-
-## RAG TOOL — STRICT RULES
-You have a tool called \`search_knowledge_base(query)\`.
-- The CORE FACTS section above already covers greetings, basic services, pricing structure,
-  common objections, hours, and escalation. Answer those INSTANTLY without calling the tool.
-- ONLY call search_knowledge_base when the caller asks something not covered in CORE FACTS or VOICE KB
-  (specific edge cases, deep FAQs, policy specifics, individual properties or products).
-- Speak ONLY from CORE FACTS, VOICE KB, or the tool's returned text. Never invent facts.
-- If the tool returns "Let me check with our team on that." or empty results,
-  say exactly: "Let me check with our team on that."
-- The chatbot_id for this assistant is: ${chatbot_id}
-` : "";
+    // Knowledge rules — native Vapi file first, custom tool only as fallback.
+    // The local-biz / restaurant templates carry their own (attachment-aware) lookup rules.
+    const ragRules = (useLocalBiz || useRestaurant)
+      ? ""
+      : (kbAttached ? kbFirstRules(chatbot_id) : toolOnlyRules(chatbot_id));
 
     const fullPrompt = basePrompt + coreFactsBlock + voiceKbBlock + ragRules;
 
@@ -547,7 +560,7 @@ You have a tool called \`search_knowledge_base(query)\`.
       async: false,
       function: {
         name: "search_knowledge_base",
-        description: "Search the business knowledge base for facts, services, pricing, properties, hours, or any specific information. ALWAYS call this before answering factual questions.",
+        description: "FALLBACK lookup. Use only when the attached knowledge base does not contain the answer, is unclear, or errors. Searches the business knowledge base for facts, services, pricing, properties, hours, or any specific information.",
         parameters: {
           type: "object",
           properties: {
@@ -596,22 +609,7 @@ You have a tool called \`search_knowledge_base(query)\`.
       useRestaurant ? restaurantAgentTools(restaurantCaps) : realAgentTools(),
     );
 
-    // ── Native Vapi knowledge files (no tool round-trip needed for lookups) ──
-    // Uploading the menu / KB as a real file lets Vapi retrieve from it itself,
-    // which is faster and far more complete than stuffing it into the prompt.
-    const kbFileIds: string[] = [];
-    const kbFileText = useRestaurant
-      ? [menuSection(structured_data || {}), cbRow?.kb_voice_text || knowledge_base || ""].filter(Boolean).join("\n\n")
-      : (cbRow?.kb_voice_text || knowledge_base || "");
-    if (kbFileText && kbFileText.length > 400) {
-      const file = await uploadVapiTextFile({
-        apiKey: vapiKey,
-        name: `${business_name}-knowledge`,
-        content: `# ${business_name} — knowledge base\n\n${kbFileText}`,
-      });
-      if (file) kbFileIds.push(file.id);
-    }
-    const knowledgeBase = canonicalKnowledgeBase(kbFileIds);
+    // Native Vapi knowledge file was already built + uploaded above (kbAttached).
 
     const firstMessage = templateFirstMessage || injectVars(
       adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
@@ -643,7 +641,7 @@ You have a tool called \`search_knowledge_base(query)\`.
           messages: [{ role: "system", content: fullPrompt }],
           maxTokens: 150,
           ...(isGpt5 ? {} : { temperature: 0.7 }),
-          ...(knowledgeBase ? { knowledgeBase } : {}),
+          ...(kbToolIds.length ? { toolIds: kbToolIds } : {}),
           ...(tools.length > 0 ? { tools } : {}),
 
         },

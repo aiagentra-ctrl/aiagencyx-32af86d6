@@ -9,7 +9,7 @@ import {
   isRestaurantIndustry, detectRestaurantCapabilities, buildRestaurantPrompt,
   restaurantAgentTools, capabilityLabel, menuSection,
 } from "../_shared/restaurant-prompt.ts";
-import { uploadVapiTextFile, canonicalKnowledgeBase } from "../_shared/vapi-files.ts";
+import { attachVapiKnowledge, kbFirstRules, toolOnlyRules } from "../_shared/vapi-kb-doc.ts";
 
 
 
@@ -887,7 +887,23 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
   if (!vapiKey) throw new Error("VAPI private key not configured. Set it in Admin → Settings.");
 
   const agentName = adminSettings.default_agent_name || "Alex";
-  let basePrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
+
+  // ── Native Vapi knowledge file (primary source of truth), built before the prompt ──
+  const kbAttachment = await attachVapiKnowledge({
+    supabase: supabaseClient,
+    apiKey: vapiKey,
+    chatbotId: chatbotId || null,
+    businessName,
+    industry,
+    knowledgeBase,
+    structured: structuredData || {},
+  });
+  const kbToolIds = kbAttachment.toolIds;
+  const kbFileIds = kbAttachment.fileIds;
+  const kbAttached = kbToolIds.length > 0;
+  const promptKb = kbAttached ? "" : knowledgeBase;
+
+  let basePrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, promptKb, structuredData);
   let usedLocalBiz = false;
 
   // ── Local-business master template (pre-filled niche packs) ──
@@ -912,6 +928,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
         }),
         channel: "voice",
         knowledgeBase,
+        knowledgeBaseAttached: kbAttached,
         coreFacts: null,
         adaptationNotes: nicheMatch?.decision === "use_as_is" ? null : (nicheMatch?.adaptation_notes || null),
         chatbotId: chatbotId || null,
@@ -951,6 +968,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
           businessName,
           caps: restaurantCaps,
           knowledgeBase,
+          knowledgeBaseAttached: kbAttached,
           structured: structuredData || {},
           chatbotId: chatbotId || null,
           channel: "voice",
@@ -977,7 +995,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
         .from("realestate_profiles").select("*").eq("chatbot_id", chatbotId).maybeSingle();
       if (reProfile && reProfile.confidence && reProfile.confidence !== "low") {
         basePrompt = buildRealEstateVoicePrompt({
-          agentName, businessName, profile: reProfile as any, knowledgeBase, chatbotId,
+          agentName, businessName, profile: reProfile as any, knowledgeBase: promptKb, chatbotId,
         });
         await supabaseClient.from("realestate_profiles")
           .update({ generated_prompt: basePrompt }).eq("chatbot_id", chatbotId);
@@ -987,17 +1005,10 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
     }
   }
 
-  const ragRules = (chatbotId && !usedLocalBiz && !usedRestaurant) ? `
-
-
-## RAG TOOL — STRICT RULES
-You have a tool called \`search_knowledge_base(query)\`.
-- BEFORE answering ANY factual question (services, pricing, hours, properties, menu, policies),
-  CALL search_knowledge_base FIRST with the user's question.
-- Speak ONLY from the tool's returned text. Never invent facts.
-- If the tool returns "Let me check with our team on that." or empty results,
-  say exactly: "Let me check with our team on that."
-` : "";
+  // Knowledge rules — native Vapi file first, custom tool only as fallback.
+  const ragRules = (usedLocalBiz || usedRestaurant)
+    ? ""
+    : (kbAttached ? kbFirstRules(chatbotId) : toolOnlyRules(chatbotId));
   const fullPrompt = basePrompt + ragRules;
 
   const voiceProvider = adminSettings.voice_provider || "azure";
@@ -1011,7 +1022,7 @@ You have a tool called \`search_knowledge_base(query)\`.
     async: false,
     function: {
       name: "search_knowledge_base",
-      description: "Search the business knowledge base for facts, pricing, properties, services, hours, or any specific information. ALWAYS call this before answering factual questions.",
+      description: "FALLBACK lookup. Use only when the attached knowledge base does not contain the answer, is unclear, or errors. Searches the business knowledge base for facts, pricing, properties, services, hours, or any specific information.",
       parameters: {
         type: "object",
         properties: {
@@ -1025,20 +1036,7 @@ You have a tool called \`search_knowledge_base(query)\`.
     server: { url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-knowledge-base` },
   } : null;
 
-  // ── Native Vapi knowledge file (canonical RAG) — faster than a tool round-trip ──
-  const kbFileIds: string[] = [];
-  const kbFileText = usedRestaurant
-    ? [menuSection(structuredData || {}), knowledgeBase || ""].filter(Boolean).join("\n\n")
-    : (knowledgeBase || "");
-  if (kbFileText && kbFileText.length > 400) {
-    const file = await uploadVapiTextFile({
-      apiKey: vapiKey,
-      name: `${businessName}-knowledge`,
-      content: `# ${businessName} — knowledge base\n\n${kbFileText}`,
-    });
-    if (file) kbFileIds.push(file.id);
-  }
-  const vapiKnowledgeBase = canonicalKnowledgeBase(kbFileIds);
+  // Native Vapi knowledge file was already built + uploaded above (kbAttached).
 
   const res = await fetchWithTimeout("https://api.vapi.ai/assistant", {
     method: "POST",
@@ -1052,7 +1050,7 @@ You have a tool called \`search_knowledge_base(query)\`.
         messages: [{ role: "system", content: fullPrompt }],
         maxTokens: 150,
         temperature: 0.7,
-        ...(vapiKnowledgeBase ? { knowledgeBase: vapiKnowledgeBase } : {}),
+        ...(kbToolIds.length ? { toolIds: kbToolIds } : {}),
         tools: [...(kbTool ? [kbTool] : []), ...(usedRestaurant ? restaurantAgentTools(restaurantCaps) : realAgentTools())],
 
       },
