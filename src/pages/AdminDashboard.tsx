@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -138,7 +139,12 @@ const AdminDashboard = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: "easeOut" }}
+        className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4"
+      >
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -162,7 +168,7 @@ const AdminDashboard = () => {
             </form>
           </CardContent>
         </Card>
-      </div>
+      </motion.div>
     );
   }
 
@@ -244,7 +250,7 @@ function AdminSections(props: {
           {/* Demos Tab — shows both pages and chatbots */}
           <TabsContent value="demos" className="space-y-6">
             {/* API Quick Reference */}
-            <Card>
+            <Card className="transition-all duration-300 hover:shadow-xl hover:border-primary/40">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <Zap className="h-5 w-5 text-primary" />
@@ -269,7 +275,7 @@ function AdminSections(props: {
             </Card>
 
             {/* Demo Pages Table */}
-            <Card>
+            <Card className="transition-all duration-300 hover:shadow-xl">
               <CardHeader>
                 <CardTitle className="text-lg">Generated Demos</CardTitle>
                 <CardDescription>{pages.length} demo{pages.length !== 1 ? "s" : ""} • {chatbots.length} chatbot{chatbots.length !== 1 ? "s" : ""}</CardDescription>
@@ -292,7 +298,7 @@ function AdminSections(props: {
                     </TableHeader>
                     <TableBody>
                       {pages.map((page) => (
-                        <TableRow key={page.id}>
+                        <TableRow key={page.id} className="transition-colors hover:bg-muted/40">
                           <TableCell className="font-medium">{page.business_name}</TableCell>
                           <TableCell><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{page.slug}</code></TableCell>
                           <TableCell className="text-right">{page.views}</TableCell>
@@ -316,7 +322,7 @@ function AdminSections(props: {
 
             {/* Chatbots Table */}
             {chatbots.length > 0 && (
-              <Card>
+              <Card className="transition-all duration-300 hover:shadow-xl">
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Bot className="h-5 w-5 text-primary" />
@@ -335,7 +341,7 @@ function AdminSections(props: {
                     </TableHeader>
                     <TableBody>
                       {chatbots.map((bot) => (
-                        <TableRow key={bot.id}>
+                        <TableRow key={bot.id} className="transition-colors hover:bg-muted/40">
                           <TableCell className="font-medium">{bot.business_name}</TableCell>
                           <TableCell><code className="rounded bg-muted px-1.5 py-0.5 text-xs">{bot.slug}</code></TableCell>
                           <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{bot.industry || "—"}</TableCell>
@@ -423,3 +429,4 @@ function AdminSections(props: {
 }
 
 export default AdminDashboard;
+
