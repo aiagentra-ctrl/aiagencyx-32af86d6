@@ -407,21 +407,49 @@ Deno.serve(async (req) => {
     // Load architected core facts + voice KB from chatbots row (if available)
     let coreFactsBlock = "";
     let voiceKbBlock = "";
+    let useLocalBiz = false;
     if (chatbot_id) {
       const { data: cb } = await supabase
         .from("chatbots")
-        .select("prompt_core, kb_voice_text")
+        .select("prompt_core, kb_voice_text, matched_industry, match_confidence, template_overrides")
         .eq("id", chatbot_id)
         .maybeSingle();
-      if (cb?.prompt_core) {
-        try {
-          coreFactsBlock = `\n\n## CORE FACTS — answer these instantly, no KB lookup needed\n${JSON.stringify(cb.prompt_core, null, 2)}\n`;
-        } catch { /* noop */ }
-      }
-      if (cb?.kb_voice_text) {
-        voiceKbBlock = `\n\n## VOICE KB (spoken-language reference for deeper questions)\n${cb.kb_voice_text}\n`;
+
+      // ── Local-business master template (pre-filled niche packs) ──
+      const pack = findNichePack(cb?.matched_industry);
+      if (pack) {
+        const overrides = (cb?.template_overrides || {}) as Record<string, string>;
+        const appCfg: Record<string, string> = {};
+        const { data: cfgRows } = await supabase.from("app_config").select("key, value");
+        for (const r of cfgRows || []) appCfg[r.key] = r.value ?? "";
+
+        basePrompt = buildLocalBizPrompt({
+          vars: resolveVars({
+            companyName: business_name,
+            agentName,
+            pack,
+            overrides,
+            settings: { ...appCfg, ...adminSettings },
+          }),
+          channel: "voice",
+          knowledgeBase: cb?.kb_voice_text || knowledge_base || "",
+          coreFacts: cb?.prompt_core || null,
+          adaptationNotes: overrides.adaptation_notes || null,
+          chatbotId: chatbot_id,
+        });
+        useLocalBiz = true;
+      } else {
+        if (cb?.prompt_core) {
+          try {
+            coreFactsBlock = `\n\n## CORE FACTS — answer these instantly, no KB lookup needed\n${JSON.stringify(cb.prompt_core, null, 2)}\n`;
+          } catch { /* noop */ }
+        }
+        if (cb?.kb_voice_text) {
+          voiceKbBlock = `\n\n## VOICE KB (spoken-language reference for deeper questions)\n${cb.kb_voice_text}\n`;
+        }
       }
     }
+
 
     // RAG tool rules — always inject so voice agent uses search_knowledge_base first
     const ragRules = chatbot_id ? `
