@@ -2,7 +2,6 @@
 const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 const NAMES = [
   "MANYREACH_API_KEY", "INBOX_WEBHOOK_SECRET",
-  "NETLIFY_API_TOKEN", "NETLIFY_SITE_ID",
   "SITE_URL", "SITE_DOMAIN",
   "VAPI_API_KEY", "OPENROUTER_API_KEY",
 ];

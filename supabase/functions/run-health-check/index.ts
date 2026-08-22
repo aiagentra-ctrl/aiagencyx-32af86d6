@@ -142,18 +142,6 @@ const testManyReach = timed("manyreach", "ManyReach outbound", "integrations", a
   return { ok: true, detail: { status: r.status, sample: text.slice(0, 200) }, error: null };
 });
 
-const testNetlify = timed("netlify", "Netlify deploys", "integrations", async () => {
-  const token = Deno.env.get("NETLIFY_API_TOKEN") || "";
-  const siteId = Deno.env.get("NETLIFY_SITE_ID") || "";
-  if (!token) return { ok: false, detail: { site_id_set: !!siteId }, error: "NETLIFY_API_TOKEN not set" };
-  const r = await fetch(`https://api.netlify.com/api/v1/sites${siteId ? `/${siteId}` : ""}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const text = await r.text().catch(() => "");
-  if (r.status === 401 || r.status === 403) return { ok: false, detail: { status: r.status }, error: `auth failed (${r.status})` };
-  return { ok: r.ok, detail: { status: r.status, site_id_set: !!siteId, sample: text.slice(0, 160) }, error: r.ok ? null : `HTTP ${r.status}` };
-});
-
 const testSecrets = timed("secrets", "Required secrets", "integrations", async () => {
   const required = [
     "INBOX_WEBHOOK_SECRET", "OPENROUTER_API_KEY", "MANYREACH_API_KEY",
@@ -309,7 +297,6 @@ const STEPS: Record<string, () => Promise<Result>> = {
   lovable_ai: testLovableAI,
   vapi: testVapi,
   manyreach: testManyReach,
-  netlify: testNetlify,
   secrets: testSecrets,
   webhook: testWebhook,
   db_write: testDbWrite,
@@ -324,7 +311,7 @@ const STEPS: Record<string, () => Promise<Result>> = {
 };
 
 const ORDER = [
-  "firecrawl", "openrouter", "lovable_ai", "vapi", "manyreach", "netlify", "secrets",
+  "firecrawl", "openrouter", "lovable_ai", "vapi", "manyreach", "secrets",
   "webhook", "db_write", "classify", "generate_reply",
   "memory", "history", "data_sync", "admin_data", "demo_jobs",
 ];

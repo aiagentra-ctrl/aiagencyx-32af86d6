@@ -36,7 +36,6 @@ const STEPS: { key: string; label: string; group: Group; desc: string }[] = [
   { key: "lovable_ai", label: "Lovable AI Gateway", group: "integrations", desc: "Fallback AI gateway ping." },
   { key: "vapi", label: "VAPI voice agents", group: "integrations", desc: "Voice assistant API reachability." },
   { key: "manyreach", label: "ManyReach outbound", group: "integrations", desc: "Sending API key check (nothing is sent)." },
-  { key: "netlify", label: "Netlify deploys", group: "integrations", desc: "Deploy token and site id." },
   { key: "secrets", label: "Required secrets", group: "integrations", desc: "All required environment secrets present." },
   { key: "webhook", label: "Inbound webhook", group: "pipeline", desc: "Posts a mock ManyReach payload to the live webhook." },
   { key: "db_write", label: "Message storage", group: "pipeline", desc: "Confirms the payload landed in prospects + messages." },

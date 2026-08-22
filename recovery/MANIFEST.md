@@ -65,7 +65,7 @@ Admin/dashboard: `admin-data`, `run-health-check`, `get-secret-status`, `get-web
 
 Demo/agent creation: `create-demo`, `create-demo-page`, `create-chatbot`, `create-ai-agent`,
 `create-ai-system`, `create-voice-agent`, `generate-website`, `generate-voice-prompt`,
-`deploy-to-netlify`, `scrape-and-analyze`, `scrape-ecommerce-products`,
+`scrape-and-analyze`, `scrape-ecommerce-products`,
 `scrape-realestate-listings`, `build-knowledge-base`, `search-knowledge-base`,
 `classify-realestate-business`.
 
@@ -99,8 +99,7 @@ Tracking: `track-event`, `track-visitor`, `track-chat-event`.
 | `FIRECRAWL_API_KEY` | all scraping; demo creation hard-gates on it | required |
 | `VAPI_API_KEY` | voice agent creation | required |
 | `MANYREACH_API_KEY` | outbound replies/follow-ups | required |
-| `INBOX_WEBHOOK_SECRET` | inbound webhook auth | required |
-| `NETLIFY_API_TOKEN`, `NETLIFY_SITE_ID` | demo site deploys | required |
+| `INBOX_WEBHOOK_SECRET` | inbound webhook auth | required | demo site deploys | required |
 | `SITE_URL`, `SITE_DOMAIN` | demo/tracking link building | required |
 | `ADMIN_PANEL_PASSWORD` | `admin-data` gate | defaults in code if unset |
 
@@ -114,8 +113,7 @@ Also update `project_id` in `supabase/config.toml`.
 - **ManyReach** — inbound reply webhook URL contains the project ref; recreate the
   endpoint token in the admin panel and update the URL in ManyReach.
 - **VAPI** — assistants live in VAPI, not in the database; existing demos keep working,
-  new ones are created on demand.
-- **Netlify** — deploy target is unchanged unless the site is recreated.
+  new ones are created on demand. 
 - **Firecrawl** — reconnect the integration / re-add the API key.
 - **Scheduled jobs (pg_cron)** — the source project's cron schema is not readable by the
   backup role. After restore, re-create the schedules that invoke
