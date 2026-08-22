@@ -983,7 +983,7 @@ You have a tool called \`search_knowledge_base(query)\`.
         messages: [{ role: "system", content: fullPrompt }],
         maxTokens: 150,
         temperature: 0.7,
-        ...(kbTool ? { tools: [kbTool] } : {}),
+        tools: [...(kbTool ? [kbTool] : []), ...realAgentTools()],
       },
       voice: { provider: voiceProvider, voiceId, speed: 1.1 },
       ...(chatbotId ? { metadata: { chatbot_id: chatbotId } } : {}),
