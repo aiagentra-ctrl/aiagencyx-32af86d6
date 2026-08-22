@@ -1377,6 +1377,16 @@ Deno.serve(async (req) => {
       logo_url: logoUrl || null,
       widget_config: widgetConfig,
       demo_page_id: demoPage.id,
+      matched_industry: nicheMatch?.niche || null,
+      match_confidence: nicheMatch?.confidence || null,
+      template_overrides: nicheMatch ? {
+        decision: nicheMatch.decision,
+        adaptation_notes: nicheMatch.decision === "use_as_is" ? "" : (nicheMatch.adaptation_notes || ""),
+        ...(nicheMatch.industry_category ? { industry_category: nicheMatch.industry_category } : {}),
+        ...(nicheMatch.project_type_list ? { project_type_list: nicheMatch.project_type_list } : {}),
+        ...(nicheMatch.pricing_policy_line ? { pricing_policy_line: nicheMatch.pricing_policy_line } : {}),
+      } : {},
+
       research_data: {
         ...structuredData,
         website_content_preview: websiteContent.substring(0, 2000),
