@@ -461,6 +461,66 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Restaurant template: capability-aware (reservations / orders / both / neither) ──
+    if (!useLocalBiz && (isRestaurantIndustry(resolvedIndustry) || cbRow?.matched_industry === "restaurant")) {
+      const overrides = (cbRow?.template_overrides || {}) as Record<string, any>;
+
+      // Editable row from the admin Templates panel wins over the built-in copy.
+      const { data: tpl } = await supabase
+        .from("industry_templates")
+        .select("system_prompt_template, first_message_template, voice_config, chatbot_config, status")
+        .eq("industry_name", "restaurant")
+        .maybeSingle();
+      const active = !tpl || tpl.status === "active";
+
+      const pageContent = [
+        knowledge_base || "",
+        cbRow?.kb_voice_text || "",
+        typeof cbRow?.research_data === "string" ? cbRow.research_data : JSON.stringify(cbRow?.research_data || {}),
+      ].join("\n");
+
+      const capOverrides = {
+        ...(tpl?.chatbot_config?.capabilities || {}),
+        ...(overrides.capabilities || {}),
+      };
+      // null / undefined entries mean "auto-detect", so strip them out.
+      for (const k of Object.keys(capOverrides)) {
+        if (capOverrides[k] === null || capOverrides[k] === undefined) delete capOverrides[k];
+      }
+
+      restaurantCaps = detectRestaurantCapabilities({
+        content: pageContent,
+        structured: structured_data || cbRow?.prompt_core || {},
+        overrides: capOverrides,
+      });
+
+      if (active) {
+        const templateOverride =
+          (typeof overrides.voice_prompt_template === "string" && overrides.voice_prompt_template.trim())
+            ? overrides.voice_prompt_template
+            : (tpl?.voice_config?.voice_prompt_template?.trim() || tpl?.system_prompt_template?.trim() || null);
+
+        basePrompt = buildRestaurantPrompt({
+          agentName,
+          businessName: business_name,
+          caps: restaurantCaps,
+          knowledgeBase: cbRow?.kb_voice_text || knowledge_base || "",
+          structured: structured_data || {},
+          chatbotId: chatbot_id || null,
+          channel: "voice",
+          templateOverride,
+          adaptationNotes: overrides.adaptation_notes || null,
+        });
+        coreFactsBlock = "";
+        voiceKbBlock = "";
+        useRestaurant = true;
+        templateFirstMessage = injectVars(tpl?.first_message_template || "", templateVars);
+        console.log(`[restaurant] ${business_name}: ${capabilityLabel(restaurantCaps)} — ${restaurantCaps.evidence.join("; ")}`);
+      }
+    }
+
+
+
 
     // RAG tool rules — the local-biz master template carries its own lookup rules
     const ragRules = (chatbot_id && !useLocalBiz) ? `
