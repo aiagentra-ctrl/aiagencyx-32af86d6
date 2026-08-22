@@ -335,11 +335,11 @@ export function buildRestaurantPrompt(input: RestaurantPromptInput): string {
   }
   if (input.knowledgeBaseAttached) {
     parts.push(`\n[KNOWLEDGE FILES]
-The full menu and policy documents are attached to you as searchable files. Use them for detailed questions before saying you don't know. Never mention the files to the caller.`);
+Your complete knowledge base — full menu, pricing, hours, policies and website content — is attached to you as a searchable file. Answer detailed questions from it directly, without calling any tool. Never mention the files to the caller.`);
   }
   if (input.chatbotId) {
-    parts.push(`\n[KNOWLEDGE LOOKUP]
-Use search_knowledge_base(query) only for details not covered above. Speak only from what it returns; if it returns nothing useful, say "Let me check on that for you."
+    parts.push(`\n[KNOWLEDGE LOOKUP — FALLBACK ONLY]
+Use search_knowledge_base(query) only when the attached knowledge base and the facts above do not cover the question, are unclear, or error. Speak only from what it returns; if it returns nothing useful, say "Let me check on that for you."
 Knowledge scope id: ${input.chatbotId}`);
   }
   return parts.join("\n");
