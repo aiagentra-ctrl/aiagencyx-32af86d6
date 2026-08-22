@@ -523,10 +523,10 @@ Deno.serve(async (req) => {
 
 
     // Knowledge rules — native Vapi file first, custom tool only as fallback.
-    // The local-biz / restaurant templates carry their own lookup rules.
-    const ragRules = (!useLocalBiz && !useRestaurant)
-      ? (kbAttached ? kbFirstRules(chatbot_id) : toolOnlyRules(chatbot_id))
-      : (kbAttached ? kbFirstRules(chatbot_id) : "");
+    // The local-biz / restaurant templates carry their own (attachment-aware) lookup rules.
+    const ragRules = (useLocalBiz || useRestaurant)
+      ? ""
+      : (kbAttached ? kbFirstRules(chatbot_id) : toolOnlyRules(chatbot_id));
 
     const fullPrompt = basePrompt + coreFactsBlock + voiceKbBlock + ragRules;
 
