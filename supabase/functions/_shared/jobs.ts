@@ -12,6 +12,8 @@ export const DEMO_STEPS = [
   "firecrawl_check",
   "firecrawl_scrape",
   "analyze",
+  "industry_match",
+
   "build_prompt",
   "create_voice_agent",
   "create_demo_page",
