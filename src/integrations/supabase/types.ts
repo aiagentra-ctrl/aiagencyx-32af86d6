@@ -93,7 +93,7 @@ export type Database = {
           calendar_event_id: string | null
           calendar_id: string | null
           chatbot_id: string | null
-          city: string
+          city: string | null
           created_at: string
           dedupe_key: string
           email: string | null
@@ -102,23 +102,25 @@ export type Database = {
           estimator: string | null
           first_name: string
           id: string
-          last_name: string
+          kind: string
+          last_name: string | null
           market: string | null
           mode: string
+          party_size: number | null
           phone: string
           project_detail: string
           slot_label: string | null
           start_at: string
-          state: string
-          street_address: string
+          state: string | null
+          street_address: string | null
           timezone: string | null
-          zip: string
+          zip: string | null
         }
         Insert: {
           calendar_event_id?: string | null
           calendar_id?: string | null
           chatbot_id?: string | null
-          city: string
+          city?: string | null
           created_at?: string
           dedupe_key: string
           email?: string | null
@@ -127,23 +129,25 @@ export type Database = {
           estimator?: string | null
           first_name: string
           id?: string
-          last_name: string
+          kind?: string
+          last_name?: string | null
           market?: string | null
           mode?: string
+          party_size?: number | null
           phone: string
           project_detail: string
           slot_label?: string | null
           start_at: string
-          state: string
-          street_address: string
+          state?: string | null
+          street_address?: string | null
           timezone?: string | null
-          zip: string
+          zip?: string | null
         }
         Update: {
           calendar_event_id?: string | null
           calendar_id?: string | null
           chatbot_id?: string | null
-          city?: string
+          city?: string | null
           created_at?: string
           dedupe_key?: string
           email?: string | null
@@ -152,17 +156,19 @@ export type Database = {
           estimator?: string | null
           first_name?: string
           id?: string
-          last_name?: string
+          kind?: string
+          last_name?: string | null
           market?: string | null
           mode?: string
+          party_size?: number | null
           phone?: string
           project_detail?: string
           slot_label?: string | null
           start_at?: string
-          state?: string
-          street_address?: string
+          state?: string | null
+          street_address?: string | null
           timezone?: string | null
-          zip?: string
+          zip?: string | null
         }
         Relationships: []
       }
