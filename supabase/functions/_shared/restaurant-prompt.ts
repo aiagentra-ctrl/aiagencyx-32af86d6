@@ -118,17 +118,31 @@ export function detectRestaurantCapabilities(input: {
     return null;
   };
 
+  // Explicit denials beat keyword presence: a page saying "no delivery" still
+  // contains the word "delivery", so check for the negated forms directly.
+  const denies = (words: string[]) =>
+    words.some((w) => new RegExp(`\\b(no|not|never|don'?t|do not|we don'?t)\\b[^.\\n]{0,24}\\b${w}\\b`).test(hay))
+    || words.some((w) => new RegExp(`\\b${w}\\b[^.\\n]{0,12}\\b(not available|unavailable)\\b`).test(hay));
+
+  const noDelivery = denies(["delivery", "deliver", "delivering"]) || /\bpick[\s-]?up only\b|\btakeaway only\b/.test(hay);
+  const noPickup = denies(["pickup", "pick up", "takeout", "take-?out", "takeaway"]) || /\bdelivery only\b/.test(hay);
+  const noCatering = denies(["catering", "cater"]);
+
+  if (noDelivery && del.hits > 0) evidence.push("delivery mentioned but explicitly declined");
+  if (noPickup && pick.hits > 0) evidence.push("pickup mentioned but explicitly declined");
+
   const base: RestaurantCapabilities = {
     reservations,
     orders,
-    pickup: orders && (pick.hits > 0 || ord.hits > 0),
-    delivery: orders && del.hits > 0,
-    catering: cat.hits > 0,
+    pickup: orders && !noPickup && (pick.hits > 0 || ord.hits > 0),
+    delivery: orders && !noDelivery && del.hits > 0,
+    catering: cat.hits > 0 && !noCatering,
     waitlist: wait.hits > 0,
     reservation_platform: platform(res.found),
     ordering_platform: platform(ord.found),
     evidence,
   };
+
   return { ...base, ...(input.overrides || {}) } as RestaurantCapabilities;
 }
 
