@@ -898,9 +898,9 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
     knowledgeBase,
     structured: structuredData || {},
   });
-  const vapiKnowledgeBase = kbAttachment.knowledgeBase;
+  const kbToolIds = kbAttachment.toolIds;
   const kbFileIds = kbAttachment.fileIds;
-  const kbAttached = kbFileIds.length > 0;
+  const kbAttached = kbToolIds.length > 0;
   const promptKb = kbAttached ? "" : knowledgeBase;
 
   let basePrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, promptKb, structuredData);
