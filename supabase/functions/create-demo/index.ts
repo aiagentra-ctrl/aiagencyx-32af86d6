@@ -849,11 +849,8 @@ ${knowledgeBase}`;
 }
 
 // ── Voice prompt dispatcher ──
-function isRestaurantIndustry(industry: string): boolean {
-  const li = industry.toLowerCase();
-  return ["restaurant", "food", "cafe", "pizza", "bakery", "diner", "grill", "bistro", "eatery", "sushi", "burger", "taco"]
-    .some(k => li.includes(k));
-}
+// Restaurant detection lives in _shared/restaurant-prompt.ts (isRestaurantIndustry).
+
 
 function isDentalIndustry(industry: string): boolean {
   const li = industry.toLowerCase();
