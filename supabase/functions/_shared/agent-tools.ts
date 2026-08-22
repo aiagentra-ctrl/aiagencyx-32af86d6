@@ -151,7 +151,8 @@ export function candidateSlots(opts: {
     if (opts.proposedDate && iso !== opts.proposedDate) continue;
     for (const h of hours) {
       if (out.length >= limit) break;
-      const s = new Date(`${iso}T${String(h).padStart(2, "0")}:00:00Z`);
+      // Build the instant that reads as `h:00` in the business timezone.
+      const s = zonedTime(iso, h, opts.timezone);
       const e = new Date(s.getTime() + duration);
       out.push({
         date: iso,
@@ -161,6 +162,7 @@ export function candidateSlots(opts: {
         label: fmtLabel(s, opts.timezone),
       });
     }
+
   }
   return out;
 }
