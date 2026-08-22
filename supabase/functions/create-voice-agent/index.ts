@@ -536,7 +536,7 @@ Deno.serve(async (req) => {
       async: false,
       function: {
         name: "search_knowledge_base",
-        description: "Search the business knowledge base for facts, services, pricing, properties, hours, or any specific information. ALWAYS call this before answering factual questions.",
+        description: "FALLBACK lookup. Use only when the attached knowledge base does not contain the answer, is unclear, or errors. Searches the business knowledge base for facts, services, pricing, properties, hours, or any specific information.",
         parameters: {
           type: "object",
           properties: {
