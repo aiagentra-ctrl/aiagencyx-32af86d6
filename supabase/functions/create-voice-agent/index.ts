@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildRealEstateVoicePrompt, isRealEstateIndustry } from "../_shared/realestate-prompt.ts";
+import { buildLocalBizPrompt, findNichePack, resolveVars } from "../_shared/localbiz-prompt.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
