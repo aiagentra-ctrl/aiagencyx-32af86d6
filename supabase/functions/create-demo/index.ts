@@ -1054,7 +1054,11 @@ Deno.serve(async (req) => {
 
     const adminSettings = await loadAdminSettings(supabase);
     const calendarUrl = calendar_link || adminSettings.calendar_url || "";
-    const siteUrl = (adminSettings.site_url || Deno.env.get("SITE_URL") || "").replace(/\/+$/, "");
+    // Canonical domain: app_config.site_url wins, then admin settings, then env.
+    const { data: siteUrlRow } = await supabase
+      .from("app_config").select("value").eq("key", "site_url").maybeSingle();
+    const siteUrl = (siteUrlRow?.value || adminSettings.site_url || Deno.env.get("SITE_URL") || "").replace(/\/+$/, "");
+
 
     // Step 0: Firecrawl is a HARD dependency — never build a demo without it.
     const cachedFirst = await getCachedContent(supabase, formattedUrl);
@@ -1131,6 +1135,31 @@ Deno.serve(async (req) => {
     const mainService = structuredData?.main_service || structuredData?.services?.[0] || resolvedIndustry;
 
     console.log(`[industry] Resolved: ${resolvedIndustry}, main service: ${mainService}`);
+
+    // ── Niche match: pick the closest pre-filled local-business template ──
+    let nicheMatch: any = null;
+    try {
+      const prior = await stepDone(jobId, "industry_match");
+      if (prior?.niche) {
+        nicheMatch = prior;
+      } else {
+        nicheMatch = await runStep(jobId, "industry_match", () => matchIndustry({
+          businessName: business_name,
+          websiteUrl: formattedUrl,
+          signalsText: extractSignals({
+            markdown: websiteContent,
+            services: structuredData?.services || null,
+            titles: structuredData?.main_service ? [structuredData.main_service] : null,
+          }),
+        }), { serialize: (m: any) => m });
+      }
+      if (nicheMatch) {
+        console.log(`[industry] Niche match: ${nicheMatch.niche} (${nicheMatch.confidence}, ${nicheMatch.decision})`);
+      }
+    } catch (e) {
+      console.warn("[industry] niche match failed:", e instanceof Error ? e.message : e);
+    }
+
 
     // ── TEMPLATE ENGINE: Smart detection + auto-generation ──
     let template = await loadTemplate(supabase, resolvedIndustry);
@@ -1269,7 +1298,7 @@ Deno.serve(async (req) => {
     } else {
       try {
         assistantId = await runStep(jobId, "create_voice_agent",
-          () => createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData, preChatbotId),
+          () => createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData, preChatbotId, nicheMatch),
           { serialize: (id: string) => ({ assistant_id: id }) });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "VAPI creation failed";
@@ -1352,6 +1381,16 @@ Deno.serve(async (req) => {
       logo_url: logoUrl || null,
       widget_config: widgetConfig,
       demo_page_id: demoPage.id,
+      matched_industry: nicheMatch?.niche || null,
+      match_confidence: nicheMatch?.confidence || null,
+      template_overrides: nicheMatch ? {
+        decision: nicheMatch.decision,
+        adaptation_notes: nicheMatch.decision === "use_as_is" ? "" : (nicheMatch.adaptation_notes || ""),
+        ...(nicheMatch.industry_category ? { industry_category: nicheMatch.industry_category } : {}),
+        ...(nicheMatch.project_type_list ? { project_type_list: nicheMatch.project_type_list } : {}),
+        ...(nicheMatch.pricing_policy_line ? { pricing_policy_line: nicheMatch.pricing_policy_line } : {}),
+      } : {},
+
       research_data: {
         ...structuredData,
         website_content_preview: websiteContent.substring(0, 2000),
