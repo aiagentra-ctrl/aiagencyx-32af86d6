@@ -5,6 +5,12 @@ import { startDemoJob, runStep, recordStep, stepDone, finishJob } from "../_shar
 import { buildLocalBizPrompt, findNichePack, resolveVars } from "../_shared/localbiz-prompt.ts";
 import { matchIndustry, extractSignals } from "../_shared/industry-match.ts";
 import { realAgentTools } from "../_shared/agent-tools.ts";
+import {
+  isRestaurantIndustry, detectRestaurantCapabilities, buildRestaurantPrompt,
+  restaurantAgentTools, capabilityLabel, menuSection,
+} from "../_shared/restaurant-prompt.ts";
+import { uploadVapiTextFile, canonicalKnowledgeBase } from "../_shared/vapi-files.ts";
+
 
 
 const corsHeaders = {
@@ -849,11 +855,8 @@ ${knowledgeBase}`;
 }
 
 // ── Voice prompt dispatcher ──
-function isRestaurantIndustry(industry: string): boolean {
-  const li = industry.toLowerCase();
-  return ["restaurant", "food", "cafe", "pizza", "bakery", "diner", "grill", "bistro", "eatery", "sushi", "burger", "taco"]
-    .some(k => li.includes(k));
-}
+// Restaurant detection lives in _shared/restaurant-prompt.ts (isRestaurantIndustry).
+
 
 function isDentalIndustry(industry: string): boolean {
   const li = industry.toLowerCase();
@@ -919,6 +922,53 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
     }
   }
 
+  // ── Restaurant template: capability-aware (reservations / orders / both / neither) ──
+  let usedRestaurant = false;
+  let restaurantCaps: any = null;
+  let templateFirstMessage = "";
+  if (!usedLocalBiz && (isRestaurantIndustry(industry) || nicheMatch?.niche === "restaurant")) {
+    try {
+      const { data: tpl } = await supabaseClient
+        .from("industry_templates")
+        .select("system_prompt_template, first_message_template, voice_config, chatbot_config, status")
+        .eq("industry_name", "restaurant")
+        .maybeSingle();
+
+      if (!tpl || tpl.status === "active") {
+        const capOverrides = { ...(tpl?.chatbot_config?.capabilities || {}) };
+        for (const k of Object.keys(capOverrides)) {
+          if (capOverrides[k] === null || capOverrides[k] === undefined) delete capOverrides[k];
+        }
+
+        restaurantCaps = detectRestaurantCapabilities({
+          content: [knowledgeBase, JSON.stringify(structuredData || {})].join("\n"),
+          structured: structuredData || {},
+          overrides: capOverrides,
+        });
+
+        basePrompt = buildRestaurantPrompt({
+          agentName,
+          businessName,
+          caps: restaurantCaps,
+          knowledgeBase,
+          structured: structuredData || {},
+          chatbotId: chatbotId || null,
+          channel: "voice",
+          templateOverride:
+            tpl?.voice_config?.voice_prompt_template?.trim() || tpl?.system_prompt_template?.trim() || null,
+          adaptationNotes: nicheMatch?.decision === "use_as_is" ? null : (nicheMatch?.adaptation_notes || null),
+        });
+        templateFirstMessage = injectVars(tpl?.first_message_template || "", { business_name: businessName, agent_name: agentName });
+        usedRestaurant = true;
+        console.log(`[create-demo] restaurant ${businessName}: ${capabilityLabel(restaurantCaps)}`);
+      }
+    } catch (e) {
+      console.warn("[create-demo] restaurant prompt skipped:", e instanceof Error ? e.message : e);
+    }
+  }
+
+
+
 
   // Real estate v3 master prompt — only when a classified profile exists and is confident.
   if (!usedLocalBiz && chatbotId && isRealEstateIndustry(industry)) {
@@ -937,7 +987,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
     }
   }
 
-  const ragRules = (chatbotId && !usedLocalBiz) ? `
+  const ragRules = (chatbotId && !usedLocalBiz && !usedRestaurant) ? `
 
 
 ## RAG TOOL — STRICT RULES
@@ -975,22 +1025,40 @@ You have a tool called \`search_knowledge_base(query)\`.
     server: { url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-knowledge-base` },
   } : null;
 
+  // ── Native Vapi knowledge file (canonical RAG) — faster than a tool round-trip ──
+  const kbFileIds: string[] = [];
+  const kbFileText = usedRestaurant
+    ? [menuSection(structuredData || {}), knowledgeBase || ""].filter(Boolean).join("\n\n")
+    : (knowledgeBase || "");
+  if (kbFileText && kbFileText.length > 400) {
+    const file = await uploadVapiTextFile({
+      apiKey: vapiKey,
+      name: `${businessName}-knowledge`,
+      content: `# ${businessName} — knowledge base\n\n${kbFileText}`,
+    });
+    if (file) kbFileIds.push(file.id);
+  }
+  const vapiKnowledgeBase = canonicalKnowledgeBase(kbFileIds);
+
   const res = await fetchWithTimeout("https://api.vapi.ai/assistant", {
     method: "POST",
     headers: { Authorization: `Bearer ${vapiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       name: businessName.substring(0, 40),
-      firstMessage,
+      firstMessage: templateFirstMessage || firstMessage,
       model: {
         provider: modelProvider,
         model,
         messages: [{ role: "system", content: fullPrompt }],
         maxTokens: 150,
         temperature: 0.7,
-        tools: [...(kbTool ? [kbTool] : []), ...realAgentTools()],
+        ...(vapiKnowledgeBase ? { knowledgeBase: vapiKnowledgeBase } : {}),
+        tools: [...(kbTool ? [kbTool] : []), ...(usedRestaurant ? restaurantAgentTools(restaurantCaps) : realAgentTools())],
+
       },
       voice: { provider: voiceProvider, voiceId, speed: 1.1 },
-      ...(chatbotId ? { metadata: { chatbot_id: chatbotId } } : {}),
+      metadata: { ...(chatbotId ? { chatbot_id: chatbotId } : {}), business_name: businessName },
+
       endCallMessage,
       maxDurationSeconds: 600,
       firstMessageMode: "assistant-speaks-first",

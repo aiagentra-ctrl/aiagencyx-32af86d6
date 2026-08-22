@@ -2,6 +2,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildRealEstateVoicePrompt, isRealEstateIndustry } from "../_shared/realestate-prompt.ts";
 import { buildLocalBizPrompt, findNichePack, resolveVars } from "../_shared/localbiz-prompt.ts";
 import { realAgentTools } from "../_shared/agent-tools.ts";
+import {
+  isRestaurantIndustry, detectRestaurantCapabilities, buildRestaurantPrompt,
+  restaurantAgentTools, capabilityLabel, menuSection,
+} from "../_shared/restaurant-prompt.ts";
+import { uploadVapiTextFile, canonicalKnowledgeBase } from "../_shared/vapi-files.ts";
+
 
 
 const corsHeaders = {
@@ -319,11 +325,8 @@ ${knowledgeBase}`;
 }
 
 // ── Voice prompt dispatcher ──
-function isRestaurantIndustry(industry: string): boolean {
-  const li = industry.toLowerCase();
-  return ["restaurant", "food", "cafe", "pizza", "bakery", "diner", "grill", "bistro", "sushi", "burger", "taco"]
-    .some(k => li.includes(k));
-}
+// Restaurant detection now lives in _shared/restaurant-prompt.ts (isRestaurantIndustry).
+
 
 function isDentalIndustry(industry: string): boolean {
   const li = industry.toLowerCase();
@@ -409,12 +412,19 @@ Deno.serve(async (req) => {
     let coreFactsBlock = "";
     let voiceKbBlock = "";
     let useLocalBiz = false;
+    let useRestaurant = false;
+    let restaurantCaps: any = null;
+    let templateFirstMessage = "";
+    let cbRow: any = null;
+
     if (chatbot_id) {
       const { data: cb } = await supabase
         .from("chatbots")
-        .select("prompt_core, kb_voice_text, matched_industry, match_confidence, template_overrides")
+        .select("prompt_core, kb_voice_text, research_data, matched_industry, match_confidence, template_overrides")
         .eq("id", chatbot_id)
         .maybeSingle();
+      cbRow = cb;
+
 
       // ── Local-business master template (pre-filled niche packs) ──
       const pack = findNichePack(cb?.matched_industry);
@@ -451,9 +461,70 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ── Restaurant template: capability-aware (reservations / orders / both / neither) ──
+    if (!useLocalBiz && (isRestaurantIndustry(resolvedIndustry) || cbRow?.matched_industry === "restaurant")) {
+      const overrides = (cbRow?.template_overrides || {}) as Record<string, any>;
 
-    // RAG tool rules — the local-biz master template carries its own lookup rules
-    const ragRules = (chatbot_id && !useLocalBiz) ? `
+      // Editable row from the admin Templates panel wins over the built-in copy.
+      const { data: tpl } = await supabase
+        .from("industry_templates")
+        .select("system_prompt_template, first_message_template, voice_config, chatbot_config, status")
+        .eq("industry_name", "restaurant")
+        .maybeSingle();
+      const active = !tpl || tpl.status === "active";
+
+      const pageContent = [
+        knowledge_base || "",
+        cbRow?.kb_voice_text || "",
+        typeof cbRow?.research_data === "string" ? cbRow.research_data : JSON.stringify(cbRow?.research_data || {}),
+      ].join("\n");
+
+      const capOverrides = {
+        ...(tpl?.chatbot_config?.capabilities || {}),
+        ...(overrides.capabilities || {}),
+      };
+      // null / undefined entries mean "auto-detect", so strip them out.
+      for (const k of Object.keys(capOverrides)) {
+        if (capOverrides[k] === null || capOverrides[k] === undefined) delete capOverrides[k];
+      }
+
+      restaurantCaps = detectRestaurantCapabilities({
+        content: pageContent,
+        structured: structured_data || cbRow?.prompt_core || {},
+        overrides: capOverrides,
+      });
+
+      if (active) {
+        const templateOverride =
+          (typeof overrides.voice_prompt_template === "string" && overrides.voice_prompt_template.trim())
+            ? overrides.voice_prompt_template
+            : (tpl?.voice_config?.voice_prompt_template?.trim() || tpl?.system_prompt_template?.trim() || null);
+
+        basePrompt = buildRestaurantPrompt({
+          agentName,
+          businessName: business_name,
+          caps: restaurantCaps,
+          knowledgeBase: cbRow?.kb_voice_text || knowledge_base || "",
+          structured: structured_data || {},
+          chatbotId: chatbot_id || null,
+          channel: "voice",
+          templateOverride,
+          adaptationNotes: overrides.adaptation_notes || null,
+        });
+        coreFactsBlock = "";
+        voiceKbBlock = "";
+        useRestaurant = true;
+        templateFirstMessage = injectVars(tpl?.first_message_template || "", templateVars);
+        console.log(`[restaurant] ${business_name}: ${capabilityLabel(restaurantCaps)} — ${restaurantCaps.evidence.join("; ")}`);
+      }
+    }
+
+
+
+
+    // RAG tool rules — the local-biz / restaurant templates carry their own lookup rules
+    const ragRules = (chatbot_id && !useLocalBiz && !useRestaurant) ? `
+
 
 
 ## RAG TOOL — STRICT RULES
@@ -520,13 +591,33 @@ You have a tool called \`search_knowledge_base(query)\`.
     } : null;
 
     // ── Real production tools: Google Calendar + Gmail via the Lovable connector gateway ──
-    const tools = [kbTool, productTool].filter(Boolean).concat(realAgentTools());
+    // Restaurants get reservation / order tools instead of the estimate tools.
+    const tools = [kbTool, productTool].filter(Boolean).concat(
+      useRestaurant ? restaurantAgentTools(restaurantCaps) : realAgentTools(),
+    );
 
+    // ── Native Vapi knowledge files (no tool round-trip needed for lookups) ──
+    // Uploading the menu / KB as a real file lets Vapi retrieve from it itself,
+    // which is faster and far more complete than stuffing it into the prompt.
+    const kbFileIds: string[] = [];
+    const kbFileText = useRestaurant
+      ? [menuSection(structured_data || {}), cbRow?.kb_voice_text || knowledge_base || ""].filter(Boolean).join("\n\n")
+      : (cbRow?.kb_voice_text || knowledge_base || "");
+    if (kbFileText && kbFileText.length > 400) {
+      const file = await uploadVapiTextFile({
+        apiKey: vapiKey,
+        name: `${business_name}-knowledge`,
+        content: `# ${business_name} — knowledge base\n\n${kbFileText}`,
+      });
+      if (file) kbFileIds.push(file.id);
+    }
+    const knowledgeBase = canonicalKnowledgeBase(kbFileIds);
 
-    const firstMessage = injectVars(
+    const firstMessage = templateFirstMessage || injectVars(
       adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
       templateVars
     );
+
     const endCallMessage = injectVars(
       adminSettings.default_end_call_message || "Thanks for calling {business_name}! Have a great one. 👋",
       templateVars
@@ -552,9 +643,11 @@ You have a tool called \`search_knowledge_base(query)\`.
           messages: [{ role: "system", content: fullPrompt }],
           maxTokens: 150,
           ...(isGpt5 ? {} : { temperature: 0.7 }),
+          ...(knowledgeBase ? { knowledgeBase } : {}),
           ...(tools.length > 0 ? { tools } : {}),
+
         },
-        ...(chatbot_id ? { metadata: { chatbot_id } } : {}),
+        metadata: { ...(chatbot_id ? { chatbot_id } : {}), business_name },
         voice: {
           provider: voiceProvider,
           voiceId,
@@ -582,7 +675,11 @@ You have a tool called \`search_knowledge_base(query)\`.
     return new Response(JSON.stringify({
       assistant_id: data.id,
       vapi_public_key: adminSettings.vapi_public_key || "",
+      template: useRestaurant ? "restaurant" : useLocalBiz ? "local_business" : "generic",
+      restaurant_capabilities: restaurantCaps || null,
+      knowledge_file_ids: kbFileIds,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Internal server error";

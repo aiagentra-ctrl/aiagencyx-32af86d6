@@ -77,14 +77,50 @@ Rules:
 - "nearest_with_overrides" when no template truly fits; pick the closest and describe the gap.
 - Never invent services, prices, guarantees or a service area that is not on the site.`;
 
+/** Strong food-service signals — restaurants have their own capability-aware template. */
+const RESTAURANT_SIGNALS = [
+  "menu", "reservation", "book a table", "dine-in", "dine in", "takeaway", "take-out", "takeout",
+  "order online", "delivery", "appetizer", "entree", "entrée", "dessert", "wine list", "happy hour",
+  "brunch", "catering", "opentable", "resy", "doordash", "ubereats", "uber eats", "grubhub",
+  "restaurant", "cafe", "café", "bistro", "pizzeria", "sushi", "bakery", "diner", "steakhouse",
+];
+
+function restaurantScore(text: string): number {
+  const hay = (text || "").toLowerCase();
+  let score = 0;
+  for (const sig of RESTAURANT_SIGNALS) {
+    if (hay.includes(sig)) score += sig.includes(" ") ? 3 : 1;
+  }
+  return score;
+}
+
 export async function matchIndustry(input: {
   businessName: string;
   websiteUrl?: string | null;
   signalsText: string;
 }): Promise<MatchResult> {
-  const keyword = scoreNiches(`${input.businessName} ${input.websiteUrl || ""} ${input.signalsText}`);
+  const haystack = `${input.businessName} ${input.websiteUrl || ""} ${input.signalsText}`;
+  const keyword = scoreNiches(haystack);
   const top = keyword[0];
   const runner_ups = keyword.slice(0, 4).map((k) => ({ niche: k.pack.key, score: k.score }));
+
+  // Food service short-circuit: the restaurant template handles reservations/orders
+  // on its own, so never force one of the home-improvement packs onto it.
+  const foodScore = restaurantScore(haystack);
+  if (foodScore >= 8 && foodScore > (top?.score ?? 0)) {
+    return {
+      niche: "restaurant",
+      display_name: "Restaurant / Food Service",
+      confidence: foodScore >= 16 ? "high" : "medium",
+      score: foodScore,
+      decision: "use_as_is",
+      adaptation_notes: "",
+      industry_category: "restaurant",
+      runner_ups,
+      source: "keyword",
+    };
+  }
+
 
   const allowed = NICHE_PACKS.map((p) => `${p.key} (${p.display_name})`).join(", ");
   const shortlist = keyword.slice(0, 5).map((k) => `${k.pack.key}=${k.score}`).join(", ");
