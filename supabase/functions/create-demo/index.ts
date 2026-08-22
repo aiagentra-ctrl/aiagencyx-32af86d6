@@ -1025,19 +1025,36 @@ You have a tool called \`search_knowledge_base(query)\`.
     server: { url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-knowledge-base` },
   } : null;
 
+  // ── Native Vapi knowledge file (canonical RAG) — faster than a tool round-trip ──
+  const kbFileIds: string[] = [];
+  const kbFileText = usedRestaurant
+    ? [menuSection(structuredData || {}), knowledgeBase || ""].filter(Boolean).join("\n\n")
+    : (knowledgeBase || "");
+  if (kbFileText && kbFileText.length > 400) {
+    const file = await uploadVapiTextFile({
+      apiKey: vapiKey,
+      name: `${businessName}-knowledge`,
+      content: `# ${businessName} — knowledge base\n\n${kbFileText}`,
+    });
+    if (file) kbFileIds.push(file.id);
+  }
+  const vapiKnowledgeBase = canonicalKnowledgeBase(kbFileIds);
+
   const res = await fetchWithTimeout("https://api.vapi.ai/assistant", {
     method: "POST",
     headers: { Authorization: `Bearer ${vapiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       name: businessName.substring(0, 40),
-      firstMessage,
+      firstMessage: templateFirstMessage || firstMessage,
       model: {
         provider: modelProvider,
         model,
         messages: [{ role: "system", content: fullPrompt }],
         maxTokens: 150,
         temperature: 0.7,
-        tools: [...(kbTool ? [kbTool] : []), ...realAgentTools()],
+        ...(vapiKnowledgeBase ? { knowledgeBase: vapiKnowledgeBase } : {}),
+        tools: [...(kbTool ? [kbTool] : []), ...(usedRestaurant ? restaurantAgentTools(restaurantCaps) : realAgentTools())],
+
       },
       voice: { provider: voiceProvider, voiceId, speed: 1.1 },
       ...(chatbotId ? { metadata: { chatbot_id: chatbotId } } : {}),
