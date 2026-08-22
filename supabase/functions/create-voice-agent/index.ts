@@ -382,12 +382,40 @@ Deno.serve(async (req) => {
       templateVars
     );
 
+    // ── Native Vapi knowledge file (primary source of truth) ──
+    // Built and uploaded BEFORE the prompts so we never duplicate the KB text
+    // inside the system prompt when the agent can retrieve it natively.
+    let cbRow: any = null;
+    if (chatbot_id) {
+      const { data: cb } = await supabase
+        .from("chatbots")
+        .select("business_name, website_url, industry, prompt_core, kb_chatbot_md, kb_voice_text, research_data, matched_industry, match_confidence, template_overrides")
+        .eq("id", chatbot_id)
+        .maybeSingle();
+      cbRow = cb;
+    }
+
+    const kbAttachment = await attachVapiKnowledge({
+      supabase,
+      apiKey: vapiKey,
+      chatbotId: chatbot_id || null,
+      businessName: business_name,
+      websiteUrl: cbRow?.website_url || null,
+      industry: resolvedIndustry,
+      knowledgeBase: knowledge_base || "",
+      structured: structured_data || {},
+      chatbotRow: cbRow,
+    });
+    const knowledgeBase = kbAttachment.knowledgeBase;
+    const kbFileIds = kbAttachment.fileIds;
+    const kbAttached = kbFileIds.length > 0;
+
     let basePrompt = getVoicePrompt(
       agentName,
       business_name,
       resolvedIndustry,
       prompt,
-      knowledge_base || "",
+      kbAttached ? "" : (knowledge_base || ""),
       structured_data || {}
     );
 
@@ -400,7 +428,7 @@ Deno.serve(async (req) => {
           agentName,
           businessName: business_name,
           profile: reProfile as any,
-          knowledgeBase: knowledge_base || "",
+          knowledgeBase: kbAttached ? "" : (knowledge_base || ""),
           chatbotId: chatbot_id,
         });
         await supabase.from("realestate_profiles")
@@ -415,7 +443,6 @@ Deno.serve(async (req) => {
     let useRestaurant = false;
     let restaurantCaps: any = null;
     let templateFirstMessage = "";
-    let cbRow: any = null;
 
     if (chatbot_id) {
       const cb = cbRow;
