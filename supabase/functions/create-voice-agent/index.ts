@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildRealEstateVoicePrompt, isRealEstateIndustry } from "../_shared/realestate-prompt.ts";
+import { buildLocalBizPrompt, findNichePack, resolveVars } from "../_shared/localbiz-prompt.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -405,24 +407,53 @@ Deno.serve(async (req) => {
     // Load architected core facts + voice KB from chatbots row (if available)
     let coreFactsBlock = "";
     let voiceKbBlock = "";
+    let useLocalBiz = false;
     if (chatbot_id) {
       const { data: cb } = await supabase
         .from("chatbots")
-        .select("prompt_core, kb_voice_text")
+        .select("prompt_core, kb_voice_text, matched_industry, match_confidence, template_overrides")
         .eq("id", chatbot_id)
         .maybeSingle();
-      if (cb?.prompt_core) {
-        try {
-          coreFactsBlock = `\n\n## CORE FACTS — answer these instantly, no KB lookup needed\n${JSON.stringify(cb.prompt_core, null, 2)}\n`;
-        } catch { /* noop */ }
-      }
-      if (cb?.kb_voice_text) {
-        voiceKbBlock = `\n\n## VOICE KB (spoken-language reference for deeper questions)\n${cb.kb_voice_text}\n`;
+
+      // ── Local-business master template (pre-filled niche packs) ──
+      const pack = findNichePack(cb?.matched_industry);
+      if (pack) {
+        const overrides = (cb?.template_overrides || {}) as Record<string, string>;
+        const appCfg: Record<string, string> = {};
+        const { data: cfgRows } = await supabase.from("app_config").select("key, value");
+        for (const r of cfgRows || []) appCfg[r.key] = r.value ?? "";
+
+        basePrompt = buildLocalBizPrompt({
+          vars: resolveVars({
+            companyName: business_name,
+            agentName,
+            pack,
+            overrides,
+            settings: { ...appCfg, ...adminSettings },
+          }),
+          channel: "voice",
+          knowledgeBase: cb?.kb_voice_text || knowledge_base || "",
+          coreFacts: cb?.prompt_core || null,
+          adaptationNotes: overrides.adaptation_notes || null,
+          chatbotId: chatbot_id,
+        });
+        useLocalBiz = true;
+      } else {
+        if (cb?.prompt_core) {
+          try {
+            coreFactsBlock = `\n\n## CORE FACTS — answer these instantly, no KB lookup needed\n${JSON.stringify(cb.prompt_core, null, 2)}\n`;
+          } catch { /* noop */ }
+        }
+        if (cb?.kb_voice_text) {
+          voiceKbBlock = `\n\n## VOICE KB (spoken-language reference for deeper questions)\n${cb.kb_voice_text}\n`;
+        }
       }
     }
 
-    // RAG tool rules — always inject so voice agent uses search_knowledge_base first
-    const ragRules = chatbot_id ? `
+
+    // RAG tool rules — the local-biz master template carries its own lookup rules
+    const ragRules = (chatbot_id && !useLocalBiz) ? `
+
 
 ## RAG TOOL — STRICT RULES
 You have a tool called \`search_knowledge_base(query)\`.
@@ -487,7 +518,125 @@ You have a tool called \`search_knowledge_base(query)\`.
       },
     } : null;
 
-    const tools = [kbTool, productTool].filter(Boolean);
+    // ── Real production tools: Google Calendar + Gmail via the Lovable connector gateway ──
+    const fnUrl = (name: string) => `${Deno.env.get("SUPABASE_URL")}/functions/v1/${name}`;
+
+    const availabilityTool = {
+      type: "function",
+      async: false,
+      function: {
+        name: "check_calendar_availability",
+        description:
+          "The ONLY authority for whether an address is serviceable and which appointment times exist. Call before offering any time. Never invent availability.",
+        parameters: {
+          type: "object",
+          properties: {
+            mode: { type: "string", enum: ["verify_address", "find_slots"], description: "verify_address to confirm serviceability, find_slots to get bookable times" },
+            street_address: { type: "string" },
+            city: { type: "string" },
+            state: { type: "string" },
+            zip: { type: "string", description: "Five digit ZIP code" },
+            project_detail: { type: "string", description: "What the customer wants done" },
+            requested_window: { type: "string", enum: ["morning", "afternoon", "any"] },
+            saturday_requested: { type: "boolean" },
+            proposed_date: { type: "string", description: "YYYY-MM-DD if the caller named a specific day" },
+          },
+          required: ["mode", "street_address", "city", "state", "zip"],
+        },
+      },
+      server: { url: fnUrl("vapi-check-availability") },
+    };
+
+    const bookingTool = {
+      type: "function",
+      async: false,
+      function: {
+        name: "book_appointment",
+        description:
+          "Books the free estimate on the real calendar and emails the confirmation. Only call with a slot returned by check_calendar_availability and after reading the details back to the caller.",
+        parameters: {
+          type: "object",
+          properties: {
+            first_name: { type: "string" },
+            last_name: { type: "string" },
+            phone: { type: "string" },
+            email: { type: "string" },
+            street_address: { type: "string" },
+            city: { type: "string" },
+            state: { type: "string" },
+            zip: { type: "string" },
+            project_detail: { type: "string" },
+            start_iso: { type: "string", description: "start_iso exactly as returned by check_calendar_availability" },
+            end_iso: { type: "string" },
+            slot_label: { type: "string" },
+            calendar: { type: "string" },
+            timezone: { type: "string" },
+            market: { type: "string" },
+            estimator: { type: "string" },
+          },
+          required: ["first_name", "last_name", "phone", "street_address", "city", "state", "zip", "project_detail", "start_iso"],
+        },
+      },
+      server: { url: fnUrl("vapi-book-appointment") },
+    };
+
+    const officeNoteTool = {
+      type: "function",
+      async: false,
+      function: {
+        name: "send_office_note",
+        description:
+          "Sends a real note to the office team for anything the receptionist cannot resolve: existing customers, complaints, reschedules, pricing exceptions, or a caller who needs a call back.",
+        parameters: {
+          type: "object",
+          properties: {
+            first_name: { type: "string" },
+            last_name: { type: "string" },
+            phone: { type: "string" },
+            email: { type: "string" },
+            address: { type: "string" },
+            project_detail: { type: "string" },
+            reason: { type: "string", description: "Why the office needs to handle this" },
+            next_step: { type: "string", description: "What the caller expects to happen next" },
+          },
+          required: ["reason"],
+        },
+      },
+      server: { url: fnUrl("vapi-send-office-note") },
+    };
+
+    const unbookedLeadTool = {
+      type: "function",
+      async: false,
+      function: {
+        name: "log_unbooked_lead",
+        description: "Saves a new-estimate caller who did not book, so the office can follow up. Call before ending any estimate call that did not end in a booking.",
+        parameters: {
+          type: "object",
+          properties: {
+            first_name: { type: "string" },
+            last_name: { type: "string" },
+            phone: { type: "string" },
+            email: { type: "string" },
+            address: { type: "string" },
+            project_detail: { type: "string" },
+            reason: { type: "string", description: "Why they did not book" },
+          },
+          required: ["project_detail"],
+        },
+      },
+      server: { url: fnUrl("vapi-log-unbooked-lead") },
+    };
+
+    const tools = [
+      kbTool,
+      productTool,
+      availabilityTool,
+      bookingTool,
+      officeNoteTool,
+      unbookedLeadTool,
+    ].filter(Boolean);
+
 
     const firstMessage = injectVars(
       adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
