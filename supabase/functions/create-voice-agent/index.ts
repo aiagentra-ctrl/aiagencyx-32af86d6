@@ -643,7 +643,9 @@ You have a tool called \`search_knowledge_base(query)\`.
           messages: [{ role: "system", content: fullPrompt }],
           maxTokens: 150,
           ...(isGpt5 ? {} : { temperature: 0.7 }),
+          ...(knowledgeBase ? { knowledgeBase } : {}),
           ...(tools.length > 0 ? { tools } : {}),
+
         },
         ...(chatbot_id ? { metadata: { chatbot_id } } : {}),
         voice: {
