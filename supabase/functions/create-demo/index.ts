@@ -987,7 +987,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
     }
   }
 
-  const ragRules = (chatbotId && !usedLocalBiz) ? `
+  const ragRules = (chatbotId && !usedLocalBiz && !usedRestaurant) ? `
 
 
 ## RAG TOOL — STRICT RULES
