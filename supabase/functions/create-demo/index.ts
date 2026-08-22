@@ -917,7 +917,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
 
 
   // Real estate v3 master prompt — only when a classified profile exists and is confident.
-  if (chatbotId && isRealEstateIndustry(industry)) {
+  if (!usedLocalBiz && chatbotId && isRealEstateIndustry(industry)) {
     try {
       const { data: reProfile } = await supabaseClient
         .from("realestate_profiles").select("*").eq("chatbot_id", chatbotId).maybeSingle();
@@ -933,7 +933,8 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
     }
   }
 
-  const ragRules = chatbotId ? `
+  const ragRules = (chatbotId && !usedLocalBiz) ? `
+
 
 ## RAG TOOL — STRICT RULES
 You have a tool called \`search_knowledge_base(query)\`.
