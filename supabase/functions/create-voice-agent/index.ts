@@ -641,7 +641,7 @@ Deno.serve(async (req) => {
           messages: [{ role: "system", content: fullPrompt }],
           maxTokens: 150,
           ...(isGpt5 ? {} : { temperature: 0.7 }),
-          ...(knowledgeBase ? { knowledgeBase } : {}),
+          ...(kbToolIds.length ? { toolIds: kbToolIds } : {}),
           ...(tools.length > 0 ? { tools } : {}),
 
         },
