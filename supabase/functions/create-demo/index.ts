@@ -1132,6 +1132,31 @@ Deno.serve(async (req) => {
 
     console.log(`[industry] Resolved: ${resolvedIndustry}, main service: ${mainService}`);
 
+    // ── Niche match: pick the closest pre-filled local-business template ──
+    let nicheMatch: any = null;
+    try {
+      const prior = await stepDone(jobId, "industry_match");
+      if (prior?.niche) {
+        nicheMatch = prior;
+      } else {
+        nicheMatch = await runStep(jobId, "industry_match", () => matchIndustry({
+          businessName: business_name,
+          websiteUrl: formattedUrl,
+          signalsText: extractSignals({
+            markdown: websiteContent,
+            services: structuredData?.services || null,
+            titles: structuredData?.main_service ? [structuredData.main_service] : null,
+          }),
+        }), { serialize: (m: any) => m });
+      }
+      if (nicheMatch) {
+        console.log(`[industry] Niche match: ${nicheMatch.niche} (${nicheMatch.confidence}, ${nicheMatch.decision})`);
+      }
+    } catch (e) {
+      console.warn("[industry] niche match failed:", e instanceof Error ? e.message : e);
+    }
+
+
     // ── TEMPLATE ENGINE: Smart detection + auto-generation ──
     let template = await loadTemplate(supabase, resolvedIndustry);
 
