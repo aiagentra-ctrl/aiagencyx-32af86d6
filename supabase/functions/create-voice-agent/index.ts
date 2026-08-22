@@ -522,8 +522,9 @@ Deno.serve(async (req) => {
 
 
 
-    // RAG tool rules — the local-biz master template carries its own lookup rules
-    const ragRules = (chatbot_id && !useLocalBiz) ? `
+    // RAG tool rules — the local-biz / restaurant templates carry their own lookup rules
+    const ragRules = (chatbot_id && !useLocalBiz && !useRestaurant) ? `
+
 
 
 ## RAG TOOL — STRICT RULES
