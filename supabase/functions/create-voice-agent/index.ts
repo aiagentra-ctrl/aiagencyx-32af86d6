@@ -535,7 +535,10 @@ You have a tool called \`search_knowledge_base(query)\`.
     const voiceProvider = adminSettings.voice_provider || "azure";
     const voiceId = adminSettings.voice_id || "andrew";
     const modelProvider = adminSettings.ai_model_provider || "openai";
-    const model = adminSettings.ai_model || "gpt-4o";
+    // GPT-5.2 Instant (OpenAI) — Vapi model id for the non-reasoning "Instant" variant
+    const model = adminSettings.ai_model || "gpt-5.2-chat-latest";
+    const isGpt5 = /^gpt-5/i.test(model);
+
 
     const res = await fetchWithTimeout("https://api.vapi.ai/assistant", {
       method: "POST",
@@ -548,7 +551,7 @@ You have a tool called \`search_knowledge_base(query)\`.
           model,
           messages: [{ role: "system", content: fullPrompt }],
           maxTokens: 150,
-          temperature: 0.7,
+          ...(isGpt5 ? {} : { temperature: 0.7 }),
           ...(tools.length > 0 ? { tools } : {}),
         },
         ...(chatbot_id ? { metadata: { chatbot_id } } : {}),
