@@ -987,17 +987,10 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
     }
   }
 
-  const ragRules = (chatbotId && !usedLocalBiz && !usedRestaurant) ? `
-
-
-## RAG TOOL — STRICT RULES
-You have a tool called \`search_knowledge_base(query)\`.
-- BEFORE answering ANY factual question (services, pricing, hours, properties, menu, policies),
-  CALL search_knowledge_base FIRST with the user's question.
-- Speak ONLY from the tool's returned text. Never invent facts.
-- If the tool returns "Let me check with our team on that." or empty results,
-  say exactly: "Let me check with our team on that."
-` : "";
+  // Knowledge rules — native Vapi file first, custom tool only as fallback.
+  const ragRules = (usedLocalBiz || usedRestaurant)
+    ? ""
+    : (kbAttached ? kbFirstRules(chatbotId) : toolOnlyRules(chatbotId));
   const fullPrompt = basePrompt + ragRules;
 
   const voiceProvider = adminSettings.voice_provider || "azure";
