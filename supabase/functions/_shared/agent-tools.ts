@@ -117,7 +117,41 @@ function fmtLabel(d: Date, tz: string): string {
   }
 }
 
+/** Minutes that `tz` is offset from UTC at the given instant. */
+function tzOffsetMinutes(at: Date, tz: string): number {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, hour12: false,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+    }).formatToParts(at).reduce<Record<string, string>>((a, p) => {
+      if (p.type !== "literal") a[p.type] = p.value;
+      return a;
+    }, {});
+    const asUtc = Date.UTC(
+      Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+      Number(parts.hour) % 24, Number(parts.minute), Number(parts.second),
+    );
+    return Math.round((asUtc - at.getTime()) / 60000);
+  } catch {
+    return 0;
+  }
+}
+
+/** The instant at which `dateIso` reads as `hour:00` in `tz`. */
+function zonedTime(dateIso: string, hour: number, tz: string): Date {
+  const naive = Date.UTC(
+    Number(dateIso.slice(0, 4)), Number(dateIso.slice(5, 7)) - 1, Number(dateIso.slice(8, 10)),
+    hour, 0, 0,
+  );
+  // Two passes handle DST boundaries correctly.
+  let guess = new Date(naive - tzOffsetMinutes(new Date(naive), tz) * 60000);
+  guess = new Date(naive - tzOffsetMinutes(guess, tz) * 60000);
+  return guess;
+}
+
 /** Candidate slots honouring Saturday / Sunday / lead-time rules. */
+
 export function candidateSlots(opts: {
   window: string;
   saturdayRequested: boolean;
