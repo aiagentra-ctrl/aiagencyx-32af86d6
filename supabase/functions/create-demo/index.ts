@@ -1294,7 +1294,7 @@ Deno.serve(async (req) => {
     } else {
       try {
         assistantId = await runStep(jobId, "create_voice_agent",
-          () => createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData, preChatbotId),
+          () => createVapiAssistant(adminSettings, systemPrompt, firstMessage, knowledgeBase, business_name, resolvedIndustry, structuredData, preChatbotId, nicheMatch),
           { serialize: (id: string) => ({ assistant_id: id }) });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "VAPI creation failed";
