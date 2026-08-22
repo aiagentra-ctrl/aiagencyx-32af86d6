@@ -6,7 +6,7 @@ import {
   isRestaurantIndustry, detectRestaurantCapabilities, buildRestaurantPrompt,
   restaurantAgentTools, capabilityLabel, menuSection,
 } from "../_shared/restaurant-prompt.ts";
-import { uploadVapiTextFile, canonicalKnowledgeBase } from "../_shared/vapi-files.ts";
+import { attachVapiKnowledge, kbFirstRules, toolOnlyRules } from "../_shared/vapi-kb-doc.ts";
 
 
 
