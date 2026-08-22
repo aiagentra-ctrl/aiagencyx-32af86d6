@@ -199,3 +199,115 @@ export async function sendGmail(opts: {
   }
   return { ok: true, id: res.body?.id };
 }
+
+// ── Vapi tool definitions for the real production tools ────────────────────
+/** Calendar / Gmail / office tools wired to real edge functions. */
+export function realAgentTools(): any[] {
+  const fn = (name: string) => `${Deno.env.get("SUPABASE_URL")}/functions/v1/${name}`;
+  return [
+    {
+      type: "function",
+      async: false,
+      function: {
+        name: "check_calendar_availability",
+        description:
+          "The ONLY authority for whether an address is serviceable and which appointment times exist. Call before offering any time. Never invent availability.",
+        parameters: {
+          type: "object",
+          properties: {
+            mode: { type: "string", enum: ["verify_address", "find_slots"], description: "verify_address to confirm serviceability, find_slots to get bookable times" },
+            street_address: { type: "string" },
+            city: { type: "string" },
+            state: { type: "string" },
+            zip: { type: "string", description: "Five digit ZIP code" },
+            project_detail: { type: "string", description: "What the customer wants done" },
+            requested_window: { type: "string", enum: ["morning", "afternoon", "any"] },
+            saturday_requested: { type: "boolean" },
+            proposed_date: { type: "string", description: "YYYY-MM-DD if the caller named a specific day" },
+          },
+          required: ["mode", "street_address", "city", "state", "zip"],
+        },
+      },
+      server: { url: fn("vapi-check-availability") },
+    },
+    {
+      type: "function",
+      async: false,
+      function: {
+        name: "book_appointment",
+        description:
+          "Books the free estimate on the real calendar and emails the confirmation. Only call with a slot returned by check_calendar_availability and after reading the details back to the caller.",
+        parameters: {
+          type: "object",
+          properties: {
+            first_name: { type: "string" },
+            last_name: { type: "string" },
+            phone: { type: "string" },
+            email: { type: "string" },
+            street_address: { type: "string" },
+            city: { type: "string" },
+            state: { type: "string" },
+            zip: { type: "string" },
+            project_detail: { type: "string" },
+            start_iso: { type: "string", description: "start_iso exactly as returned by check_calendar_availability" },
+            end_iso: { type: "string" },
+            slot_label: { type: "string" },
+            calendar: { type: "string" },
+            timezone: { type: "string" },
+            market: { type: "string" },
+            estimator: { type: "string" },
+          },
+          required: ["first_name", "last_name", "phone", "street_address", "city", "state", "zip", "project_detail", "start_iso"],
+        },
+      },
+      server: { url: fn("vapi-book-appointment") },
+    },
+    {
+      type: "function",
+      async: false,
+      function: {
+        name: "send_office_note",
+        description:
+          "Sends a real note to the office team for anything the receptionist cannot resolve: existing customers, complaints, reschedules, pricing exceptions, or a caller who needs a call back.",
+        parameters: {
+          type: "object",
+          properties: {
+            first_name: { type: "string" },
+            last_name: { type: "string" },
+            phone: { type: "string" },
+            email: { type: "string" },
+            address: { type: "string" },
+            project_detail: { type: "string" },
+            reason: { type: "string", description: "Why the office needs to handle this" },
+            next_step: { type: "string", description: "What the caller expects to happen next" },
+          },
+          required: ["reason"],
+        },
+      },
+      server: { url: fn("vapi-send-office-note") },
+    },
+    {
+      type: "function",
+      async: false,
+      function: {
+        name: "log_unbooked_lead",
+        description:
+          "Saves a new-estimate caller who did not book, so the office can follow up. Call before ending any estimate call that did not end in a booking.",
+        parameters: {
+          type: "object",
+          properties: {
+            first_name: { type: "string" },
+            last_name: { type: "string" },
+            phone: { type: "string" },
+            email: { type: "string" },
+            address: { type: "string" },
+            project_detail: { type: "string" },
+            reason: { type: "string", description: "Why they did not book" },
+          },
+          required: ["project_detail"],
+        },
+      },
+      server: { url: fn("vapi-log-unbooked-lead") },
+    },
+  ];
+}
