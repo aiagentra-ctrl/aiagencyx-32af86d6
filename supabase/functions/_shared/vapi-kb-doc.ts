@@ -210,9 +210,10 @@ export async function attachVapiKnowledge(opts: {
   knowledgeBase?: string | null;
   structured?: any;
   chatbotRow?: any;
-}): Promise<{ knowledgeBase?: { provider: string; fileIds: string[] }; fileIds: string[]; doc: KbDocResult }> {
+}): Promise<{ toolIds: string[]; fileIds: string[]; doc: KbDocResult }> {
   const doc = await buildVapiKbDoc(opts);
   const fileIds: string[] = [];
+  const toolIds: string[] = [];
 
   if (doc.thin) {
     console.warn(`[vapi-kb] thin knowledge doc for ${opts.businessName} — sources: ${JSON.stringify(doc.sources)}`);
@@ -228,20 +229,33 @@ export async function attachVapiKnowledge(opts: {
     console.log(`[vapi-kb] ${opts.businessName}: ${doc.markdown.length} chars, sources ${JSON.stringify(doc.sources)}, file ${file?.id || "FAILED"}`);
   }
 
-  // Replace the previous file so the Vapi account doesn't accumulate orphans.
-  if (fileIds.length && opts.chatbotId) {
+  if (fileIds.length) {
+    const toolId = await createKnowledgeQueryTool({
+      apiKey: opts.apiKey,
+      fileIds,
+      businessName: opts.businessName,
+      description: `Everything known about ${opts.businessName}: services, pricing, hours, policies, FAQs, menu, products, property listings and website content.`,
+    });
+    if (toolId) toolIds.push(toolId);
+  }
+
+  // Replace the previous file/tool so the Vapi account doesn't accumulate orphans.
+  if (toolIds.length && opts.chatbotId) {
     try {
       const { data: row } = await opts.supabase
-        .from("chatbots").select("vapi_file_ids").eq("id", opts.chatbotId).maybeSingle();
-      const old: string[] = Array.isArray(row?.vapi_file_ids) ? row.vapi_file_ids : [];
-      for (const id of old) { if (!fileIds.includes(id)) await deleteVapiFile(opts.apiKey, id); }
-      await opts.supabase.from("chatbots").update({ vapi_file_ids: fileIds }).eq("id", opts.chatbotId);
+        .from("chatbots").select("vapi_file_ids, vapi_tool_ids").eq("id", opts.chatbotId).maybeSingle();
+      const oldFiles: string[] = Array.isArray(row?.vapi_file_ids) ? row.vapi_file_ids : [];
+      const oldTools: string[] = Array.isArray(row?.vapi_tool_ids) ? row.vapi_tool_ids : [];
+      for (const id of oldTools) { if (!toolIds.includes(id)) await deleteVapiTool(opts.apiKey, id); }
+      for (const id of oldFiles) { if (!fileIds.includes(id)) await deleteVapiFile(opts.apiKey, id); }
+      await opts.supabase.from("chatbots")
+        .update({ vapi_file_ids: fileIds, vapi_tool_ids: toolIds }).eq("id", opts.chatbotId);
     } catch (e) {
       console.warn("[vapi-kb] file bookkeeping failed", e);
     }
   }
 
-  return { knowledgeBase: canonicalKnowledgeBase(fileIds) as any, fileIds, doc };
+  return { toolIds, fileIds, doc };
 }
 
 /** Prompt rules used when a native knowledge file IS attached (KB first, tools fallback). */
