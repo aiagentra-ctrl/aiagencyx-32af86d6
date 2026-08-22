@@ -1,0 +1,1 @@
+ALTER TABLE public.chatbots ADD COLUMN IF NOT EXISTS vapi_file_ids jsonb NOT NULL DEFAULT '[]'::jsonb;
