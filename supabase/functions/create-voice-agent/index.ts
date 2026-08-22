@@ -406,9 +406,9 @@ Deno.serve(async (req) => {
       structured: structured_data || {},
       chatbotRow: cbRow,
     });
-    const knowledgeBase = kbAttachment.knowledgeBase;
+    const kbToolIds = kbAttachment.toolIds;
     const kbFileIds = kbAttachment.fileIds;
-    const kbAttached = kbFileIds.length > 0;
+    const kbAttached = kbToolIds.length > 0;
 
     let basePrompt = getVoicePrompt(
       agentName,
