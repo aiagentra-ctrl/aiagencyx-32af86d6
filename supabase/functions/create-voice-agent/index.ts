@@ -596,22 +596,7 @@ You have a tool called \`search_knowledge_base(query)\`.
       useRestaurant ? restaurantAgentTools(restaurantCaps) : realAgentTools(),
     );
 
-    // ── Native Vapi knowledge files (no tool round-trip needed for lookups) ──
-    // Uploading the menu / KB as a real file lets Vapi retrieve from it itself,
-    // which is faster and far more complete than stuffing it into the prompt.
-    const kbFileIds: string[] = [];
-    const kbFileText = useRestaurant
-      ? [menuSection(structured_data || {}), cbRow?.kb_voice_text || knowledge_base || ""].filter(Boolean).join("\n\n")
-      : (cbRow?.kb_voice_text || knowledge_base || "");
-    if (kbFileText && kbFileText.length > 400) {
-      const file = await uploadVapiTextFile({
-        apiKey: vapiKey,
-        name: `${business_name}-knowledge`,
-        content: `# ${business_name} — knowledge base\n\n${kbFileText}`,
-      });
-      if (file) kbFileIds.push(file.id);
-    }
-    const knowledgeBase = canonicalKnowledgeBase(kbFileIds);
+    // Native Vapi knowledge file was already built + uploaded above (kbAttached).
 
     const firstMessage = templateFirstMessage || injectVars(
       adminSettings.default_first_message || "Hey, this is {agent_name} from {business_name}. How can I help you today?",
