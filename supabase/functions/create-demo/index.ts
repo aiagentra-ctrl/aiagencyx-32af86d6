@@ -887,7 +887,23 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
   if (!vapiKey) throw new Error("VAPI private key not configured. Set it in Admin → Settings.");
 
   const agentName = adminSettings.default_agent_name || "Alex";
-  let basePrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
+
+  // ── Native Vapi knowledge file (primary source of truth), built before the prompt ──
+  const kbAttachment = await attachVapiKnowledge({
+    supabase: supabaseClient,
+    apiKey: vapiKey,
+    chatbotId: chatbotId || null,
+    businessName,
+    industry,
+    knowledgeBase,
+    structured: structuredData || {},
+  });
+  const vapiKnowledgeBase = kbAttachment.knowledgeBase;
+  const kbFileIds = kbAttachment.fileIds;
+  const kbAttached = kbFileIds.length > 0;
+  const promptKb = kbAttached ? "" : knowledgeBase;
+
+  let basePrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, promptKb, structuredData);
   let usedLocalBiz = false;
 
   // ── Local-business master template (pre-filled niche packs) ──
@@ -912,6 +928,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
         }),
         channel: "voice",
         knowledgeBase,
+        knowledgeBaseAttached: kbAttached,
         coreFacts: null,
         adaptationNotes: nicheMatch?.decision === "use_as_is" ? null : (nicheMatch?.adaptation_notes || null),
         chatbotId: chatbotId || null,
