@@ -9,7 +9,7 @@
  * The custom tools stay attached: the agent reads the native file first and only
  * falls back to a tool round-trip when the file has no answer or Vapi errors.
  */
-import { uploadVapiTextFile, canonicalKnowledgeBase, deleteVapiFile } from "./vapi-files.ts";
+import { uploadVapiTextFile, createKnowledgeQueryTool, deleteVapiFile, deleteVapiTool } from "./vapi-files.ts";
 
 export type KbDocResult = {
   markdown: string;
