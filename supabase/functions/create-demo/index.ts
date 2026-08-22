@@ -968,6 +968,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
           businessName,
           caps: restaurantCaps,
           knowledgeBase,
+          knowledgeBaseAttached: kbAttached,
           structured: structuredData || {},
           chatbotId: chatbotId || null,
           channel: "voice",
