@@ -1,0 +1,2 @@
+DELETE FROM public.agent_appointments WHERE last_name = 'Verification' AND phone = '+15550001111';
+DELETE FROM public.agent_tool_events WHERE tool = 'check_calendar_availability' AND payload->>'zip' = '37064';
