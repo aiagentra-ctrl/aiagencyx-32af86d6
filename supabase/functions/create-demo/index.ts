@@ -995,7 +995,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
         .from("realestate_profiles").select("*").eq("chatbot_id", chatbotId).maybeSingle();
       if (reProfile && reProfile.confidence && reProfile.confidence !== "low") {
         basePrompt = buildRealEstateVoicePrompt({
-          agentName, businessName, profile: reProfile as any, knowledgeBase, chatbotId,
+          agentName, businessName, profile: reProfile as any, knowledgeBase: promptKb, chatbotId,
         });
         await supabaseClient.from("realestate_profiles")
           .update({ generated_prompt: basePrompt }).eq("chatbot_id", chatbotId);
