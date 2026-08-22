@@ -412,6 +412,10 @@ Deno.serve(async (req) => {
     let coreFactsBlock = "";
     let voiceKbBlock = "";
     let useLocalBiz = false;
+    let useRestaurant = false;
+    let restaurantCaps: any = null;
+    let templateFirstMessage = "";
+
     if (chatbot_id) {
       const { data: cb } = await supabase
         .from("chatbots")
