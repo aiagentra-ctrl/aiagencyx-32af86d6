@@ -922,6 +922,53 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
     }
   }
 
+  // ── Restaurant template: capability-aware (reservations / orders / both / neither) ──
+  let usedRestaurant = false;
+  let restaurantCaps: any = null;
+  let templateFirstMessage = "";
+  if (!usedLocalBiz && (isRestaurantIndustry(industry) || nicheMatch?.niche === "restaurant")) {
+    try {
+      const { data: tpl } = await supabaseClient
+        .from("industry_templates")
+        .select("system_prompt_template, first_message_template, voice_config, chatbot_config, status")
+        .eq("industry_name", "restaurant")
+        .maybeSingle();
+
+      if (!tpl || tpl.status === "active") {
+        const capOverrides = { ...(tpl?.chatbot_config?.capabilities || {}) };
+        for (const k of Object.keys(capOverrides)) {
+          if (capOverrides[k] === null || capOverrides[k] === undefined) delete capOverrides[k];
+        }
+
+        restaurantCaps = detectRestaurantCapabilities({
+          content: [knowledgeBase, JSON.stringify(structuredData || {})].join("\n"),
+          structured: structuredData || {},
+          overrides: capOverrides,
+        });
+
+        basePrompt = buildRestaurantPrompt({
+          agentName,
+          businessName,
+          caps: restaurantCaps,
+          knowledgeBase,
+          structured: structuredData || {},
+          chatbotId: chatbotId || null,
+          channel: "voice",
+          templateOverride:
+            tpl?.voice_config?.voice_prompt_template?.trim() || tpl?.system_prompt_template?.trim() || null,
+          adaptationNotes: nicheMatch?.decision === "use_as_is" ? null : (nicheMatch?.adaptation_notes || null),
+        });
+        templateFirstMessage = injectVars(tpl?.first_message_template || "", { business_name: businessName, agent_name: agentName });
+        usedRestaurant = true;
+        console.log(`[create-demo] restaurant ${businessName}: ${capabilityLabel(restaurantCaps)}`);
+      }
+    } catch (e) {
+      console.warn("[create-demo] restaurant prompt skipped:", e instanceof Error ? e.message : e);
+    }
+  }
+
+
+
 
   // Real estate v3 master prompt — only when a classified profile exists and is confident.
   if (!usedLocalBiz && chatbotId && isRealEstateIndustry(industry)) {
