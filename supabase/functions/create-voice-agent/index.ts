@@ -647,7 +647,7 @@ You have a tool called \`search_knowledge_base(query)\`.
           ...(tools.length > 0 ? { tools } : {}),
 
         },
-        ...(chatbot_id ? { metadata: { chatbot_id } } : {}),
+        metadata: { ...(chatbot_id ? { chatbot_id } : {}), business_name },
         voice: {
           provider: voiceProvider,
           voiceId,
