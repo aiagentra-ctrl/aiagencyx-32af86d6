@@ -522,22 +522,11 @@ Deno.serve(async (req) => {
 
 
 
-    // RAG tool rules — the local-biz / restaurant templates carry their own lookup rules
-    const ragRules = (chatbot_id && !useLocalBiz && !useRestaurant) ? `
-
-
-
-## RAG TOOL — STRICT RULES
-You have a tool called \`search_knowledge_base(query)\`.
-- The CORE FACTS section above already covers greetings, basic services, pricing structure,
-  common objections, hours, and escalation. Answer those INSTANTLY without calling the tool.
-- ONLY call search_knowledge_base when the caller asks something not covered in CORE FACTS or VOICE KB
-  (specific edge cases, deep FAQs, policy specifics, individual properties or products).
-- Speak ONLY from CORE FACTS, VOICE KB, or the tool's returned text. Never invent facts.
-- If the tool returns "Let me check with our team on that." or empty results,
-  say exactly: "Let me check with our team on that."
-- The chatbot_id for this assistant is: ${chatbot_id}
-` : "";
+    // Knowledge rules — native Vapi file first, custom tool only as fallback.
+    // The local-biz / restaurant templates carry their own lookup rules.
+    const ragRules = (!useLocalBiz && !useRestaurant)
+      ? (kbAttached ? kbFirstRules(chatbot_id) : toolOnlyRules(chatbot_id))
+      : (kbAttached ? kbFirstRules(chatbot_id) : "");
 
     const fullPrompt = basePrompt + coreFactsBlock + voiceKbBlock + ragRules;
 
