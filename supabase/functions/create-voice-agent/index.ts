@@ -415,13 +415,16 @@ Deno.serve(async (req) => {
     let useRestaurant = false;
     let restaurantCaps: any = null;
     let templateFirstMessage = "";
+    let cbRow: any = null;
 
     if (chatbot_id) {
       const { data: cb } = await supabase
         .from("chatbots")
-        .select("prompt_core, kb_voice_text, matched_industry, match_confidence, template_overrides")
+        .select("prompt_core, kb_voice_text, research_data, matched_industry, match_confidence, template_overrides")
         .eq("id", chatbot_id)
         .maybeSingle();
+      cbRow = cb;
+
 
       // ── Local-business master template (pre-filled niche packs) ──
       const pack = findNichePack(cb?.matched_industry);
