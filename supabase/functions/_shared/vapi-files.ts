@@ -1,0 +1,59 @@
+/**
+ * Vapi native knowledge files.
+ *
+ * Instead of stuffing the whole menu / KB into the system prompt (slow, token
+ * heavy, truncated), we upload it to Vapi as a real file and attach it to the
+ * assistant with the built-in canonical knowledge base. Vapi then does the
+ * retrieval itself — no tool round-trip to our edge functions.
+ *
+ * Verified against the live Vapi API: POST /file (multipart, explicit
+ * text/markdown mime type) then `model.knowledgeBase = { provider: "canonical",
+ * fileIds: [...] }` on the assistant.
+ */
+
+export type VapiFile = { id: string; name: string; status?: string };
+
+export async function uploadVapiTextFile(opts: {
+  apiKey: string;
+  name: string;
+  content: string;
+}): Promise<VapiFile | null> {
+  const text = (opts.content || "").trim();
+  if (!text) return null;
+  const safeName = `${opts.name.replace(/[^\w.-]+/g, "-").slice(0, 60)}.md`;
+  try {
+    const form = new FormData();
+    // The explicit mime type matters — Vapi rejects application/octet-stream.
+    form.append("file", new File([text], safeName, { type: "text/markdown" }));
+    const res = await fetch("https://api.vapi.ai/file", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${opts.apiKey}` },
+      body: form,
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body?.id) {
+      console.error("[vapi-file] upload failed", res.status, JSON.stringify(body).slice(0, 400));
+      return null;
+    }
+    return { id: body.id, name: body.name, status: body.status };
+  } catch (e) {
+    console.error("[vapi-file] upload error", e);
+    return null;
+  }
+}
+
+export function canonicalKnowledgeBase(fileIds: string[]) {
+  return fileIds.length > 0 ? { provider: "canonical", fileIds } : undefined;
+}
+
+export async function deleteVapiFile(apiKey: string, fileId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://api.vapi.ai/file/${fileId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
