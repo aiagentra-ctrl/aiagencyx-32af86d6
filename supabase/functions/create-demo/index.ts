@@ -5,6 +5,12 @@ import { startDemoJob, runStep, recordStep, stepDone, finishJob } from "../_shar
 import { buildLocalBizPrompt, findNichePack, resolveVars } from "../_shared/localbiz-prompt.ts";
 import { matchIndustry, extractSignals } from "../_shared/industry-match.ts";
 import { realAgentTools } from "../_shared/agent-tools.ts";
+import {
+  isRestaurantIndustry, detectRestaurantCapabilities, buildRestaurantPrompt,
+  restaurantAgentTools, capabilityLabel, menuSection,
+} from "../_shared/restaurant-prompt.ts";
+import { uploadVapiTextFile, canonicalKnowledgeBase } from "../_shared/vapi-files.ts";
+
 
 
 const corsHeaders = {
