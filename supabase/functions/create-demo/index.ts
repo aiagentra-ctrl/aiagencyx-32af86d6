@@ -1025,20 +1025,7 @@ You have a tool called \`search_knowledge_base(query)\`.
     server: { url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/search-knowledge-base` },
   } : null;
 
-  // ── Native Vapi knowledge file (canonical RAG) — faster than a tool round-trip ──
-  const kbFileIds: string[] = [];
-  const kbFileText = usedRestaurant
-    ? [menuSection(structuredData || {}), knowledgeBase || ""].filter(Boolean).join("\n\n")
-    : (knowledgeBase || "");
-  if (kbFileText && kbFileText.length > 400) {
-    const file = await uploadVapiTextFile({
-      apiKey: vapiKey,
-      name: `${businessName}-knowledge`,
-      content: `# ${businessName} — knowledge base\n\n${kbFileText}`,
-    });
-    if (file) kbFileIds.push(file.id);
-  }
-  const vapiKnowledgeBase = canonicalKnowledgeBase(kbFileIds);
+  // Native Vapi knowledge file was already built + uploaded above (kbAttached).
 
   const res = await fetchWithTimeout("https://api.vapi.ai/assistant", {
     method: "POST",
