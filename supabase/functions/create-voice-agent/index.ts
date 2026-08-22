@@ -418,13 +418,7 @@ Deno.serve(async (req) => {
     let cbRow: any = null;
 
     if (chatbot_id) {
-      const { data: cb } = await supabase
-        .from("chatbots")
-        .select("prompt_core, kb_voice_text, research_data, matched_industry, match_confidence, template_overrides")
-        .eq("id", chatbot_id)
-        .maybeSingle();
-      cbRow = cb;
-
+      const cb = cbRow;
 
       // ── Local-business master template (pre-filled niche packs) ──
       const pack = findNichePack(cb?.matched_industry);
@@ -444,6 +438,7 @@ Deno.serve(async (req) => {
           }),
           channel: "voice",
           knowledgeBase: cb?.kb_voice_text || knowledge_base || "",
+          knowledgeBaseAttached: kbAttached,
           coreFacts: cb?.prompt_core || null,
           adaptationNotes: overrides.adaptation_notes || null,
           chatbotId: chatbot_id,
@@ -455,7 +450,8 @@ Deno.serve(async (req) => {
             coreFactsBlock = `\n\n## CORE FACTS — answer these instantly, no KB lookup needed\n${JSON.stringify(cb.prompt_core, null, 2)}\n`;
           } catch { /* noop */ }
         }
-        if (cb?.kb_voice_text) {
+        // When the KB is attached as a native Vapi file we don't duplicate it in the prompt.
+        if (cb?.kb_voice_text && !kbAttached) {
           voiceKbBlock = `\n\n## VOICE KB (spoken-language reference for deeper questions)\n${cb.kb_voice_text}\n`;
         }
       }
