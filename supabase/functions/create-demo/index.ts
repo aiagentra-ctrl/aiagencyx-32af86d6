@@ -875,12 +875,46 @@ function getVoicePrompt(
 }
 
 // ── Create VAPI Assistant ──
-async function createVapiAssistant(adminSettings: Record<string, string>, systemPrompt: string, firstMessage: string, knowledgeBase: string, businessName: string, industry: string, structuredData: any, chatbotId?: string): Promise<string> {
+async function createVapiAssistant(adminSettings: Record<string, string>, systemPrompt: string, firstMessage: string, knowledgeBase: string, businessName: string, industry: string, structuredData: any, chatbotId?: string, nicheMatch?: any): Promise<string> {
   const vapiKey = adminSettings.vapi_private_key || Deno.env.get("VAPI_API_KEY");
   if (!vapiKey) throw new Error("VAPI private key not configured. Set it in Admin → Settings.");
 
   const agentName = adminSettings.default_agent_name || "Alex";
   let basePrompt = getVoicePrompt(agentName, businessName, industry, systemPrompt, knowledgeBase, structuredData);
+  let usedLocalBiz = false;
+
+  // ── Local-business master template (pre-filled niche packs) ──
+  const nichePack = findNichePack(nicheMatch?.niche);
+  if (nichePack) {
+    try {
+      const appCfg: Record<string, string> = {};
+      const { data: cfgRows } = await supabaseClient.from("app_config").select("key, value");
+      for (const r of cfgRows || []) appCfg[r.key] = r.value ?? "";
+
+      basePrompt = buildLocalBizPrompt({
+        vars: resolveVars({
+          companyName: businessName,
+          agentName,
+          pack: nichePack,
+          overrides: {
+            ...(nicheMatch?.industry_category ? { industry_category: nicheMatch.industry_category } : {}),
+            ...(nicheMatch?.project_type_list ? { project_type_list: nicheMatch.project_type_list } : {}),
+            ...(nicheMatch?.pricing_policy_line ? { pricing_policy_line: nicheMatch.pricing_policy_line } : {}),
+          },
+          settings: { ...appCfg, ...adminSettings },
+        }),
+        channel: "voice",
+        knowledgeBase,
+        coreFacts: null,
+        adaptationNotes: nicheMatch?.decision === "use_as_is" ? null : (nicheMatch?.adaptation_notes || null),
+        chatbotId: chatbotId || null,
+      });
+      usedLocalBiz = true;
+    } catch (e) {
+      console.warn("[create-demo] localbiz prompt skipped:", e instanceof Error ? e.message : e);
+    }
+  }
+
 
   // Real estate v3 master prompt — only when a classified profile exists and is confident.
   if (chatbotId && isRealEstateIndustry(industry)) {
