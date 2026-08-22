@@ -88,6 +88,207 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_appointments: {
+        Row: {
+          calendar_event_id: string | null
+          calendar_id: string | null
+          chatbot_id: string | null
+          city: string
+          created_at: string
+          dedupe_key: string
+          email: string | null
+          email_sent: boolean
+          end_at: string | null
+          estimator: string | null
+          first_name: string
+          id: string
+          last_name: string
+          market: string | null
+          mode: string
+          phone: string
+          project_detail: string
+          slot_label: string | null
+          start_at: string
+          state: string
+          street_address: string
+          timezone: string | null
+          zip: string
+        }
+        Insert: {
+          calendar_event_id?: string | null
+          calendar_id?: string | null
+          chatbot_id?: string | null
+          city: string
+          created_at?: string
+          dedupe_key: string
+          email?: string | null
+          email_sent?: boolean
+          end_at?: string | null
+          estimator?: string | null
+          first_name: string
+          id?: string
+          last_name: string
+          market?: string | null
+          mode?: string
+          phone: string
+          project_detail: string
+          slot_label?: string | null
+          start_at: string
+          state: string
+          street_address: string
+          timezone?: string | null
+          zip: string
+        }
+        Update: {
+          calendar_event_id?: string | null
+          calendar_id?: string | null
+          chatbot_id?: string | null
+          city?: string
+          created_at?: string
+          dedupe_key?: string
+          email?: string | null
+          email_sent?: boolean
+          end_at?: string | null
+          estimator?: string | null
+          first_name?: string
+          id?: string
+          last_name?: string
+          market?: string | null
+          mode?: string
+          phone?: string
+          project_detail?: string
+          slot_label?: string | null
+          start_at?: string
+          state?: string
+          street_address?: string
+          timezone?: string | null
+          zip?: string
+        }
+        Relationships: []
+      }
+      agent_office_notes: {
+        Row: {
+          address: string | null
+          body: string | null
+          chatbot_id: string | null
+          created_at: string
+          delivered: boolean
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          mode: string
+          next_step: string | null
+          phone: string | null
+          project_detail: string | null
+          reason: string | null
+        }
+        Insert: {
+          address?: string | null
+          body?: string | null
+          chatbot_id?: string | null
+          created_at?: string
+          delivered?: boolean
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          mode?: string
+          next_step?: string | null
+          phone?: string | null
+          project_detail?: string | null
+          reason?: string | null
+        }
+        Update: {
+          address?: string | null
+          body?: string | null
+          chatbot_id?: string | null
+          created_at?: string
+          delivered?: boolean
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          mode?: string
+          next_step?: string | null
+          phone?: string | null
+          project_detail?: string | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
+      agent_tool_events: {
+        Row: {
+          chatbot_id: string | null
+          created_at: string
+          id: string
+          mode: string
+          payload: Json
+          result: Json
+          tool: string
+        }
+        Insert: {
+          chatbot_id?: string | null
+          created_at?: string
+          id?: string
+          mode?: string
+          payload?: Json
+          result?: Json
+          tool: string
+        }
+        Update: {
+          chatbot_id?: string | null
+          created_at?: string
+          id?: string
+          mode?: string
+          payload?: Json
+          result?: Json
+          tool?: string
+        }
+        Relationships: []
+      }
+      agent_unbooked_leads: {
+        Row: {
+          address: string | null
+          chatbot_id: string | null
+          created_at: string
+          dedupe_key: string
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          phone: string | null
+          project_detail: string | null
+          reason: string | null
+        }
+        Insert: {
+          address?: string | null
+          chatbot_id?: string | null
+          created_at?: string
+          dedupe_key: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          project_detail?: string | null
+          reason?: string | null
+        }
+        Update: {
+          address?: string | null
+          chatbot_id?: string | null
+          created_at?: string
+          dedupe_key?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          project_detail?: string | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
       api_providers: {
         Row: {
           api_key: string
@@ -124,6 +325,27 @@ export type Database = {
           name?: string
           priority?: number
           provider_type?: string
+        }
+        Relationships: []
+      }
+      app_config: {
+        Row: {
+          description: string | null
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          updated_at?: string
+          value?: string | null
         }
         Relationships: []
       }
@@ -345,6 +567,8 @@ export type Database = {
           kb_chatbot_md: string | null
           kb_voice_text: string | null
           logo_url: string | null
+          match_confidence: string | null
+          matched_industry: string | null
           product_count: number
           prompt_core: Json | null
           research_data: Json | null
@@ -354,6 +578,7 @@ export type Database = {
           store_name: string | null
           store_platform: string | null
           system_prompt: string
+          template_overrides: Json
           website_url: string | null
           widget_config: Json | null
         }
@@ -371,6 +596,8 @@ export type Database = {
           kb_chatbot_md?: string | null
           kb_voice_text?: string | null
           logo_url?: string | null
+          match_confidence?: string | null
+          matched_industry?: string | null
           product_count?: number
           prompt_core?: Json | null
           research_data?: Json | null
@@ -380,6 +607,7 @@ export type Database = {
           store_name?: string | null
           store_platform?: string | null
           system_prompt?: string
+          template_overrides?: Json
           website_url?: string | null
           widget_config?: Json | null
         }
@@ -397,6 +625,8 @@ export type Database = {
           kb_chatbot_md?: string | null
           kb_voice_text?: string | null
           logo_url?: string | null
+          match_confidence?: string | null
+          matched_industry?: string | null
           product_count?: number
           prompt_core?: Json | null
           research_data?: Json | null
@@ -406,6 +636,7 @@ export type Database = {
           store_name?: string | null
           store_platform?: string | null
           system_prompt?: string
+          template_overrides?: Json
           website_url?: string | null
           widget_config?: Json | null
         }
