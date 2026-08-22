@@ -505,6 +505,7 @@ Deno.serve(async (req) => {
           businessName: business_name,
           caps: restaurantCaps,
           knowledgeBase: cbRow?.kb_voice_text || knowledge_base || "",
+          knowledgeBaseAttached: kbAttached,
           structured: structured_data || {},
           chatbotId: chatbot_id || null,
           channel: "voice",
