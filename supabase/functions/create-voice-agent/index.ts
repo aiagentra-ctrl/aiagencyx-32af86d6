@@ -675,7 +675,11 @@ You have a tool called \`search_knowledge_base(query)\`.
     return new Response(JSON.stringify({
       assistant_id: data.id,
       vapi_public_key: adminSettings.vapi_public_key || "",
+      template: useRestaurant ? "restaurant" : useLocalBiz ? "local_business" : "generic",
+      restaurant_capabilities: restaurantCaps || null,
+      knowledge_file_ids: kbFileIds,
     }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Internal server error";
