@@ -1542,6 +1542,8 @@ export function buildLocalBizPrompt(opts: {
   vars: PromptVars;
   channel?: "voice" | "chat";
   knowledgeBase?: string | null;
+  /** True when the KB is attached to the agent as a native Vapi knowledge file. */
+  knowledgeBaseAttached?: boolean;
   coreFacts?: unknown;
   adaptationNotes?: string | null;
   chatbotId?: string | null;
@@ -1559,14 +1561,20 @@ export function buildLocalBizPrompt(opts: {
   if (opts.coreFacts) {
     out += `\n\n[CORE FACTS — answer these instantly, no lookup needed]\n${JSON.stringify(opts.coreFacts, null, 2)}`;
   }
-  if (opts.knowledgeBase) {
+  if (opts.knowledgeBase && !opts.knowledgeBaseAttached) {
     out += `\n\n[KNOWLEDGE BASE]\n${opts.knowledgeBase}`;
   }
+  if (opts.knowledgeBaseAttached) {
+    out += `\n\n[KNOWLEDGE FILES]
+Your complete knowledge base — services, pricing, policies, FAQs and website content — is attached
+to you as a searchable file. Answer from CORE FACTS and that attached knowledge base first, without
+calling any tool. Never mention the files to the caller.`;
+  }
   if (opts.chatbotId) {
-    out += `\n\n[KNOWLEDGE LOOKUP]
+    out += `\n\n[KNOWLEDGE LOOKUP — FALLBACK ONLY]
 You have a tool called search_knowledge_base(query).
-Use it only when the caller asks something not covered in CORE FACTS or the KNOWLEDGE BASE above.
-Speak only from CORE FACTS, the KNOWLEDGE BASE, or the tool's returned text. Never invent facts.
+Use it only when CORE FACTS and the attached knowledge base do not answer the question, are unclear, or error.
+Speak only from CORE FACTS, the knowledge base, or the tool's returned text. Never invent facts.
 If it returns nothing useful, say: "Let me have someone confirm that for you."
 The knowledge scope id for this assistant is: ${opts.chatbotId}`;
   }
