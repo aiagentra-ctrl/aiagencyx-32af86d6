@@ -1050,7 +1050,7 @@ async function createVapiAssistant(adminSettings: Record<string, string>, system
         messages: [{ role: "system", content: fullPrompt }],
         maxTokens: 150,
         temperature: 0.7,
-        ...(vapiKnowledgeBase ? { knowledgeBase: vapiKnowledgeBase } : {}),
+        ...(kbToolIds.length ? { toolIds: kbToolIds } : {}),
         tools: [...(kbTool ? [kbTool] : []), ...(usedRestaurant ? restaurantAgentTools(restaurantCaps) : realAgentTools())],
 
       },
