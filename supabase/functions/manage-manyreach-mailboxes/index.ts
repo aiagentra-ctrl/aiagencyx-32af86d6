@@ -1,119 +1,152 @@
-// Admin CRUD + test endpoint for ManyReach mailbox routing.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { manyreachPing } from "../_shared/manyreach.ts";
-import { resolveManyreachAccount, maskKey } from "../_shared/manyreach-routing.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-key",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-const ADMIN_KEY = Deno.env.get("ADMIN_PANEL_PASSWORD") || "Abhiraj@123";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-function shape(row: any) {
-  return {
-    id: row.id,
-    label: row.label,
-    email: row.email,
-    manyreach_account_id: row.manyreach_account_id,
-    account_name: row.account?.name ?? null,
-    account_active: row.account?.active ?? null,
-    uses_default_account: row.uses_default_account,
-    active: row.active,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  };
+function norm(email: string): string {
+  return String(email || "").trim().toLowerCase();
+}
+
+async function loadAccounts() {
+  const { data } = await sb
+    .from("manyreach_accounts")
+    .select("id, name, active, is_default")
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true });
+  return data || [];
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
   try {
     const body = await req.json().catch(() => ({}));
-    const admin_key = req.headers.get("x-admin-key") || body.admin_key;
-    if (admin_key !== ADMIN_KEY) return json({ error: "unauthorized" }, 401);
-
-    const action = body.action as string;
-    const p = body.params ?? {};
+    const { action = "list" } = body;
 
     switch (action) {
       case "list": {
-        const { data, error } = await sb
-          .from("manyreach_mailboxes")
-          .select("*, account:manyreach_accounts(id, name, active)")
-          .order("created_at", { ascending: true });
-        if (error) throw error;
-        return json({ data: (data ?? []).map(shape) });
-      }
-
-      case "create": {
-        if (!p.email) return json({ error: "email required" }, 400);
-        if (!p.uses_default_account && !p.manyreach_account_id) {
-          return json({ error: "pick an account or use the default" }, 400);
-        }
-        const { data, error } = await sb.from("manyreach_mailboxes").insert({
-          label: p.label || "",
-          email: String(p.email).trim(),
-          manyreach_account_id: p.uses_default_account ? null : p.manyreach_account_id,
-          uses_default_account: !!p.uses_default_account,
-          active: p.active !== false,
-        }).select("*, account:manyreach_accounts(id, name, active)").single();
-        if (error) {
-          if (String(error.message).includes("duplicate")) return json({ error: "That mailbox is already routed." }, 400);
-          throw error;
-        }
-        return json({ data: shape(data) });
-      }
-
-      case "update": {
-        if (!p.id) return json({ error: "id required" }, 400);
-        const patch: Record<string, unknown> = {};
-        for (const k of ["label", "email", "active", "uses_default_account"]) {
-          if (p[k] !== undefined) patch[k] = p[k];
-        }
-        if (p.manyreach_account_id !== undefined) {
-          patch.manyreach_account_id = p.uses_default_account ? null : p.manyreach_account_id;
-        }
-        const { data, error } = await sb.from("manyreach_mailboxes").update(patch).eq("id", p.id)
-          .select("*, account:manyreach_accounts(id, name, active)").single();
-        if (error) throw error;
-        return json({ data: shape(data) });
-      }
-
-      case "delete": {
-        if (!p.id) return json({ error: "id required" }, 400);
-        const { error } = await sb.from("manyreach_mailboxes").delete().eq("id", p.id);
-        if (error) throw error;
-        return json({ data: { deleted: true } });
-      }
-
-      case "test": {
-        // Resolve exactly like a real send would, then ping that account.
-        const email = p.email as string | undefined;
-        if (!email) return json({ error: "email required" }, 400);
-        const resolved = await resolveManyreachAccount({ mailboxEmail: email, allowInactive: true });
-        const r = await manyreachPing({ mailboxEmail: email, allowInactive: true });
+        const [mailboxes, accounts] = await Promise.all([
+          sb.from("manyreach_mailboxes").select("id, label, email, manyreach_account_id, uses_default_account, active, created_at, updated_at").order("created_at", { ascending: true }),
+          loadAccounts(),
+        ]);
+        const accountMap = new Map((accounts || []).map((a: any) => [a.id, a]));
         return json({
-          data: {
-            ok: r.ok, status: r.status, error: r.error, ms: r.ms,
-            resolved: {
-              account_id: resolved.accountId,
-              account_name: resolved.accountName,
-              source: resolved.source,
-              active: resolved.active,
-              key: maskKey(resolved.key),
-              configured: resolved.configured,
-            },
-          },
+          data: (mailboxes.data || []).map((m: any) => ({
+            ...m,
+            account_name: m.uses_default_account ? "Current default (env)" : accountMap.get(m.manyreach_account_id)?.name || "Unknown account",
+          })),
+          accounts,
         });
       }
 
+      case "create": {
+        const label = String(body?.label || "").trim();
+        const email = norm(String(body?.email || ""));
+        if (!label) return json({ error: "label required" }, 400);
+        if (!email) return json({ error: "email required" }, 400);
+
+        const accountId = String(body?.manyreach_account_id || "").trim();
+        const usesDefaultAccount = !accountId || accountId === "__default__" || body?.uses_default_account === true;
+        if (!usesDefaultAccount) {
+          const { data: account } = await sb.from("manyreach_accounts").select("id").eq("id", accountId).maybeSingle();
+          if (!account) return json({ error: "ManyReach account not found" }, 404);
+        }
+
+        const { data, error } = await sb
+          .from("manyreach_mailboxes")
+          .insert({
+            label,
+            email,
+            manyreach_account_id: usesDefaultAccount ? null : accountId,
+            uses_default_account: usesDefaultAccount,
+            active: body?.active !== false,
+            updated_at: new Date().toISOString(),
+          })
+          .select("id, label, email, manyreach_account_id, uses_default_account, active, created_at, updated_at")
+          .single();
+        if (error) throw error;
+        return json({ data });
+      }
+
+      case "update": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id required" }, 400);
+        const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (body?.label !== undefined) patch.label = String(body.label || "").trim();
+        if (body?.email !== undefined) patch.email = norm(String(body.email || ""));
+        if (body?.active !== undefined) patch.active = !!body.active;
+        if (body?.manyreach_account_id !== undefined || body?.uses_default_account !== undefined) {
+          const accountId = String(body?.manyreach_account_id || "").trim();
+          const usesDefaultAccount = !accountId || accountId === "__default__" || body?.uses_default_account === true;
+          patch.manyreach_account_id = usesDefaultAccount ? null : accountId;
+          patch.uses_default_account = usesDefaultAccount;
+          if (!usesDefaultAccount) {
+            const { data: account } = await sb.from("manyreach_accounts").select("id").eq("id", accountId).maybeSingle();
+            if (!account) return json({ error: "ManyReach account not found" }, 404);
+          }
+        }
+
+        const { data, error } = await sb
+          .from("manyreach_mailboxes")
+          .update(patch)
+          .eq("id", id)
+          .select("id, label, email, manyreach_account_id, uses_default_account, active, created_at, updated_at")
+          .single();
+        if (error) throw error;
+        return json({ data });
+      }
+
+      case "delete": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id required" }, 400);
+        const { error } = await sb.from("manyreach_mailboxes").delete().eq("id", id);
+        if (error) throw error;
+        return json({ ok: true });
+      }
+
+      case "toggle": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id required" }, 400);
+        const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (body?.active !== undefined) patch.active = !!body.active;
+        const { data, error } = await sb
+          .from("manyreach_mailboxes")
+          .update(patch)
+          .eq("id", id)
+          .select("id, label, email, manyreach_account_id, uses_default_account, active, created_at, updated_at")
+          .single();
+        if (error) throw error;
+        return json({ data });
+      }
+
+      case "test": {
+        const id = String(body?.id || "").trim();
+        if (!id) return json({ error: "id required" }, 400);
+        const { data: row } = await sb
+          .from("manyreach_mailboxes")
+          .select("id, label, email, manyreach_account_id, uses_default_account, active")
+          .eq("id", id)
+          .maybeSingle();
+        if (!row) return json({ error: "not found" }, 404);
+        const ping = await manyreachPing({
+          accountId: row.uses_default_account ? null : row.manyreach_account_id,
+          mailboxEmail: row.email,
+          allowInactive: true,
+        });
+        return json({ ok: ping.ok, status: ping.status, data: ping.data, error: ping.error });
+      }
+
       default:
-        return json({ error: `unknown action: ${action}` }, 400);
+        return json({ error: `Unknown action: ${action}` }, 400);
     }
   } catch (e) {
     return json({ error: String((e as any)?.message || e) }, 500);

@@ -104,9 +104,6 @@ Deno.serve(async (req) => {
       threadId: lead.message_thread_id,
       sendAsReply: true,
       from: lead.sender_email,
-      // Routes the send to the ManyReach account mapped to this mailbox.
-      fromEmail: lead.sender_email,
-
       cc: lead.cc_emails || [],
       bcc: lead.bcc_emails || [],
       subject,
@@ -114,9 +111,26 @@ Deno.serve(async (req) => {
       variables,
       campaignId: lead.campaign_id,
       metadata: { slug: lead.slug, lead_score: lead.lead_score, condition },
+      mailboxEmail: lead.sender_email || lead.reply_to_email,
     };
 
-    const res = await sendReply(payload);
+    const replyPayload: any = {
+      messageId: lead.message_thread_id,
+      threadId: lead.message_thread_id,
+      subject,
+      body,
+      fromEmail: lead.sender_email,
+      replyToEmail: lead.reply_to_email || lead.sender_email,
+      mailboxEmail: lead.sender_email || lead.reply_to_email,
+      sendAsReply: true,
+      from: lead.sender_email,
+      cc: lead.cc_emails || [],
+      bcc: lead.bcc_emails || [],
+      variables,
+      campaignId: lead.campaign_id,
+      metadata: { slug: lead.slug, lead_score: lead.lead_score, condition },
+    };
+    const res = await sendReply(replyPayload);
     const responseJson: any = res.data ?? {};
     const status = res.ok ? "sent" : "failed";
     const errorMessage = res.ok ? null : res.error;

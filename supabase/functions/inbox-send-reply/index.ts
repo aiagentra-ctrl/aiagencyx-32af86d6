@@ -3,7 +3,6 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logError } from "../_shared/observability.ts";
 import { hasDemoUrl, markDemoLinkSent } from "../_shared/memory.ts";
 import { sendReply, extractMessageId } from "../_shared/manyreach.ts";
-import { resolveManyreachAccount } from "../_shared/manyreach-routing.ts";
 import { finalizeReply, senderName } from "../_shared/reply-format.ts";
 
 const corsHeaders = {
@@ -52,15 +51,14 @@ Deno.serve(async (req) => {
     let manyreachOk = false;
     let manyreachResponse: any = null;
     let manyreachMessageId: string | null = null;
-    // Route through the ManyReach account mapped to this sending mailbox.
-    const routed = await resolveManyreachAccount({ mailboxEmail: prospect.sender_email });
-    if (routed.configured && messageId) {
+    if (messageId) {
       const r = await sendReply({
         messageId,
         subject: finalSubject,
         body: finalBody,
         fromEmail: prospect.sender_email,
         replyToEmail: prospect.reply_to_email || prospect.sender_email,
+        mailboxEmail: prospect.sender_email || prospect.reply_to_email,
       });
       manyreachOk = r.ok;
       manyreachResponse = r.data ?? r.error;
@@ -70,7 +68,7 @@ Deno.serve(async (req) => {
         await logError("send", `ManyReach ${r.status}: ${String(r.error).slice(0, 500)}`, { prospect_id, is_test: !!prospect.is_test_data });
       }
     } else {
-      console.warn("ManyReach send skipped: missing key or messageId");
+      console.warn("ManyReach send skipped: missing messageId");
     }
 
     // Always store the outgoing message (even if send failed, so admin sees the attempt)
