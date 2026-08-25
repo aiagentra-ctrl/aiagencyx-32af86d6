@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SiteSettingsPanel from "./SiteSettingsPanel";
 import VariableFallbacksPanel from "./followup/VariableFallbacksPanel";
 import EcomLandingTemplatePanel from "./EcomLandingTemplatePanel";
+import ManyReachRoutingCard from "./ManyReachRoutingCard";
 import AiProviderKeyCard from "./AiProviderKeyCard";
 import { SectionHeader } from "@/components/primitives";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,6 +96,7 @@ export default function SettingsPage() {
           <TabsTrigger value="sequences">Sequences</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="keys">API Keys</TabsTrigger>
+          <TabsTrigger value="manyreach">ManyReach</TabsTrigger>
         </TabsList>
         <TabsContent value="general"><SiteSettingsPanel /></TabsContent>
         <TabsContent value="variables"><VariableFallbacksPanel /></TabsContent>
@@ -102,6 +104,7 @@ export default function SettingsPage() {
         <TabsContent value="sequences"><SequenceGlobalRules /></TabsContent>
         <TabsContent value="notifications"><NotificationToggles /></TabsContent>
         <TabsContent value="keys" className="space-y-4"><AiProviderKeyCard /><ApiKeysShortcut /></TabsContent>
+        <TabsContent value="manyreach"><ManyReachRoutingCard /></TabsContent>
       </Tabs>
     </div>
   );
