@@ -79,7 +79,16 @@ const EcommerceChatWindow = ({
         },
         body: JSON.stringify({ chatbotId, sessionId: sessionId.current, message: text }),
       });
-      if (!resp.ok || !resp.body) throw new Error(`Error ${resp.status}`);
+      if (!resp.ok || !resp.body) {
+        // Surface the real backend reason instead of a bare status code.
+        const info = await resp.json().catch(() => null as any);
+        throw new Error(
+          info?.error ||
+            (resp.status === 503
+              ? "The assistant is temporarily unavailable. Please try again in a moment."
+              : `Something went wrong (${resp.status}). Please try again.`),
+        );
+      }
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();

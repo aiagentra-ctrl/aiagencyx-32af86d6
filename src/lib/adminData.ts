@@ -29,7 +29,10 @@ export type AdminResource =
   | "tracking"
   | "overview"
   | "sync_leads"
-  | "demo_jobs";
+  | "demo_jobs"
+  | "ai_keys"
+  | "test_openrouter_key"
+  | "save_openrouter_key";
 
 /**
  * Fetch a resource through the admin-data edge function.

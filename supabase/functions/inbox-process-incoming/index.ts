@@ -2,6 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { traceStep, logError } from "../_shared/observability.ts";
 import { resolveWebsite } from "../_shared/website.ts";
+import { resolveCompanyName, resolveFirstName } from "../_shared/display-name.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -123,7 +124,7 @@ Deno.serve(async (req) => {
         demoUrl = priorUrl;
         await supabase.from("inbox_demos").insert({
           prospect_id, demo_url: demoUrl,
-          business_name: prospect.company || prospect.firstname || prospect.email,
+          business_name: resolveCompanyName(prospect),
         });
         await traceStep(prospect_id, message_id, "demo", "ok", { demo_url: demoUrl, reused: true });
       }
@@ -149,9 +150,9 @@ Deno.serve(async (req) => {
     if (shouldCreateDemo) {
       try {
         const demoRes = await call("create-demo", {
-          business_name: prospect.company || prospect.firstname || prospect.email,
+          business_name: resolveCompanyName(prospect),
           website_url: websiteUrl,
-          firstName: prospect.firstname,
+          firstName: resolveFirstName(prospect),
           campaignName: prospect.campaign_name,
           campaignId: prospect.campaign_id,
           senderEmail: prospect.sender_email,
@@ -165,7 +166,7 @@ Deno.serve(async (req) => {
           await supabase.from("inbox_demos").insert({
             prospect_id,
             demo_url: demoUrl,
-            business_name: prospect.company || prospect.firstname || prospect.email,
+            business_name: resolveCompanyName(prospect),
           });
           await supabase.from("prospects").update({ demo_sent_at: new Date().toISOString() }).eq("id", prospect_id);
           await traceStep(prospect_id, message_id, "demo", "ok", { demo_url: demoUrl });

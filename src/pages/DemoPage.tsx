@@ -29,6 +29,7 @@ const DentalWhyClinicSection = lazy(() => import("@/components/demo/DentalWhyCli
 const PropertyShowcaseSection = lazy(() => import("@/components/demo/realestate/PropertyShowcaseSection"));
 const RealEstateValueSection = lazy(() => import("@/components/demo/realestate/RealEstateValueSection"));
 import { resolveNichePack, nicheCtx } from "@/components/demo/niche/packs";
+import { safeCompanyName, safeFirstName } from "@/components/demo/realestate/v2/personalize";
 
 const RealEstateLandingPageV2 = lazy(() => import("@/components/demo/realestate/v2/RealEstateLandingPage"));
 const REVoiceCall = lazy(() => import("@/components/demo/realestate/v2/REVoiceCall"));
@@ -314,7 +315,14 @@ const DemoPage = () => {
 
   const research = (linkedChatbot?.research_data as any) || {};
   const logoUrl = linkedChatbot?.logo_url || linkedChatbot?.widget_config?.logo || undefined;
-  const companyName = page.company_name || page.business_name;
+  // Raw emails must never render as a business name (old rows stored them).
+  const companyName = safeCompanyName(page.company_name || page.business_name, {
+    websiteUrl: (linkedChatbot as any)?.website_url,
+    contactEmail: page.contact_email,
+  });
+  // Scrub any email that leaked into stored copy (hero title/subtitle, CTA).
+  const scrub = (t?: string | null) =>
+    (t || "").replace(/[\w.+-]+@[\w.-]+\.[a-z]{2,}/gi, companyName) || undefined;
   const dc = (page.dynamic_content as any) || {};
   const chatbotNavItems = linkedChatbot?.widget_config?.navItems || dc.chatbot_nav_items || undefined;
   const isDental = ["dental", "clinic", "dentist", "healthcare", "medical", "doctor"]
@@ -349,7 +357,7 @@ const DemoPage = () => {
   // same structure, niche-specific copy/vocabulary from the resolved pack.
   if (!isDental) {
     const pack = resolveNichePack(`${page.industry || ""} ${companyName}`, dc.niche);
-    const firstName = page.client_name?.split(/\s+/)[0] || dc.first_name || undefined;
+    const firstName = safeFirstName(page.client_name?.split(/\s+/)[0] || dc.first_name, "") || undefined;
     const ctx = nicheCtx(companyName, firstName);
     return (
       <Suspense fallback={<div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>}>
@@ -420,8 +428,8 @@ const DemoPage = () => {
       <div ref={heroRef}>
         <HeroSection
           companyName={companyName}
-          heroTitle={page.hero_title || undefined}
-          heroSubtitle={page.hero_subtitle || undefined}
+          heroTitle={scrub(page.hero_title)}
+          heroSubtitle={scrub(page.hero_subtitle)}
           logoUrl={logoUrl}
           onTryCall={startVapi}
           onEndCall={endVapi}
@@ -485,7 +493,7 @@ const DemoPage = () => {
         />
 
         <FooterSection
-          businessName={page.business_name}
+          businessName={companyName}
           contactEmail={page.contact_email || undefined}
           contactPhone={page.contact_phone || undefined}
           logoUrl={logoUrl}

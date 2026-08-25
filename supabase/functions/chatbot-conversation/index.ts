@@ -25,58 +25,68 @@ interface AIProvider {
   url: string;
   key: string;
   model: string;
+  /** Lovable AI Gateway authenticates with its own header, not Bearer. */
+  authHeader?: string;
 }
 
+const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const LOVABLE_AI_MODEL = "openai/gpt-5.6-sol";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+/**
+ * The dashboard-managed OpenRouter key wins over the deployment secret, so the
+ * owner can swap keys without a code change. Falls back to the env secret.
+ */
+export async function getOpenRouterKey(supabase: any): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from("app_config").select("value").eq("key", "openrouter_api_key").maybeSingle();
+    const v = (data?.value || "").trim();
+    if (v) return v;
+  } catch { /* fall through to env */ }
+  return Deno.env.get("OPENROUTER_API_KEY") || null;
+}
+
+/**
+ * Provider chain: OpenRouter first (owner's key), then any custom keys, then the
+ * Lovable AI Gateway as the always-available safety net. A single dead provider
+ * (out of credits, rate limited, down) can no longer 503 the whole chatbot.
+ */
 async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> {
   const providers: AIProvider[] = [];
 
-  // Prefer OpenRouter Claude Haiku for e-commerce (fast + product-savvy).
   const industryLower = (chatbot.industry || "").toLowerCase();
   const isEcom = ["ecommerce", "shop", "store", "retail"].some((k) => industryLower.includes(k));
-  const openrouterKey = Deno.env.get("OPENROUTER_API_KEY");
-  if (openrouterKey && isEcom) {
+  const openrouterKey = await getOpenRouterKey(supabase);
+
+  // 1) OpenRouter — primary.
+  if (openrouterKey) {
     providers.push({
-      name: "OpenRouter: Claude 3.5 Haiku",
-      url: "https://openrouter.ai/api/v1/chat/completions",
+      name: isEcom ? "OpenRouter: Claude 3.5 Haiku" : "OpenRouter: Claude Sonnet 5",
+      url: OPENROUTER_URL,
       key: openrouterKey,
-      model: MODELS.ecommerce_chat,
+      model: isEcom ? MODELS.ecommerce_chat : MODELS.agent,
     });
-  }
-
-  if (chatbot.ai_provider !== "lovable" && chatbot.api_key_encrypted) {
-    let url: string;
-    switch (chatbot.ai_provider) {
-      case "openai": url = "https://api.openai.com/v1/chat/completions"; break;
-      case "openrouter": url = "https://openrouter.ai/api/v1/chat/completions"; break;
-      default: url = "https://api.openai.com/v1/chat/completions";
-    }
-    providers.push({
-      name: `Chatbot: ${chatbot.ai_provider}`,
-      url,
-      key: chatbot.api_key_encrypted,
-      model: chatbot.ai_model || "gpt-4",
-    });
-  }
-
-  if (openrouterKey && !providers.find((p) => p.model === MODELS.agent)) {
-    providers.push({
-      name: "OpenRouter: Claude Sonnet 5",
-      url: "https://openrouter.ai/api/v1/chat/completions",
-      key: openrouterKey,
-      model: MODELS.agent,
-    });
-  }
-
-  // OpenRouter fallback for non-ecommerce industries (or if primary path failed above).
-  if (openrouterKey && !providers.find((p) => p.url.includes("openrouter.ai"))) {
     providers.push({
       name: "OpenRouter: GPT-4o mini",
-      url: "https://openrouter.ai/api/v1/chat/completions",
+      url: OPENROUTER_URL,
       key: openrouterKey,
       model: MODELS.fallback,
     });
   }
 
+  // 2) A chatbot-specific key, when one is configured.
+  if (chatbot.ai_provider !== "lovable" && chatbot.api_key_encrypted) {
+    const url = chatbot.ai_provider === "openrouter" ? OPENROUTER_URL : "https://api.openai.com/v1/chat/completions";
+    providers.push({
+      name: `Chatbot: ${chatbot.ai_provider}`,
+      url,
+      key: chatbot.api_key_encrypted,
+      model: chatbot.ai_model || "gpt-4o-mini",
+    });
+  }
+
+  // 3) Extra providers configured in the admin panel.
   const { data: dbProviders } = await supabase
     .from("api_providers")
     .select("*")
@@ -90,18 +100,31 @@ async function getProviders(supabase: any, chatbot: any): Promise<AIProvider[]> 
       if (!url) {
         switch (p.provider_type) {
           case "openai": url = "https://api.openai.com/v1/chat/completions"; break;
-          case "openrouter": url = "https://openrouter.ai/api/v1/chat/completions"; break;
+          case "openrouter": url = OPENROUTER_URL; break;
           default: continue;
         }
       }
-      if (!providers.find((x) => x.key === p.api_key)) {
-        providers.push({ name: p.name, url, key: p.api_key, model: p.model || "gpt-4" });
+      if (!providers.find((x) => x.key === p.api_key && x.url === url)) {
+        providers.push({ name: p.name, url, key: p.api_key, model: p.model || "gpt-4o-mini" });
       }
     }
   }
 
+  // 4) Lovable AI Gateway — final fallback, always available.
+  const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+  if (lovableKey) {
+    providers.push({
+      name: "Lovable AI Gateway",
+      url: LOVABLE_AI_URL,
+      key: lovableKey,
+      model: LOVABLE_AI_MODEL,
+      authHeader: "Lovable-API-Key",
+    });
+  }
+
   return providers;
 }
+
 
 // ── Shopping query parsing (Part 2C) ─────────────────────────────────────
 type ParsedQuery = {
@@ -694,19 +717,29 @@ Deno.serve(async (req) => {
     const failureReasons: string[] = [];
 
     for (const provider of providers) {
+      const startedAt = Date.now();
       try {
         console.log(`Chat: trying ${provider.name}`);
-        const res = await fetchWithTimeout(provider.url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${provider.key}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ model: provider.model, messages: aiMessages, stream: true }),
-        }, 30000);
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (provider.authHeader) headers[provider.authHeader] = provider.key;
+        else headers.Authorization = `Bearer ${provider.key}`;
+
+        // No artificial deadline for the gateway — it streams and can think.
+        const res = provider.authHeader
+          ? await fetch(provider.url, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ model: provider.model, messages: aiMessages, stream: true }),
+            })
+          : await fetchWithTimeout(provider.url, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ model: provider.model, messages: aiMessages, stream: true }),
+            }, 30000);
 
         if (res.status === 429) { failureReasons.push(`${provider.name}: rate limited`); continue; }
         if (res.status === 402) { failureReasons.push(`${provider.name}: credits exhausted`); continue; }
+        if (res.status === 403) { failureReasons.push(`${provider.name}: blocked (403)`); continue; }
         if (!res.ok) {
           const errText = await res.text();
           failureReasons.push(`${provider.name}: HTTP ${res.status}`);
@@ -716,6 +749,17 @@ Deno.serve(async (req) => {
 
         aiRes = res;
         usedProvider = provider.name;
+        // Provider reliability log — shows how often the fallback chain kicks in.
+        supabase.from("activity_logs").insert({
+          event_type: "chat_provider",
+          status: failureReasons.length ? "fallback" : "primary",
+          message: `Chat answered by ${provider.name}`,
+          metadata: {
+            provider: provider.name, model: provider.model,
+            chatbot_id: chatbotId, ms: Date.now() - startedAt,
+            failed_before: failureReasons,
+          },
+        }).then(() => {}, () => {});
         break;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "error";
@@ -724,16 +768,24 @@ Deno.serve(async (req) => {
     }
 
     if (!aiRes) {
-      const allCreditsExhausted = failureReasons.every(r => r.includes("credits exhausted"));
+      const allCreditsExhausted = failureReasons.length > 0 && failureReasons.every(r => r.includes("credits exhausted"));
       const errorMsg = allCreditsExhausted
-        ? "AI credits exhausted. Please add a backup API provider."
+        ? "Every AI provider is out of credits. Add or update your OpenRouter key in Settings."
         : `All AI providers failed: ${failureReasons.join("; ")}`;
+
+      supabase.from("activity_logs").insert({
+        event_type: "chat_provider",
+        status: "failed",
+        message: errorMsg,
+        metadata: { chatbot_id: chatbotId, failures: failureReasons },
+      }).then(() => {}, () => {});
 
       return new Response(
         JSON.stringify({ error: errorMsg, details: failureReasons }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
 
     let fullResponse = "";
     const { readable, writable } = new TransformStream({
