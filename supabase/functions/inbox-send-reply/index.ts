@@ -2,7 +2,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { logError } from "../_shared/observability.ts";
 import { hasDemoUrl, markDemoLinkSent } from "../_shared/memory.ts";
-import { sendReply, extractMessageId, manyreachConfigured } from "../_shared/manyreach.ts";
+import { sendReply, extractMessageId } from "../_shared/manyreach.ts";
+import { resolveManyreachAccount } from "../_shared/manyreach-routing.ts";
 import { finalizeReply, senderName } from "../_shared/reply-format.ts";
 
 const corsHeaders = {
@@ -51,7 +52,9 @@ Deno.serve(async (req) => {
     let manyreachOk = false;
     let manyreachResponse: any = null;
     let manyreachMessageId: string | null = null;
-    if (manyreachConfigured() && messageId) {
+    // Route through the ManyReach account mapped to this sending mailbox.
+    const routed = await resolveManyreachAccount({ mailboxEmail: prospect.sender_email });
+    if (routed.configured && messageId) {
       const r = await sendReply({
         messageId,
         subject: finalSubject,
