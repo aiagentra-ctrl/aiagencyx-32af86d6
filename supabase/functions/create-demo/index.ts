@@ -10,6 +10,7 @@ import {
   restaurantAgentTools, capabilityLabel, menuSection,
 } from "../_shared/restaurant-prompt.ts";
 import { attachVapiKnowledge, kbFirstRules, toolOnlyRules } from "../_shared/vapi-kb-doc.ts";
+import { resolveCompanyName } from "../_shared/display-name.ts";
 
 
 
@@ -1083,7 +1084,14 @@ Deno.serve(async (req) => {
 
   try {
     const reqBody = await req.json();
-    const { business_name, website_url, calendar_link, industry: userIndustry } = reqBody;
+    const { website_url, calendar_link, industry: userIndustry } = reqBody;
+    // Guard: a raw email must never become the business name on a landing page.
+    const business_name = resolveCompanyName({
+      company: reqBody.company ?? reqBody.business_name,
+      firstname: reqBody.firstName,
+      website_url: reqBody.website_url,
+      email: reqBody.email ?? reqBody.business_name,
+    });
     // Optional follow-up fields (additive — do not affect existing flow)
     const followUp = {
       first_name: reqBody.firstName || null,

@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SiteSettingsPanel from "./SiteSettingsPanel";
 import VariableFallbacksPanel from "./followup/VariableFallbacksPanel";
 import EcomLandingTemplatePanel from "./EcomLandingTemplatePanel";
+import AiProviderKeyCard from "./AiProviderKeyCard";
 import { SectionHeader } from "@/components/primitives";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -100,7 +101,7 @@ export default function SettingsPage() {
         <TabsContent value="ecom-landing"><EcomLandingTemplatePanel /></TabsContent>
         <TabsContent value="sequences"><SequenceGlobalRules /></TabsContent>
         <TabsContent value="notifications"><NotificationToggles /></TabsContent>
-        <TabsContent value="keys"><ApiKeysShortcut /></TabsContent>
+        <TabsContent value="keys" className="space-y-4"><AiProviderKeyCard /><ApiKeysShortcut /></TabsContent>
       </Tabs>
     </div>
   );

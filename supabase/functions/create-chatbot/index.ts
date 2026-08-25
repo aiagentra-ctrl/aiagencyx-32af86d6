@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveCompanyName } from "../_shared/display-name.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,7 +32,16 @@ Deno.serve(async (req) => {
   const supabase = getSupabase();
 
   try {
-    const { business_name, website_url, system_prompt, knowledge_base, logo_url, industry, demo_page_id } = await req.json();
+    const reqBody = await req.json();
+    const { website_url, system_prompt, knowledge_base, logo_url, industry, demo_page_id } = reqBody;
+    // Never let a raw email become the public business name.
+    const business_name = reqBody.business_name
+      ? resolveCompanyName({
+          company: reqBody.business_name,
+          website_url,
+          email: reqBody.business_name,
+        })
+      : "";
 
     if (!business_name) {
       return new Response(JSON.stringify({ error: "business_name is required" }),

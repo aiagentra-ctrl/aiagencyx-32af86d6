@@ -232,7 +232,67 @@ const RESOURCES: Record<string, (p: any) => Promise<unknown>> = {
       : { data: [] as any[] };
     return { jobs: jobs ?? [], steps: steps ?? [] };
   },
+
+  // ── AI provider keys (owner-managed OpenRouter key) ──────
+  // The key itself is never returned to the browser — only a masked preview.
+  ai_keys: async () => {
+    const { data } = await sb.from("app_config").select("value, updated_at").eq("key", "openrouter_api_key").maybeSingle();
+    const v = (data?.value || "").trim();
+    return {
+      openrouter: {
+        configured: !!v,
+        masked: v ? `${v.slice(0, 8)}…${v.slice(-4)}` : null,
+        updated_at: data?.updated_at ?? null,
+        source: v ? "dashboard" : (Deno.env.get("OPENROUTER_API_KEY") ? "deployment secret" : "none"),
+      },
+      lovable_fallback: !!Deno.env.get("LOVABLE_API_KEY"),
+    };
+  },
+
+  /** Validates a key against OpenRouter before saving it. */
+  test_openrouter_key: async (p) => {
+    const key = String(p?.api_key || "").trim() || (await (async () => {
+      const { data } = await sb.from("app_config").select("value").eq("key", "openrouter_api_key").maybeSingle();
+      return (data?.value || "").trim() || Deno.env.get("OPENROUTER_API_KEY") || "";
+    })());
+    if (!key) return { ok: false, error: "No key to test." };
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/key", {
+        headers: { Authorization: `Bearer ${key}` },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return { ok: false, error: `OpenRouter rejected the key (HTTP ${res.status})` };
+      const d = (body as any)?.data ?? {};
+      return {
+        ok: true,
+        label: d.label ?? null,
+        usage: d.usage ?? null,
+        limit: d.limit ?? null,
+        limit_remaining: d.limit_remaining ?? null,
+        is_free_tier: d.is_free_tier ?? null,
+      };
+    } catch (e) {
+      return { ok: false, error: String((e as any)?.message || e) };
+    }
+  },
+
+  save_openrouter_key: async (p) => {
+    const key = String(p?.api_key || "").trim();
+    if (key && !/^sk-or-/.test(key)) return { ok: false, error: "OpenRouter keys start with \"sk-or-\"." };
+
+    if (key) {
+      const res = await fetch("https://openrouter.ai/api/v1/key", { headers: { Authorization: `Bearer ${key}` } });
+      if (!res.ok) return { ok: false, error: `OpenRouter rejected the key (HTTP ${res.status}) — not saved.` };
+    }
+
+    await sb.from("app_config").upsert(
+      { key: "openrouter_api_key", value: key || null, description: "Owner-managed OpenRouter API key (primary chat provider)", updated_at: new Date().toISOString() },
+      { onConflict: "key" },
+    );
+    return { ok: true, cleared: !key };
+  },
 };
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
