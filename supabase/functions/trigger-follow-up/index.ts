@@ -104,6 +104,9 @@ Deno.serve(async (req) => {
       threadId: lead.message_thread_id,
       sendAsReply: true,
       from: lead.sender_email,
+      // Routes the send to the ManyReach account mapped to this mailbox.
+      fromEmail: lead.sender_email,
+
       cc: lead.cc_emails || [],
       bcc: lead.bcc_emails || [],
       subject,
