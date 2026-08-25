@@ -3,6 +3,7 @@
 // - 15s timeout, 3 attempts with backoff on 429/5xx/network
 // - every call logged to webhook_logs (no silent failures)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveManyreachAccount, type ResolveOptions, type ResolvedAccount } from "./manyreach-routing.ts";
 
 const BASE = "https://api.manyreach.com/api/v2";
 const KEY = Deno.env.get("MANYREACH_API_KEY") || "";
@@ -19,7 +20,12 @@ export type ManyReachResult<T = any> = {
   error: string | null;
   attempts: number;
   ms: number;
+  /** Which ManyReach account actually handled the call. */
+  account?: { id: string | null; name: string; source: string };
 };
+
+/** Routing hints callers can attach to any request. */
+export type Routing = ResolveOptions;
 
 export function manyreachConfigured(): boolean {
   return !!KEY;
@@ -28,7 +34,7 @@ export function manyreachConfigured(): boolean {
 async function logCall(endpoint: string, payload: unknown, r: ManyReachResult) {
   try {
     await admin().from("webhook_logs").insert({
-      endpoint: `manyreach:${endpoint}`,
+      endpoint: `manyreach:${endpoint}${r.account?.name ? ` [${r.account.name}]` : ""}`,
       method: "POST",
       status: r.ok ? "success" : "failed",
       status_code: r.status,
@@ -44,19 +50,23 @@ async function logCall(endpoint: string, payload: unknown, r: ManyReachResult) {
 /** Low-level ManyReach request with retries. `path` is relative to /api/v2. */
 export async function manyreachRequest<T = any>(
   path: string,
-  init: { method?: string; body?: unknown } = {},
+  init: { method?: string; body?: unknown; routing?: Routing } = {},
 ): Promise<ManyReachResult<T>> {
   const t0 = Date.now();
   const method = init.method || "POST";
   const url = path.startsWith("http") ? path : `${BASE}${path.startsWith("/") ? path : `/${path}`}`;
 
+  const acc: ResolvedAccount = await resolveManyreachAccount(init.routing ?? {});
+  const accountMeta = { id: acc.accountId, name: acc.accountName, source: acc.source };
+  const KEY = acc.key;
+
   if (!KEY) {
-    const res: ManyReachResult<T> = { ok: false, status: 0, data: null, error: "MANYREACH_API_KEY not configured", attempts: 0, ms: 0 };
+    const res: ManyReachResult<T> = { ok: false, status: 0, data: null, error: `ManyReach API key not configured for ${acc.accountName}`, attempts: 0, ms: 0, account: accountMeta };
     await logCall(path, init.body ?? null, res);
     return res;
   }
 
-  let last: ManyReachResult<T> = { ok: false, status: 0, data: null, error: "not attempted", attempts: 0, ms: 0 };
+  let last: ManyReachResult<T> = { ok: false, status: 0, data: null, error: "not attempted", attempts: 0, ms: 0, account: accountMeta };
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const ctl = new AbortController();
@@ -79,6 +89,7 @@ export async function manyreachRequest<T = any>(
         error: res.ok ? null : `HTTP ${res.status}: ${String(raw).slice(0, 400)}`,
         attempts: attempt,
         ms: Date.now() - t0,
+        account: accountMeta,
       };
 
       const retryable = res.status === 429 || res.status >= 500;
@@ -91,6 +102,7 @@ export async function manyreachRequest<T = any>(
         error: `network: ${String((e as any)?.message || e)}`,
         attempts: attempt,
         ms: Date.now() - t0,
+        account: accountMeta,
       };
       if (attempt === MAX_ATTEMPTS) break;
     } finally {
@@ -109,12 +121,16 @@ export type ReplyPayload = {
   body: string;
   fromEmail?: string | null;
   replyToEmail?: string | null;
+  /** Explicit account override (admin tests). Otherwise fromEmail routes it. */
+  accountId?: string | null;
+  allowInactive?: boolean;
 };
 
-/** Send a threaded reply. */
+/** Send a threaded reply through the account mapped to the sending mailbox. */
 export async function sendReply(p: ReplyPayload): Promise<ManyReachResult> {
   return await manyreachRequest("/messages/reply", {
     method: "POST",
+    routing: { mailboxEmail: p.fromEmail, accountId: p.accountId, allowInactive: p.allowInactive },
     body: {
       messageId: p.messageId,
       subject: p.subject,
@@ -132,6 +148,6 @@ export function extractMessageId(data: any): string | null {
 }
 
 /** Lightweight connectivity probe used by the dashboard + health check. */
-export async function manyreachPing(): Promise<ManyReachResult> {
-  return await manyreachRequest("/campaigns", { method: "GET" });
+export async function manyreachPing(routing: Routing = {}): Promise<ManyReachResult> {
+  return await manyreachRequest("/campaigns", { method: "GET", routing });
 }

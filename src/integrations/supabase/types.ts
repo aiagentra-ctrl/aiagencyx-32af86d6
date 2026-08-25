@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -1848,6 +1848,45 @@ export type Database = {
           },
         ]
       }
+      manyreach_accounts: {
+        Row: {
+          active: boolean
+          api_key: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          notes: string | null
+          updated_at: string
+          use_env_key: boolean
+          webhook_secret: string | null
+        }
+        Insert: {
+          active?: boolean
+          api_key?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          notes?: string | null
+          updated_at?: string
+          use_env_key?: boolean
+          webhook_secret?: string | null
+        }
+        Update: {
+          active?: boolean
+          api_key?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          notes?: string | null
+          updated_at?: string
+          use_env_key?: boolean
+          webhook_secret?: string | null
+        }
+        Relationships: []
+      }
       manyreach_logs: {
         Row: {
           campaign_id: string | null
@@ -1889,6 +1928,47 @@ export type Database = {
           thread_id?: string | null
         }
         Relationships: []
+      }
+      manyreach_mailboxes: {
+        Row: {
+          active: boolean
+          created_at: string
+          email: string
+          id: string
+          label: string
+          manyreach_account_id: string | null
+          updated_at: string
+          uses_default_account: boolean
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          email: string
+          id?: string
+          label?: string
+          manyreach_account_id?: string | null
+          updated_at?: string
+          uses_default_account?: boolean
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          email?: string
+          id?: string
+          label?: string
+          manyreach_account_id?: string | null
+          updated_at?: string
+          uses_default_account?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manyreach_mailboxes_manyreach_account_id_fkey"
+            columns: ["manyreach_account_id"]
+            isOneToOne: false
+            referencedRelation: "manyreach_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       node_prompts: {
         Row: {
